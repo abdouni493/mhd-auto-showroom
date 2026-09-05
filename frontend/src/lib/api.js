@@ -22,6 +22,7 @@ function shapeCar(car) {
 
 function shapePurchase(p) {
   if (!p) return p;
+  if (p.client) shapeClient(p.client);
   if (p.car) {
     shapeCar(p.car);
     // inspection is stored on the car; the printed invoice reads purchase.inspection
@@ -33,6 +34,8 @@ function shapePurchase(p) {
 function shapeSale(s) {
   if (!s) return s;
   if (s.car) shapeCar(s.car);
+  // clients embed as photo_url; the forms and invoices read client.photo
+  if (s.client) shapeClient(s.client);
   // totalAfterTax isn't a column — derive it for the printed invoice
   const base = Number(s.totalBeforeTax) || 0;
   s.totalAfterTax = s.tvaEnabled ? Math.round(base * (1 + (Number(s.tvaRate) || 0) / 100)) : base;
@@ -537,39 +540,49 @@ export const purchasesApi = {
     return getPurchaseFull(purchase.id); // enriched (joins) so the invoice can print
   },
   async update(id, { sourceType, supplierId, clientId, car, purchasePrice, sellingPrice, amountPaid, inspection, date }) {
-    const { data: existing, error: exError } = await supabase.from("purchases").select("car_id").eq("id", id).single();
+    const { data: existing, error: exError } = await supabase
+      .from("purchases")
+      .select("car_id, source_type, supplier_id, client_id, purchase_price, selling_price, amount_paid, date")
+      .eq("id", id)
+      .single();
     if (exError) throw exError;
     const carId = existing.car_id;
 
-    // 1. car fields
-    const { error: carError } = await supabase
-      .from("cars")
-      .update({ ...carInsert(car), inspection: inspection ?? car.inspection ?? {} })
-      .eq("id", carId);
-    if (carError) throw carError;
+    // 1. car fields (only when the form actually sent a car)
+    if (car && carId) {
+      const { error: carError } = await supabase
+        .from("cars")
+        .update({ ...carInsert(car), inspection: inspection ?? car.inspection ?? {} })
+        .eq("id", carId);
+      if (carError) throw carError;
 
-    // 2. documents — replace the full set (each: { type, url }, url may be null)
-    const { error: delDocError } = await supabase.from("car_documents").delete().eq("car_id", carId);
-    if (delDocError) throw delDocError;
-    const docs = car.documents || [];
-    if (docs.length > 0) {
-      const { error: docError } = await supabase
-        .from("car_documents")
-        .insert(docs.map((d) => ({ car_id: carId, type: d.type, doc_url: d.url || "" })));
-      if (docError) throw docError;
+      // 2. documents — replace the full set (each: { type, url }, url may be null).
+      //    Skipped when `documents` is absent so a partial payload can't wipe them.
+      if (Array.isArray(car.documents)) {
+        const { error: delDocError } = await supabase.from("car_documents").delete().eq("car_id", carId);
+        if (delDocError) throw delDocError;
+        if (car.documents.length > 0) {
+          const { error: docError } = await supabase
+            .from("car_documents")
+            .insert(car.documents.map((d) => ({ car_id: carId, type: d.type, doc_url: d.url || "" })));
+          if (docError) throw docError;
+        }
+      }
     }
 
-    // 3. the purchase
+    // 3. the purchase — a supplier purchase must clear client_id and vice versa,
+    //    otherwise the old counterparty stays attached after switching source.
+    const source = sourceType ?? existing.source_type;
     const { error: purError } = await supabase
       .from("purchases")
       .update({
-        source_type: sourceType,
-        supplier_id: supplierId || null,
-        client_id: clientId || null,
-        purchase_price: Number(purchasePrice) || 0,
-        selling_price: Number(sellingPrice) || 0,
-        amount_paid: Number(amountPaid) || 0,
-        date,
+        source_type: source,
+        supplier_id: source === "SUPPLIER" ? supplierId || null : null,
+        client_id: source === "CLIENT" ? clientId || null : null,
+        purchase_price: Number(purchasePrice ?? existing.purchase_price) || 0,
+        selling_price: Number(sellingPrice ?? existing.selling_price) || 0,
+        amount_paid: Number(amountPaid ?? existing.amount_paid) || 0,
+        date: date || existing.date,
       })
       .eq("id", id);
     if (purError) throw purError;
@@ -697,28 +710,55 @@ export const salesApi = {
     if (error) throw error;
     return getSaleFull(data.id);
   },
+  // Full update — the Sales edit form sends every field the POS creation flow
+  // collects (client, inspection, pricing, date, clientTakeCar). Fields that
+  // are left out keep their stored value, and the total is always recomputed
+  // from the merged values so a partial payload can never zero it out.
   async update(id, payload) {
-    const patch = {};
-    if (payload.saleType !== undefined) patch.sale_type = payload.saleType;
-    if (payload.basePrice !== undefined) patch.total_before_tax = Number(payload.basePrice) || 0;
-    if (payload.tvaEnabled !== undefined) patch.tva_enabled = !!payload.tvaEnabled;
-    if (payload.tvaRate !== undefined) patch.tva_rate = Number(payload.tvaRate) || 0;
-    if (payload.reductionType !== undefined) patch.reduction_type = payload.reductionType;
-    if (payload.reductionValue !== undefined) patch.reduction_value = Number(payload.reductionValue) || 0;
+    const { data: existing, error: exError } = await supabase
+      .from("sales")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (exError) throw exError;
+
+    const pick = (key, column) => (payload[key] !== undefined ? payload[key] : existing[column]);
+    const merged = {
+      basePrice: pick("basePrice", "total_before_tax"),
+      tvaEnabled: pick("tvaEnabled", "tva_enabled"),
+      tvaRate: pick("tvaRate", "tva_rate"),
+      reductionType: pick("reductionType", "reduction_type"),
+      reductionValue: pick("reductionValue", "reduction_value"),
+    };
+
+    const patch = {
+      sale_type: pick("saleType", "sale_type"),
+      total_before_tax: Number(merged.basePrice) || 0,
+      tva_enabled: !!merged.tvaEnabled,
+      tva_rate: Number(merged.tvaRate) || 0,
+      reduction_type: merged.reductionType || "NONE",
+      reduction_value: Number(merged.reductionValue) || 0,
+      total_after_reduction: computeSaleTotal(merged),
+    };
     if (payload.amountPaid !== undefined) patch.amount_paid = Number(payload.amountPaid) || 0;
     if (payload.clientTakeCar !== undefined) patch.client_take_car = !!payload.clientTakeCar;
-    // recompute the total whenever any price input changed
-    if (
-      payload.basePrice !== undefined ||
-      payload.tvaEnabled !== undefined ||
-      payload.tvaRate !== undefined ||
-      payload.reductionType !== undefined ||
-      payload.reductionValue !== undefined
-    ) {
-      patch.total_after_reduction = computeSaleTotal(payload);
-    }
+    if (payload.clientId !== undefined) patch.client_id = payload.clientId || null;
+    if (payload.inspection !== undefined) patch.inspection = payload.inspection ?? {};
+    if (payload.date) patch.date = payload.date;
+
     const { data, error } = await supabase.from("sales").update(patch).eq("id", id).select().single();
     if (error) throw error;
+
+    // The car-status trigger only fires on INSERT, so mirror it on update:
+    // taking the car marks it SOLD, a deposit leaves it RESERVED.
+    if (payload.clientTakeCar !== undefined && existing.car_id) {
+      const { error: carError } = await supabase
+        .from("cars")
+        .update({ status: payload.clientTakeCar ? "SOLD" : "RESERVED" })
+        .eq("id", existing.car_id);
+      if (carError) throw carError;
+    }
+
     return getSaleFull(data.id);
   },
   async delete(id) {

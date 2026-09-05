@@ -1,18 +1,21 @@
-import { useState } from "react";
-import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import { Eye, Pencil, Trash2, Printer, Wallet, LayoutGrid, Table as TableIcon, TrendingUp } from "lucide-react";
-import { salesApi } from "../lib/api.js";
+import { Eye, Pencil, Trash2, Printer, Wallet, LayoutGrid, Table as TableIcon, TrendingUp, X, UserCog } from "lucide-react";
+import { salesApi, clientsApi, inspectionApi } from "../lib/api.js";
 import { useFetch } from "../hooks/useApi.js";
 import { useCan } from "../lib/permissions.js";
 import { useStore } from "../store/useStore.js";
-import { Card, Badge, Modal, ConfirmModal, Field, EmptyState, SkeletonGrid, Toggle, AnimatedGrid, useToast } from "../components/ui.jsx";
+import { Card, Badge, Modal, ConfirmModal, Field, EmptyState, SkeletonGrid, Stepper, Toggle, AnimatedGrid, useToast } from "../components/ui.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import ActionMenu from "../components/ActionMenu.jsx";
+import SearchSelect from "../components/SearchSelect.jsx";
+import ClientForm, { validateClient } from "../components/ClientForm.jsx";
+import InspectionChecklist, { DEFAULT_INSPECTION, hasInspectionItems } from "../components/InspectionChecklist.jsx";
 import { CarImage } from "../components/CarCard.jsx";
 import { SaleInvoice } from "../components/PrintTemplates.jsx";
 import { usePrintDialog } from "../components/PrintChooser.jsx";
-import { formatAmount, formatDate, initials } from "../utils/format.js";
+import { formatAmount, formatDate, initials, toDateTimeLocal, ENERGY_LABELS, GEARBOX_LABELS } from "../utils/format.js";
 
 const FILTERS = [
   { key: "", tkey: "reservations.filterAll" },
@@ -21,6 +24,258 @@ const FILTERS = [
   { key: "paid=PAID", tkey: "sales.filterPaid" },
   { key: "paid=DEBT", tkey: "sales.filterDebt" },
 ];
+
+// Full edit wizard for an existing sale — mirrors the POS creation flow
+// (client → inspection → pricing) so every detail captured at sale time can be
+// reviewed and corrected here. Saving is available from any step.
+function SaleEditForm({ sale, onClose, onSaved }) {
+  const { t } = useTranslation();
+  const [step, setStep] = useState(0);
+
+  // client — either swapped for another existing one, or edited in place
+  const [client, setClient] = useState(sale.client || null);
+  const [clientDraft, setClientDraft] = useState(sale.client ? { ...sale.client } : {});
+  const [clientDirty, setClientDirty] = useState(false);
+  const [editingClient, setEditingClient] = useState(false);
+  const [clientErrors, setClientErrors] = useState({});
+
+  // inspection — an empty stored checklist falls back to the shared template
+  const [inspection, setInspection] = useState(
+    hasInspectionItems(sale.inspection) ? sale.inspection : DEFAULT_INSPECTION
+  );
+  useEffect(() => {
+    if (hasInspectionItems(sale.inspection)) return;
+    inspectionApi.getTemplate().then((tpl) => { if (hasInspectionItems(tpl)) setInspection(tpl); }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const persistInspection = (next) => { inspectionApi.saveTemplate(next).catch(() => {}); };
+
+  // pricing
+  const [saleType, setSaleType] = useState(sale.saleType || "NORMAL");
+  const [basePrice, setBasePrice] = useState(String(sale.totalBeforeTax ?? ""));
+  const [tvaEnabled, setTvaEnabled] = useState(!!sale.tvaEnabled);
+  const [tvaRate, setTvaRate] = useState(String(sale.tvaRate ?? "19"));
+  const [reductionType, setReductionType] = useState(sale.reductionType || "NONE");
+  const [reductionValue, setReductionValue] = useState(String(sale.reductionValue ?? ""));
+  const [amountPaid, setAmountPaid] = useState(String(sale.amountPaid ?? ""));
+  const [clientTakeCar, setClientTakeCar] = useState(sale.clientTakeCar !== false);
+  const [date, setDate] = useState(toDateTimeLocal(sale.date));
+  const [saving, setSaving] = useState(false);
+
+  // live totals — the same formula the API applies when it writes the row
+  const base = Number(basePrice) || 0;
+  const afterTax = tvaEnabled ? base * (1 + (Number(tvaRate) || 0) / 100) : base;
+  let total = afterTax;
+  if (reductionType === "PERCENT") total = afterTax * (1 - (Number(reductionValue) || 0) / 100);
+  else if (reductionType === "FIXED") total = Math.max(0, afterTax - (Number(reductionValue) || 0));
+  total = Math.round(total);
+  const paid = Number(amountPaid) || 0;
+  const rest = Math.max(0, total - paid);
+  const gain = total - (Number(sale.purchasePrice) || 0) - (Number(sale.carExpenses) || 0);
+
+  const car = sale.car || {};
+
+  const pickClient = (c) => {
+    setClient(c);
+    setClientDraft({ ...c });
+    setClientDirty(false);
+    setEditingClient(false);
+    setClientErrors({});
+  };
+
+  const save = async () => {
+    // Client edits are validated before anything is written so a bad form never
+    // leaves a half-applied update behind.
+    if (clientDirty && client?.id) {
+      const errs = validateClient(clientDraft);
+      if (Object.keys(errs).length) { setClientErrors(errs); setEditingClient(true); setStep(0); return; }
+    }
+    setSaving(true);
+    try {
+      if (clientDirty && client?.id) {
+        await clientsApi.update(client.id, clientDraft);
+        setClientDirty(false);
+      }
+      const data = await salesApi.update(sale.id, {
+        clientId: client?.id ?? null,
+        saleType,
+        basePrice: base,
+        tvaEnabled,
+        tvaRate,
+        reductionType,
+        reductionValue,
+        amountPaid: paid,
+        clientTakeCar,
+        inspection,
+        date,
+      });
+      onSaved(data);
+    } catch (e) {
+      alert(e.message || "Erreur lors de la mise à jour de la vente");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveButton = (
+    <button className="btn-primary" onClick={save} disabled={saving}>
+      {saving ? "..." : t("sales.saveChanges")}
+    </button>
+  );
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm overflow-y-auto p-4"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+    >
+      <motion.div
+        className="max-w-5xl mx-auto my-6 glass-panel p-6"
+        initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+      >
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="heading text-xl text-text-primary">{t("sales.edit")} — {sale.reference}</h2>
+          <button onClick={onClose} className="text-text-muted hover:text-text-primary"><X size={22} /></button>
+        </div>
+
+        <Stepper
+          steps={[t("pos.stepClient"), t("pos.stepInspection"), t("pos.stepSummary")]}
+          current={step}
+          onStepClick={setStep}
+        />
+
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={step}
+            initial={{ opacity: 0, x: 40 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -40 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+          >
+
+        {/* STEP 1 — client */}
+        {step === 0 && (
+          <div className="space-y-4">
+            {client ? (
+              <Card className="p-4 border border-emerald-500/40">
+                <div className="flex justify-between items-center gap-3">
+                  <div className="min-w-0">
+                    <p className="heading text-sm text-text-primary truncate">{client.firstName} {client.lastName}</p>
+                    <p className="text-xs text-text-muted truncate">{client.phonePrimary}{client.address ? ` · ${client.address}` : ""}</p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button className="btn-ghost text-xs py-1.5" onClick={() => setEditingClient((e) => !e)}><UserCog size={13} /> {t("sales.editClientInfo")}</button>
+                    <button className="btn-ghost text-xs py-1.5" onClick={() => { setClient(null); setEditingClient(false); }}>{t("common.change")}</button>
+                  </div>
+                </div>
+              </Card>
+            ) : (
+              <>
+                <p className="text-xs text-text-muted italic">{t("sales.pickClient")}</p>
+                <SearchSelect
+                  fetcher={(q) => clientsApi.search(q)}
+                  placeholder={t("purchase.searchClient")}
+                  onSelect={pickClient}
+                  renderItem={(c) => <div><p className="text-sm text-text-primary">{c.firstName} {c.lastName}</p><p className="text-xs text-text-muted">{c.phonePrimary}</p></div>}
+                />
+              </>
+            )}
+
+            {client && editingClient && (
+              <Card className="p-4">
+                <ClientForm value={clientDraft} onChange={(v) => { setClientDraft(v); setClientDirty(true); }} errors={clientErrors} />
+              </Card>
+            )}
+
+            <div className="flex justify-end gap-2 pt-4">
+              {saveButton}
+              <button className="btn-primary" onClick={() => setStep(1)}>{t("common.next")} →</button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 2 — inspection */}
+        {step === 1 && (
+          <div className="space-y-5">
+            <InspectionChecklist value={inspection} onChange={setInspection} onPersist={persistInspection} />
+            <div className="flex justify-between gap-2 pt-4">
+              <button className="btn-ghost" onClick={() => setStep(0)}>← {t("common.back")}</button>
+              <div className="flex gap-2">
+                {saveButton}
+                <button className="btn-primary" onClick={() => setStep(2)}>{t("common.next")} →</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3 — vehicle / client recap + pricing */}
+        {step === 2 && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <Card className="p-4">
+              <h4 className="heading text-xs text-text-primary mb-3">{t("common.vehicle")}</h4>
+              <div className="rounded-lg overflow-hidden mb-3"><CarImage images={car.images} heightClass="h-32" /></div>
+              {[[t("car.brand"), car.brand], [t("car.model"), car.model], [t("car.year"), car.year], [t("car.plate"), car.plate], [t("car.color"), car.color], [t("car.energy"), ENERGY_LABELS[car.energy]], [t("car.gearbox"), GEARBOX_LABELS[car.gearbox]], [t("car.mileage"), car.mileage]].map(([k, v]) => (
+                <div key={k} className="flex justify-between text-xs py-0.5"><span className="text-text-muted">{k}</span><span className="text-text-primary">{v ?? "—"}</span></div>
+              ))}
+            </Card>
+
+            <Card className="p-4">
+              <h4 className="heading text-xs text-text-primary mb-3">{t("common.client")}</h4>
+              {clientDraft?.photo && <img src={clientDraft.photo} className="w-16 h-16 rounded-xl object-cover mb-3" alt="" />}
+              <p className="text-text-primary font-bold">{clientDraft?.firstName} {clientDraft?.lastName}</p>
+              <p className="text-xs text-text-muted mb-2">{clientDraft?.phonePrimary}</p>
+              {clientDraft?.address && <p className="text-xs text-text-muted">{clientDraft.address}</p>}
+              {clientDraft?.docType && <p className="text-xs text-text-muted">{clientDraft.docType} {clientDraft.docNumber}</p>}
+              <button className="btn-ghost text-xs w-full mt-3" onClick={() => { setEditingClient(true); setStep(0); }}><UserCog size={13} /> {t("sales.editClientInfo")}</button>
+            </Card>
+
+            <Card className="p-4 space-y-3">
+              <h4 className="heading text-xs text-text-primary">{t("purchase.pricing")}</h4>
+              <div className="flex gap-2">
+                <button className={`chip flex-1 ${saleType === "NORMAL" ? "chip-active" : ""}`} onClick={() => setSaleType("NORMAL")}>{t("pos.saleNormal")}</button>
+                <button className={`chip flex-1 ${saleType === "DEPOSIT" ? "chip-active" : ""}`} onClick={() => setSaleType("DEPOSIT")}>{t("pos.saleDeposit")}</button>
+              </div>
+              <Field label={t("pos.basePrice")}><input className="input" type="number" value={basePrice} onChange={(e) => setBasePrice(e.target.value)} /></Field>
+
+              <div className="flex items-center justify-between"><span className="label-caps !mb-0">{t("pos.tva")}</span><Toggle checked={tvaEnabled} onChange={setTvaEnabled} /></div>
+              {tvaEnabled && <Field label={t("pos.tvaRate")}><input className="input" type="number" value={tvaRate} onChange={(e) => setTvaRate(e.target.value)} /></Field>}
+
+              <div className="flex items-center justify-between"><span className="label-caps !mb-0">{t("pos.reduction")}</span><Toggle checked={reductionType !== "NONE"} onChange={(on) => setReductionType(on ? "PERCENT" : "NONE")} /></div>
+              {reductionType !== "NONE" && (
+                <>
+                  <div className="flex gap-2">
+                    <button className={`chip flex-1 ${reductionType === "PERCENT" ? "chip-active" : ""}`} onClick={() => setReductionType("PERCENT")}>{t("pos.percent")}</button>
+                    <button className={`chip flex-1 ${reductionType === "FIXED" ? "chip-active" : ""}`} onClick={() => setReductionType("FIXED")}>{t("pos.fixed")}</button>
+                  </div>
+                  <Field label={t("pos.value")}><input className="input" type="number" value={reductionValue} onChange={(e) => setReductionValue(e.target.value)} /></Field>
+                </>
+              )}
+
+              <div className="pt-2 border-t border-red-600/15">
+                <div className="flex justify-between text-sm"><span className="text-text-muted">{t("pos.finalTotal")}</span><span className="text-2xl font-black text-emerald-400">{formatAmount(total)}</span></div>
+              </div>
+              <Field label={t("pos.amountPaid")}><input className="input" type="number" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} /></Field>
+              <p className="text-sm">{t("common.rest")} : <span className={rest > 0 ? "text-rose-400 font-black" : "text-emerald-400 font-black"}>{formatAmount(rest)}</span></p>
+              {sale.hasPurchaseInfo && (
+                <p className="text-sm">{t("sales.gain")} : <span className={gain >= 0 ? "text-emerald-400 font-black" : "text-rose-400 font-black"}>{gain >= 0 ? "+" : ""}{formatAmount(gain)}</span></p>
+              )}
+
+              <div className="flex items-center justify-between"><span className="label-caps !mb-0">{t("pos.clientTakesCar")}</span><Toggle checked={clientTakeCar} onChange={setClientTakeCar} /></div>
+              <Field label={t("common.datetime")}><input type="datetime-local" className="input" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+            </Card>
+
+            <div className="lg:col-span-3 flex justify-between pt-2">
+              <button className="btn-ghost" onClick={() => setStep(1)}>← {t("common.back")}</button>
+              {saveButton}
+            </div>
+          </div>
+        )}
+          </motion.div>
+        </AnimatePresence>
+      </motion.div>
+    </motion.div>
+  );
+}
 
 export default function Sales() {
   const { t } = useTranslation();
@@ -52,20 +307,6 @@ export default function Sales() {
     toast(t("sales.paidToast"));
   };
 
-  const saveEdit = async () => {
-    await salesApi.update(editItem.id, {
-      saleType: editItem.saleType,
-      basePrice: Number(editItem.totalBeforeTax),
-      tvaEnabled: editItem.tvaEnabled,
-      tvaRate: editItem.tvaRate,
-      reductionType: editItem.reductionType,
-      reductionValue: editItem.reductionValue,
-      amountPaid: Number(editItem.amountPaid),
-      clientTakeCar: editItem.clientTakeCar,
-    });
-    setEditItem(null); refetch();
-  };
-
   const confirmDelete = async () => {
     await salesApi.delete(deleteId);
     setDeleteId(null); refetch();
@@ -74,7 +315,7 @@ export default function Sales() {
 
   const menuItems = (s) => [
     { label: t("common.view"), icon: Eye, onClick: () => setViewItem(s) },
-    can("sales", "edit") && { label: t("common.edit"), icon: Pencil, onClick: () => setEditItem({ ...s }) },
+    can("sales", "edit") && { label: t("common.edit"), icon: Pencil, onClick: () => setEditItem(s) },
     can("sales", "edit") && s.amountRest > 0 && { label: t("common.payDebt"), icon: Wallet, onClick: () => { setPayTarget(s); setPayAmount(String(s.amountRest)); } },
     can("sales", "print") && { label: t("common.print"), icon: Printer, onClick: () => doPrint(s) },
     can("sales", "delete") && { label: t("common.delete"), icon: Trash2, danger: true, onClick: () => setDeleteId(s.id) },
@@ -278,24 +519,17 @@ export default function Sales() {
         )}
       </Modal>
 
-      {/* Edit */}
-      <Modal open={!!editItem} onClose={() => setEditItem(null)} title={t("sales.edit")} size="md"
-        footer={<><button className="btn-ghost" onClick={() => setEditItem(null)}>{t("common.cancel")}</button><button className="btn-primary" onClick={saveEdit}>{t("common.save")}</button></>}>
+      {/* Edit — full wizard, same detail level as the POS sale flow */}
+      <AnimatePresence>
         {editItem && (
-          <div className="space-y-4">
-            <div className="flex gap-2">
-              <button className={`chip flex-1 ${editItem.saleType === "NORMAL" ? "chip-active" : ""}`} onClick={() => setEditItem({ ...editItem, saleType: "NORMAL" })}>{t("sales.normal")}</button>
-              <button className={`chip flex-1 ${editItem.saleType === "DEPOSIT" ? "chip-active" : ""}`} onClick={() => setEditItem({ ...editItem, saleType: "DEPOSIT" })}>{t("sales.deposit")}</button>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label={t("pos.basePrice")}><input className="input" type="number" value={editItem.totalBeforeTax} onChange={(e) => setEditItem({ ...editItem, totalBeforeTax: e.target.value })} /></Field>
-              <Field label={t("common.paid")}><input className="input" type="number" value={editItem.amountPaid} onChange={(e) => setEditItem({ ...editItem, amountPaid: e.target.value })} /></Field>
-            </div>
-            <div className="flex items-center justify-between"><span className="label-caps !mb-0">{t("pos.tva")}</span><Toggle checked={editItem.tvaEnabled} onChange={(v) => setEditItem({ ...editItem, tvaEnabled: v })} /></div>
-            {editItem.tvaEnabled && <Field label={t("pos.tvaRate")}><input className="input" type="number" value={editItem.tvaRate || ""} onChange={(e) => setEditItem({ ...editItem, tvaRate: e.target.value })} /></Field>}
-          </div>
+          <SaleEditForm
+            key={editItem.id}
+            sale={editItem}
+            onClose={() => setEditItem(null)}
+            onSaved={() => { setEditItem(null); refetch(); toast(t("sales.updatedToast")); }}
+          />
         )}
-      </Modal>
+      </AnimatePresence>
 
       <ConfirmModal open={!!deleteId} onClose={() => setDeleteId(null)} onConfirm={confirmDelete} message={t("sales.deleteMsg")} />
     </div>

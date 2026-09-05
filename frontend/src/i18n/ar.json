@@ -337,7 +337,11 @@
     "purchaseCost": "سعر الشراء",
     "carExpenses": "مصاريف المركبة",
     "totalCost": "التكلفة الإجمالية",
-    "financialSummary": "الملخص المالي والربح"
+    "financialSummary": "الملخص المالي والربح",
+    "saveChanges": "حفظ التعديلات",
+    "updatedToast": "تم تحديث البيع بنجاح",
+    "editClientInfo": "تعديل العميل",
+    "pickClient": "اختر عميل هذا البيع"
   },
   "payments": {
     "title": "المدفوعات — مركبات العملاء",

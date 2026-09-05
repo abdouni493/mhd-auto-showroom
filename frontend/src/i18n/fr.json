@@ -337,7 +337,11 @@
     "purchaseCost": "Prix d'achat",
     "carExpenses": "Dépenses véhicule",
     "totalCost": "Coût total",
-    "financialSummary": "Récapitulatif Financier & Gain"
+    "financialSummary": "Récapitulatif Financier & Gain",
+    "saveChanges": "Enregistrer les modifications",
+    "updatedToast": "Vente mise à jour avec succès",
+    "editClientInfo": "Modifier le client",
+    "pickClient": "Choisissez le client de cette vente"
   },
   "payments": {
     "title": "Paiements — Véhicules Client",

@@ -142,7 +142,10 @@ export function ConfirmModal({ open, onClose, onConfirm, title, message, loading
 }
 
 // ---------- Stepper ----------
-export function Stepper({ steps, current }) {
+// `onStepClick` (optional) makes the circles clickable — used by the edit forms
+// so any section can be reached directly instead of stepping through the wizard.
+export function Stepper({ steps, current, onStepClick }) {
+  const clickable = typeof onStepClick === "function";
   return (
     <div className="flex items-center justify-center gap-2 mb-8">
       {steps.map((label, i) => {
@@ -152,6 +155,11 @@ export function Stepper({ steps, current }) {
           <div key={i} className="flex items-center">
             <div className="flex flex-col items-center gap-2">
               <motion.div
+                role={clickable ? "button" : undefined}
+                tabIndex={clickable ? 0 : undefined}
+                onClick={clickable ? () => onStepClick(i) : undefined}
+                onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onStepClick(i); } } : undefined}
+                whileHover={clickable ? { scale: 1.1 } : undefined}
                 animate={
                   active
                     ? { scale: [1, 1.25, 1], boxShadow: ["0 0 0px rgba(220,38,38,0)", "0 0 30px rgba(220,38,38,0.6)", "0 0 20px rgba(220,38,38,0.4)"] }
@@ -160,7 +168,7 @@ export function Stepper({ steps, current }) {
                     : { scale: 1 }
                 }
                 transition={{ duration: 0.5 }}
-                className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-sm border-2 ${
+                className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-sm border-2 ${clickable ? "cursor-pointer" : ""} ${
                   done
                     ? "bg-emerald-500 border-emerald-500 text-white"
                     : active
@@ -170,7 +178,10 @@ export function Stepper({ steps, current }) {
               >
                 {done ? <Check size={18} /> : i + 1}
               </motion.div>
-              <span className={`text-[0.6rem] font-bold uppercase tracking-wider ${active ? "text-text-primary" : "text-text-muted"}`}>{label}</span>
+              <span
+                onClick={clickable ? () => onStepClick(i) : undefined}
+                className={`text-[0.6rem] font-bold uppercase tracking-wider ${clickable ? "cursor-pointer" : ""} ${active ? "text-text-primary" : "text-text-muted"}`}
+              >{label}</span>
             </div>
             {i < steps.length - 1 && (
               <div className="w-12 sm:w-20 h-0.5 mx-2 -mt-5 bg-red-600/20 overflow-hidden">

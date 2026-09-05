@@ -12,7 +12,7 @@ import ActionMenu from "../components/ActionMenu.jsx";
 import SearchSelect from "../components/SearchSelect.jsx";
 import ClientForm, { validateClient } from "../components/ClientForm.jsx";
 import { MultiImageUpload } from "../components/ImageUpload.jsx";
-import InspectionChecklist, { DEFAULT_INSPECTION } from "../components/InspectionChecklist.jsx";
+import InspectionChecklist, { DEFAULT_INSPECTION, hasInspectionItems } from "../components/InspectionChecklist.jsx";
 import { CarImage } from "../components/CarCard.jsx";
 import { PurchaseInvoice } from "../components/PrintTemplates.jsx";
 import { usePrintDialog, printInLang } from "../components/PrintChooser.jsx";
@@ -45,16 +45,25 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
   const [pricing, setPricing] = useState(() => isEdit
     ? { purchasePrice: String(editTarget.purchasePrice ?? ""), sellingPrice: String(editTarget.sellingPrice ?? ""), amountPaid: String(editTarget.amountPaid ?? "") }
     : { purchasePrice: "", sellingPrice: "", amountPaid: "" });
-  const [inspection, setInspection] = useState(editTarget?.inspection || editTarget?.car?.inspection || DEFAULT_INSPECTION);
+  // Once the amount paid has its own value it must survive a change of the
+  // purchase price — otherwise editing the price silently rewrites what the
+  // record says was already paid.
+  const [paidTouched, setPaidTouched] = useState(isEdit);
+  const savedInspection = editTarget?.inspection ?? editTarget?.car?.inspection;
+  const [inspection, setInspection] = useState(
+    hasInspectionItems(savedInspection) ? savedInspection : DEFAULT_INSPECTION
+  );
   const [date, setDate] = useState(toDateTimeLocal(editTarget?.date));
   const [saving, setSaving] = useState(false);
 
   // Load the saved checklist template so items added on a previous purchase/sale
   // reappear here. Falls back to DEFAULT_INSPECTION when none is stored yet.
-  // Skipped in edit mode, where the purchase's own saved inspection is used.
+  // In edit mode the purchase's own saved checklist wins — but an empty one
+  // (`{}` is the column default) would render three blank sections, so the
+  // template is pulled in there too.
   useEffect(() => {
-    if (isEdit) return;
-    inspectionApi.getTemplate().then((tpl) => { if (tpl) setInspection(tpl); }).catch(() => {});
+    if (isEdit && hasInspectionItems(savedInspection)) return;
+    inspectionApi.getTemplate().then((tpl) => { if (hasInspectionItems(tpl)) setInspection(tpl); }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // Persist add/remove of checklist items so they're remembered next time.
@@ -68,8 +77,11 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
   const [uploadingType, setUploadingType] = useState("");
 
   const setCarField = (f) => (e) => setCar({ ...car, [f]: e.target.value });
-  // purchase price drives the editable "montant versé" default
-  const setPurchasePrice = (v) => setPricing({ ...pricing, purchasePrice: v, amountPaid: v });
+  // purchase price drives the editable "montant versé" default, until the user
+  // (or an existing record) gives the amount paid a value of its own
+  const setPurchasePrice = (v) =>
+    setPricing((pr) => (paidTouched ? { ...pr, purchasePrice: v } : { ...pr, purchasePrice: v, amountPaid: v }));
+  const setAmountPaid = (v) => { setPaidTouched(true); setPricing((pr) => ({ ...pr, amountPaid: v })); };
   const rest = Math.max(0, (Number(pricing.purchasePrice) || 0) - (Number(pricing.amountPaid) || 0));
 
   const createDocType = async () => {
@@ -125,7 +137,12 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
 
   const canNext1 = sourceType === "SUPPLIER" ? !!supplier : !!client;
 
+  // Everything the wizard needs before a record can be written. In edit mode the
+  // save button is available on every step, so it is checked here too.
+  const complete = (sourceType === "SUPPLIER" ? !!supplier : !!client) && !!car.brand && !!car.model && !!pricing.purchasePrice;
+
   const save = async () => {
+    if (!complete) return;
     setSaving(true);
     try {
       const payload = {
@@ -148,6 +165,12 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
     }
   };
 
+  const saveButton = (
+    <button className="btn-primary" onClick={save} disabled={saving || !complete}>
+      {saving ? "..." : isEdit ? t("purchase.saveChanges") : t("purchase.createPurchase")}
+    </button>
+  );
+
   return (
     <motion.div
       className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm overflow-y-auto p-4"
@@ -163,7 +186,11 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
           <button onClick={onClose} className="text-text-muted hover:text-text-primary"><X size={22} /></button>
         </div>
 
-        <Stepper steps={[t("purchase.stepSource"), t("purchase.stepVehicle"), t("purchase.stepInspection")]} current={step} />
+        <Stepper
+          steps={[t("purchase.stepSource"), t("purchase.stepVehicle"), t("purchase.stepInspection")]}
+          current={step}
+          onStepClick={isEdit ? setStep : undefined}
+        />
 
         <AnimatePresence mode="wait">
           <motion.div
@@ -239,7 +266,8 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
               </div>
             )}
 
-            <div className="flex justify-end pt-4">
+            <div className="flex justify-end gap-2 pt-4">
+              {isEdit && saveButton}
               <button className="btn-primary" disabled={!canNext1} onClick={() => setStep(1)}>{t("common.next")} →</button>
             </div>
           </div>
@@ -332,13 +360,16 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Field label={sourceType === "CLIENT" ? t("purchase.clientProposedPrice") : t("showroom.purchasePrice")} required><input className="input" type="number" value={pricing.purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} /></Field>
               <Field label={t("showroom.sellingPrice")}><input className="input" type="number" value={pricing.sellingPrice} onChange={(e) => setPricing({ ...pricing, sellingPrice: e.target.value })} /></Field>
-              <Field label={t("purchase.amountPaid")}><input className="input" type="number" value={pricing.amountPaid} onChange={(e) => setPricing({ ...pricing, amountPaid: e.target.value })} /></Field>
+              <Field label={t("purchase.amountPaid")}><input className="input" type="number" value={pricing.amountPaid} onChange={(e) => setAmountPaid(e.target.value)} /></Field>
             </div>
             <p className="text-sm">{t("purchase.remaining")} : <span className={rest > 0 ? "text-rose-400 font-black" : "text-emerald-400 font-black"}>{formatAmount(rest)}</span></p>
 
-            <div className="flex justify-between pt-4">
+            <div className="flex justify-between gap-2 pt-4">
               <button className="btn-ghost" onClick={() => setStep(0)}>← {t("common.back")}</button>
-              <button className="btn-primary" disabled={!car.brand || !car.model || !pricing.purchasePrice} onClick={() => setStep(2)}>{t("common.next")} →</button>
+              <div className="flex gap-2">
+                {isEdit && saveButton}
+                <button className="btn-primary" disabled={!car.brand || !car.model || !pricing.purchasePrice} onClick={() => setStep(2)}>{t("common.next")} →</button>
+              </div>
             </div>
           </div>
         )}
@@ -350,7 +381,7 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
             <Field label={t("purchase.purchaseDate")}><input type="datetime-local" className="input sm:max-w-xs" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
             <div className="flex justify-between pt-4">
               <button className="btn-ghost" onClick={() => setStep(1)}>← {t("common.back")}</button>
-              <button className="btn-primary" onClick={save} disabled={saving}>{saving ? "..." : isEdit ? t("purchase.saveChanges") : t("purchase.createPurchase")}</button>
+              {saveButton}
             </div>
           </div>
         )}
@@ -477,6 +508,7 @@ export default function Purchase() {
       <AnimatePresence>
         {(showNew || editItem) && (
           <PurchaseForm
+            key={editItem ? `edit-${editItem.id}` : "new"}
             editTarget={editItem}
             onClose={() => { setShowNew(false); setEditItem(null); }}
             onSaved={(p) => {

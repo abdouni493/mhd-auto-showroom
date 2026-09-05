@@ -29,6 +29,13 @@ const SECTIONS = [
   { key: "comfort", titleKey: "inspection.comfort", icon: Star, color: "text-amber-400", border: "border-amber-500/30" },
 ];
 
+// A stored checklist can be an empty object (`{}` is the column default) — that
+// must not render three empty sections when re-opening a record for editing.
+// `hasInspectionItems` lets callers fall back to the saved template / defaults.
+export function hasInspectionItems(value) {
+  return !!value && SECTIONS.some(({ key }) => Array.isArray(value[key]) && value[key].length > 0);
+}
+
 // `onPersist` (optional) is called with the full updated checklist whenever an
 // item is added or removed, so the master template can be saved to the database
 // and reused on the next purchase / sale. Toggling an item on/off is a per-
