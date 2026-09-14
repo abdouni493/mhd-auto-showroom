@@ -18,6 +18,7 @@ import SearchSelect from "../components/SearchSelect.jsx";
 import { CashTransactionInvoice } from "../components/PrintTemplates.jsx";
 import { usePrintDialog } from "../components/PrintChooser.jsx";
 import { formatAmount, formatDateTime, toDateTimeLocal } from "../utils/format.js";
+import DateInput from "../components/DateInput.jsx";
 
 const UNLOCK_KEY = "caisse-unlocked";
 
@@ -248,7 +249,7 @@ function CaisseContent() {
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label={t("common.amount")} required><input className="input" type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></Field>
-              <Field label={t("common.datetime")}><input className="input" type="datetime-local" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></Field>
+              <Field label={t("common.datetime")}><DateInput withTime value={form.date} onChange={(v) => setForm({ ...form, date: v })} /></Field>
             </div>
             <Field label={t("common.description")}><textarea className="input min-h-[80px]" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
           </div>

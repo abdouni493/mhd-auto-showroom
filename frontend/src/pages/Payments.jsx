@@ -13,6 +13,7 @@ import { CarImage } from "../components/CarCard.jsx";
 import { PaymentReceipt } from "../components/PrintTemplates.jsx";
 import { usePrintDialog, printInLang } from "../components/PrintChooser.jsx";
 import { formatAmount, formatDate, toDateTimeLocal } from "../utils/format.js";
+import DateInput from "../components/DateInput.jsx";
 
 export default function Payments() {
   const { t } = useTranslation();
@@ -129,7 +130,7 @@ export default function Payments() {
           )}
           <div className="grid grid-cols-2 gap-4">
             <Field label={t("payments.amountToPay")} required><input className="input" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
-            <Field label={t("common.date")}><input type="datetime-local" className="input" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+            <Field label={t("common.date")}><DateInput withTime value={date} onChange={setDate} /></Field>
           </div>
           <Field label={t("common.description")}><input className="input" value={desc} onChange={(e) => setDesc(e.target.value)} /></Field>
         </div>

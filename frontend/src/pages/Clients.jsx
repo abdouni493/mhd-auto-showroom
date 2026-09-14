@@ -17,6 +17,7 @@ import { CarImage } from "../components/CarCard.jsx";
 import { SettlementReceipt } from "../components/PrintDocs.jsx";
 import PrintHub from "../components/PrintHub.jsx";
 import { formatAmount, formatDate, initials, toDateTimeLocal } from "../utils/format.js";
+import DateInput from "../components/DateInput.jsx";
 
 /* ---------------------------------------------------------------------------
  * Règlement propriétaire
@@ -151,7 +152,7 @@ function SettlementForm({ pending, onClose, onCreated }) {
             <input className="input" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} placeholder={t("settlements.paymentMethodHint")} />
           </Field>
           <Field label={t("common.datetime")}>
-            <input className="input" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} />
+            <DateInput withTime value={date} onChange={setDate} />
           </Field>
         </div>
         <Field label={t("settlements.note")}>
@@ -385,7 +386,6 @@ export default function Clients() {
               [t("client.phoneSecondary")]: view.phoneSecondary,
               [t("common.email")]: view.email,
               [t("common.address")]: view.address,
-              [t("client.profession")]: view.profession,
               [t("client.birthPlace")]: view.birthPlace,
               [t("client.birthDate")]: view.birthDate && formatDate(view.birthDate),
               [t("client.docType")]: view.docType,

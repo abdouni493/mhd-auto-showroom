@@ -10,6 +10,7 @@ import SearchSelect from "../components/SearchSelect.jsx";
 import { CarImage } from "../components/CarCard.jsx";
 import AnimatedLogo from "../components/AnimatedLogo.jsx";
 import { formatAmount, formatDate, toDateTimeLocal, countdown } from "../utils/format.js";
+import DateInput from "../components/DateInput.jsx";
 
 const TABS = [["offers", "Offres"], ["special", "Offres Spéciales"], ["contacts", "Contacts"], ["appearance", "Apparence"]];
 
@@ -112,8 +113,8 @@ function SpecialOffers() {
           )}
           <Field label="Nouveau prix"><input className="input" type="number" value={price} onChange={(e) => setPrice(e.target.value)} /></Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Début"><input type="datetime-local" className="input" value={start} onChange={(e) => setStart(e.target.value)} /></Field>
-            <Field label="Fin"><input type="datetime-local" className="input" value={end} onChange={(e) => setEnd(e.target.value)} /></Field>
+            <Field label="Début"><DateInput withTime value={start} onChange={setStart} /></Field>
+            <Field label="Fin"><DateInput withTime value={end} onChange={setEnd} /></Field>
           </div>
         </div>
       </Modal>

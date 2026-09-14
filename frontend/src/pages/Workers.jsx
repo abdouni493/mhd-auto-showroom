@@ -7,6 +7,7 @@ import { Card, Badge, Modal, ConfirmModal, Field, EmptyState, SkeletonGrid, Togg
 import PageHeader from "../components/PageHeader.jsx";
 import ActionMenu from "../components/ActionMenu.jsx";
 import { formatAmount, formatDate, toDateInput, initials } from "../utils/format.js";
+import DateInput from "../components/DateInput.jsx";
 
 const PAY_LABELS = { MONTHLY: "Mensuel", DAILY: "Journalier", NONE: "Aucun" };
 const SECTION_LABELS = { dashboard: "Tableau de bord", showroom: "Showroom", purchase: "Achats", pos: "POS", sales: "Ventes", payments: "Paiements", settlements: "Règlements propriétaires", caisse: "Caisse (Dépôts/Retraits)", websiteSettings: "Site Web", websiteReservations: "Réservations Site", clients: "Clients", workers: "Employés", expenses: "Dépenses", reports: "Rapports", settings: "Paramètres" };
@@ -198,7 +199,7 @@ export default function Workers() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Nom complet" required><input className="input" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} /></Field>
               <Field label="Téléphone" required><input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
-              <Field label="Date de naissance"><input type="date" className="input" value={form.birthday || ""} onChange={(e) => setForm({ ...form, birthday: e.target.value })} /></Field>
+              <Field label="Date de naissance"><DateInput value={form.birthday || ""} onChange={(v) => setForm({ ...form, birthday: v })} /></Field>
               <Field label="N° CIN"><input className="input" value={form.idCardNumber || ""} onChange={(e) => setForm({ ...form, idCardNumber: e.target.value })} /></Field>
               <div>
                 <div className="flex items-center justify-between">
@@ -216,7 +217,7 @@ export default function Workers() {
                   </div>
                 )}
               </div>
-              <Field label="Date de début"><input type="date" className="input" value={form.startDate || ""} onChange={(e) => setForm({ ...form, startDate: e.target.value })} /></Field>
+              <Field label="Date de début"><DateInput value={form.startDate || ""} onChange={(v) => setForm({ ...form, startDate: v })} /></Field>
             </div>
             <div className="flex items-center gap-3 my-2"><span className="label-caps !mb-0">Paiement</span><div className="flex-1 h-px bg-red-600/20" /></div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -363,7 +364,7 @@ export default function Workers() {
               )}
             </div>
           )}
-          <Field label="Date"><input type="date" className="input" value={modalData.date} onChange={(e) => setModalData({ ...modalData, date: e.target.value })} /></Field>
+          <Field label="Date"><DateInput value={modalData.date} onChange={(v) => setModalData({ ...modalData, date: v })} /></Field>
           {modalKind === "absence" ? (
             <Field label="Coût (DA)"><input className="input" type="number" value={modalData.cost} onChange={(e) => setModalData({ ...modalData, cost: e.target.value })} /></Field>
           ) : (
@@ -378,7 +379,7 @@ export default function Workers() {
         title={transactionEditor?.item ? (transactionEditor.kind === "advance" ? "Modifier l'acompte" : "Modifier l'absence") : (transactionEditor?.kind === "advance" ? "Nouvel acompte" : "Nouvelle absence")} size="sm"
         footer={<><button className="btn-ghost" onClick={() => setTransactionEditor(null)}>Annuler</button><button className="btn-primary" onClick={saveTransaction}>Enregistrer</button></>}>
         <div className="space-y-4">
-          <Field label="Date"><input type="date" className="input" value={transactionForm.date} onChange={(e) => setTransactionForm({ ...transactionForm, date: e.target.value })} /></Field>
+          <Field label="Date"><DateInput value={transactionForm.date} onChange={(v) => setTransactionForm({ ...transactionForm, date: v })} /></Field>
           {transactionEditor?.kind === "advance" ? (
             <Field label="Montant (DA)"><input className="input" type="number" value={transactionForm.amount} onChange={(e) => setTransactionForm({ ...transactionForm, amount: e.target.value })} /></Field>
           ) : (

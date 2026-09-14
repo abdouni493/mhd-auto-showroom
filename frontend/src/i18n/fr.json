@@ -69,6 +69,8 @@
     "actions": "Actions",
     "date": "Date",
     "datetime": "Date & heure",
+    "datePlaceholder": "jj/mm/aaaa",
+    "dateTimePlaceholder": "jj/mm/aaaa hh:mm",
     "amount": "Montant",
     "total": "Total",
     "paid": "Payé",

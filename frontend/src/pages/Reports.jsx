@@ -8,6 +8,7 @@ import { Card, Field, EmptyState, Modal, Badge } from "../components/ui.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import { CarImage } from "../components/CarCard.jsx";
 import { formatAmount, formatDate, toDateInput } from "../utils/format.js";
+import DateInput from "../components/DateInput.jsx";
 
 const money = (v) => formatAmount(v);
 
@@ -207,8 +208,8 @@ export default function Reports() {
         <PageHeader title="Rapports" />
         <Card className="p-5 mb-6">
           <div className="flex flex-col sm:flex-row gap-4 items-end">
-            <Field label="Du" className="flex-1"><input type="date" className="input" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
-            <Field label="Au" className="flex-1"><input type="date" className="input" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
+            <Field label="Du" className="flex-1"><DateInput value={from} onChange={setFrom} /></Field>
+            <Field label="Au" className="flex-1"><DateInput value={to} onChange={setTo} /></Field>
             <motion.button className="btn-primary" onClick={generate} disabled={loading} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
               {loading ? <motion.span animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }} className="inline-flex"><Loader2 size={16} /></motion.span> : "Générer"}
             </motion.button>

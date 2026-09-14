@@ -18,6 +18,7 @@ import { BonVersement, BonEntreeSortie, FactureDocument } from "../components/Pr
 import PrintHub, { DocPicker } from "../components/PrintHub.jsx";
 import { renderDocsToHtml, documentLabels, sendDocumentsEmail } from "../lib/email.js";
 import { formatAmount, formatDate, initials, toDateTimeLocal, ENERGY_LABELS, GEARBOX_LABELS } from "../utils/format.js";
+import DateInput from "../components/DateInput.jsx";
 
 const FILTERS = [
   { key: "", tkey: "reservations.filterAll" },
@@ -263,7 +264,7 @@ function SaleEditForm({ sale, onClose, onSaved }) {
               )}
 
               <div className="flex items-center justify-between"><span className="label-caps !mb-0">{t("pos.clientTakesCar")}</span><Toggle checked={clientTakeCar} onChange={setClientTakeCar} /></div>
-              <Field label={t("common.datetime")}><input type="datetime-local" className="input" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+              <Field label={t("common.datetime")}><DateInput withTime value={date} onChange={setDate} /></Field>
             </Card>
 
             <div className="lg:col-span-3 flex justify-between pt-2">

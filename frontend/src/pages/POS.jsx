@@ -13,6 +13,7 @@ import ClientForm, { validateClient } from "../components/ClientForm.jsx";
 import InspectionChecklist, { DEFAULT_INSPECTION } from "../components/InspectionChecklist.jsx";
 import { CarImage } from "../components/CarCard.jsx";
 import { formatAmount, toDateTimeLocal, ENERGY_LABELS, GEARBOX_LABELS } from "../utils/format.js";
+import DateInput from "../components/DateInput.jsx";
 
 const ENERGY_FILTERS = [["", "pos.energyAll"], ["ESSENCE", "energy.ESSENCE"], ["DIESEL", "energy.DIESEL"], ["HYBRID", "energy.HYBRID"], ["ELECTRIC", "energy.ELECTRIC"]];
 
@@ -236,7 +237,7 @@ function SaleFlow({ car, onClose, onCreated }) {
               )}
 
               <div className="flex items-center justify-between"><span className="label-caps !mb-0">{t("pos.clientTakesCar")}</span><Toggle checked={clientTakeCar} onChange={setClientTakeCar} /></div>
-              <Field label={t("common.datetime")}><input type="datetime-local" className="input" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+              <Field label={t("common.datetime")}><DateInput withTime value={date} onChange={setDate} /></Field>
             </Card>
 
             <div className="lg:col-span-3 flex justify-between pt-2">

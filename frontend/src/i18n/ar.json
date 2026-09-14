@@ -69,6 +69,8 @@
     "actions": "إجراءات",
     "date": "التاريخ",
     "datetime": "التاريخ والوقت",
+    "datePlaceholder": "يوم/شهر/سنة",
+    "dateTimePlaceholder": "يوم/شهر/سنة سا:دق",
     "amount": "المبلغ",
     "total": "المجموع",
     "paid": "المدفوع",

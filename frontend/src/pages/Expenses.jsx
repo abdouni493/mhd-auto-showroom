@@ -12,6 +12,7 @@ import { CarImage } from "../components/CarCard.jsx";
 import { usePrintDialog } from "../components/PrintChooser.jsx";
 import { ExpensesReport } from "../components/PrintTemplates.jsx";
 import { formatAmount, formatDate, toDateInput } from "../utils/format.js";
+import DateInput from "../components/DateInput.jsx";
 
 // Period presets offered in the print dialog
 function periodPresets() {
@@ -174,7 +175,7 @@ export default function Expenses() {
             <Field label="Description"><input className="input" value={form.description || ""} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
             <div className="grid grid-cols-2 gap-4">
               <Field label="Montant" required><input className="input" type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></Field>
-              <Field label="Date"><input type="date" className="input" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></Field>
+              <Field label="Date"><DateInput value={form.date} onChange={(v) => setForm({ ...form, date: v })} /></Field>
             </div>
           </div>
         )}
@@ -224,10 +225,10 @@ export default function Expenses() {
 
           <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
             <Field label="Date de début" className="flex-1" required>
-              <input type="date" className="input" value={range.from} onChange={(e) => setRangeField({ from: e.target.value })} />
+              <DateInput value={range.from} onChange={(v) => setRangeField({ from: v })} />
             </Field>
             <Field label="Date de fin" className="flex-1" required>
-              <input type="date" className="input" value={range.to} onChange={(e) => setRangeField({ to: e.target.value })} />
+              <DateInput value={range.to} onChange={(v) => setRangeField({ to: v })} />
             </Field>
             <motion.button className="btn-primary" onClick={generate} disabled={generating} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
               {generating ? (

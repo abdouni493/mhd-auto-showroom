@@ -19,6 +19,7 @@ import { PurchaseInvoice } from "../components/PrintTemplates.jsx";
 import { BonEntree, EngagementDepot, ReceptionForm, FicheTechnique } from "../components/PrintDocs.jsx";
 import PrintHub from "../components/PrintHub.jsx";
 import { formatAmount, formatDate, toDateTimeLocal } from "../utils/format.js";
+import DateInput from "../components/DateInput.jsx";
 
 const FILTERS = [
   { key: "", tkey: "common.all" },
@@ -472,7 +473,7 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
         {step === 2 && (
           <div className="space-y-5">
             <InspectionChecklist value={inspection} onChange={setInspection} onPersist={persistInspection} />
-            <Field label={t("purchase.purchaseDate")}><input type="datetime-local" className="input sm:max-w-xs" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+            <Field label={t("purchase.purchaseDate")}><DateInput withTime className="sm:max-w-xs" value={date} onChange={setDate} /></Field>
             <div className="flex justify-between pt-4">
               <button className="btn-ghost" onClick={() => setStep(1)}>← {t("common.back")}</button>
               {saveButton}

@@ -3,6 +3,7 @@ import { Field } from "./ui.jsx";
 import { SingleImageUpload } from "./ImageUpload.jsx";
 import { BUCKETS } from "../lib/supabase.js";
 import { toDateInput } from "../utils/format.js";
+import DateInput from "./DateInput.jsx";
 
 const DOC_TYPES = ["Permis Biométrique", "Carte d'Identité", "Passeport"];
 
@@ -27,7 +28,7 @@ export default function ClientForm({ value, onChange, errors = {} }) {
           <input className="input" value={c.lastName || ""} onChange={set("lastName")} />
         </Field>
         <Field label={t("client.birthDate")}>
-          <input type="date" className="input" value={toDateInput(c.birthDate)} onChange={set("birthDate")} />
+          <DateInput value={toDateInput(c.birthDate)} onChange={set("birthDate")} />
         </Field>
         <Field label={t("client.birthPlace")}>
           <input className="input" value={c.birthPlace || ""} onChange={set("birthPlace")} />
@@ -38,9 +39,6 @@ export default function ClientForm({ value, onChange, errors = {} }) {
             <option value="M">{t("client.male")}</option>
             <option value="F">{t("client.female")}</option>
           </select>
-        </Field>
-        <Field label={t("client.profession")}>
-          <input className="input" value={c.profession || ""} onChange={set("profession")} />
         </Field>
         <Field label={t("common.address")} className="sm:col-span-2">
           <input className="input" value={c.address || ""} onChange={set("address")} />
@@ -72,10 +70,10 @@ export default function ClientForm({ value, onChange, errors = {} }) {
             <input className="input" value={c.docNumber || ""} onChange={set("docNumber")} />
           </Field>
           <Field label={t("client.docDeliveryDate")}>
-            <input type="date" className="input" value={toDateInput(c.docDeliveryDate)} onChange={set("docDeliveryDate")} />
+            <DateInput value={toDateInput(c.docDeliveryDate)} onChange={set("docDeliveryDate")} />
           </Field>
           <Field label={t("client.docExpiry")}>
-            <input type="date" className="input" value={toDateInput(c.docExpiry)} onChange={set("docExpiry")} />
+            <DateInput value={toDateInput(c.docExpiry)} onChange={set("docExpiry")} />
           </Field>
           <Field label={t("client.docDeliveryAddress")} className="sm:col-span-2">
             <input className="input" value={c.docDeliveryAddress || ""} onChange={set("docDeliveryAddress")} />
