@@ -668,6 +668,34 @@ function computeSaleTotal({ basePrice, tvaEnabled, tvaRate, reductionType, reduc
   else if (reductionType === "FIXED") total = Math.max(0, afterTax - (Number(reductionValue) || 0));
   return Math.round(total);
 }
+// Make SUM(sale_payments) match the amount the user typed, by adjusting only
+// the "Versement initial" row (created / deleted as needed).
+async function reconcileInitialPayment(saleId, carId, target) {
+  const { data: payments } = await supabase
+    .from("sale_payments")
+    .select("id, amount, is_initial")
+    .eq("sale_id", saleId);
+  const list = payments || [];
+  const initial = list.find((p) => p.is_initial);
+  const others = list
+    .filter((p) => !p.is_initial)
+    .reduce((a, p) => a + (Number(p.amount) || 0), 0);
+  const wanted = Math.max(0, target - others);
+
+  if (wanted === 0) {
+    if (initial) await supabase.from("sale_payments").delete().eq("id", initial.id);
+    return;
+  }
+  if (initial) {
+    await supabase.from("sale_payments").update({ amount: wanted }).eq("id", initial.id);
+  } else {
+    await supabase.from("sale_payments").insert({
+      sale_id: saleId, car_id: carId, amount: wanted, is_initial: true,
+      date: new Date().toISOString(), description: "Versement initial",
+    });
+  }
+}
+
 async function getSaleFull(id) {
   const { data } = await supabase.from("sales").select(SALE_FULL).eq("id", id).single();
   return shapeSale(toCamel(data));
@@ -798,6 +826,13 @@ export const salesApi = {
 
     const { data, error } = await supabase.from("sales").update(patch).eq("id", id).select().single();
     if (error) throw error;
+
+    // `amount_paid` is rebuilt from sale_payments by a trigger. Correcting the
+    // amount from the edit form therefore means correcting the initial payment
+    // row, keeping the later règlements untouched.
+    if (payload.amountPaid !== undefined) {
+      await reconcileInitialPayment(id, existing.car_id, Number(payload.amountPaid) || 0);
+    }
 
     // The car-status trigger only fires on INSERT, so mirror it on update:
     // taking the car marks it SOLD, a deposit leaves it RESERVED.

@@ -70,16 +70,9 @@ END
 $enums$;
 
 -- Upgrade a database created before the SHOWROOM source existed.
-DO $addval$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
-    WHERE t.typname = 'source_type' AND e.enumlabel = 'SHOWROOM'
-  ) THEN
-    ALTER TYPE source_type ADD VALUE 'SHOWROOM';
-  END IF;
-END
-$addval$;
+-- Kept as a top-level statement: PostgreSQL refuses ALTER TYPE ... ADD VALUE
+-- from inside a function or a DO block.
+ALTER TYPE source_type ADD VALUE IF NOT EXISTS 'SHOWROOM';
 
 
 -- ============================================================================
@@ -392,7 +385,7 @@ CREATE TRIGGER trg_purchase_reference
 
 -- mirror the selling price onto the car (public website price)
 CREATE OR REPLACE FUNCTION public.sync_car_price()
-RETURNS TRIGGER LANGUAGE plpgsql AS $fn$
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $fn$
 BEGIN
   UPDATE public.cars SET price = COALESCE(NEW.selling_price, 0) WHERE id = NEW.car_id;
   RETURN NEW;
@@ -404,6 +397,13 @@ CREATE TRIGGER trg_sync_car_price
   AFTER INSERT OR UPDATE OF selling_price ON public.purchases
   FOR EACH ROW EXECUTE FUNCTION public.sync_car_price();
 
+
+-- NOTE ON THE BOOKKEEPING TRIGGERS
+-- The triggers that maintain derived data (amount_paid, car status, public
+-- price, initial payment) are SECURITY DEFINER on purpose: they must succeed
+-- whatever the row level security of the employee who triggered them. Without
+-- it, an employee allowed to record a payment but not to edit a sale would see
+-- his own payment refused by the trigger that updates that sale.
 
 -- ----------------------------------------------------------------------------
 -- 2.11 purchase_payments (paying off a purchase debt)
@@ -420,7 +420,7 @@ CREATE INDEX IF NOT EXISTS idx_purchase_payments_purchase_id
   ON public.purchase_payments(purchase_id);
 
 CREATE OR REPLACE FUNCTION public.update_purchase_paid()
-RETURNS TRIGGER LANGUAGE plpgsql AS $fn$
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $fn$
 DECLARE pid INT;
 BEGIN
   pid := COALESCE(NEW.purchase_id, OLD.purchase_id);
@@ -495,7 +495,7 @@ CREATE TRIGGER trg_sale_reference
 
 -- the car status follows the sale (SOLD when taken, RESERVED on a deposit)
 CREATE OR REPLACE FUNCTION public.sync_car_status()
-RETURNS TRIGGER LANGUAGE plpgsql AS $fn$
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $fn$
 BEGIN
   UPDATE public.cars
      SET status = CASE WHEN NEW.client_take_car THEN 'SOLD'::car_status
@@ -512,7 +512,7 @@ CREATE TRIGGER trg_sync_car_status
 
 -- deleting a sale puts the vehicle back in stock
 CREATE OR REPLACE FUNCTION public.release_car_on_sale_delete()
-RETURNS TRIGGER LANGUAGE plpgsql AS $fn$
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $fn$
 BEGIN
   UPDATE public.cars SET status = 'AVAILABLE' WHERE id = OLD.car_id;
   RETURN OLD;
@@ -534,11 +534,14 @@ CREATE TABLE IF NOT EXISTS public.sale_payments (
   sale_id     INT NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
   car_id      INT REFERENCES public.cars(id) ON DELETE SET NULL,
   amount      NUMERIC(12,2) NOT NULL DEFAULT 0,
+  -- true for the down payment recorded when the sale itself was created
+  is_initial  BOOLEAN NOT NULL DEFAULT false,
   date        TIMESTAMPTZ DEFAULT NOW(),
   description TEXT,
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
-ALTER TABLE public.sale_payments ADD COLUMN IF NOT EXISTS reference TEXT;
+ALTER TABLE public.sale_payments ADD COLUMN IF NOT EXISTS reference  TEXT;
+ALTER TABLE public.sale_payments ADD COLUMN IF NOT EXISTS is_initial BOOLEAN NOT NULL DEFAULT false;
 
 DO $uniq$
 BEGIN
@@ -567,7 +570,7 @@ CREATE TRIGGER trg_sale_payment_reference
   FOR EACH ROW EXECUTE FUNCTION public.set_sale_payment_reference();
 
 CREATE OR REPLACE FUNCTION public.update_sale_paid()
-RETURNS TRIGGER LANGUAGE plpgsql AS $fn$
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $fn$
 DECLARE sid INT;
 BEGIN
   sid := COALESCE(NEW.sale_id, OLD.sale_id);
@@ -584,6 +587,25 @@ DROP TRIGGER IF EXISTS trg_update_sale_paid ON public.sale_payments;
 CREATE TRIGGER trg_update_sale_paid
   AFTER INSERT OR UPDATE OR DELETE ON public.sale_payments
   FOR EACH ROW EXECUTE FUNCTION public.update_sale_paid();
+
+-- `amount_paid` is rebuilt from sale_payments as soon as one is recorded, so the
+-- down payment collected when the sale was created must be a payment row too -
+-- otherwise the first "payer la dette" would erase it.
+CREATE OR REPLACE FUNCTION public.seed_initial_sale_payment()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $fn$
+BEGIN
+  IF COALESCE(NEW.amount_paid, 0) > 0 THEN
+    INSERT INTO public.sale_payments (sale_id, car_id, amount, is_initial, date, description)
+    VALUES (NEW.id, NEW.car_id, NEW.amount_paid, true, NEW.date, 'Versement initial');
+  END IF;
+  RETURN NEW;
+END;
+$fn$;
+
+DROP TRIGGER IF EXISTS trg_seed_initial_sale_payment ON public.sales;
+CREATE TRIGGER trg_seed_initial_sale_payment
+  AFTER INSERT ON public.sales
+  FOR EACH ROW EXECUTE FUNCTION public.seed_initial_sale_payment();
 
 
 -- ----------------------------------------------------------------------------
@@ -824,9 +846,17 @@ SELECT
 
 -- Views run with the privileges of the CALLER, so the row level security of
 -- part 2 applies to them as well, and no view is readable anonymously.
-ALTER VIEW public.v_cars_full            SET (security_invoker = true);
-ALTER VIEW public.v_pending_settlements  SET (security_invoker = true);
-ALTER VIEW public.v_dashboard_kpis       SET (security_invoker = true);
+-- (security_invoker needs PostgreSQL 15+; on an older server the REVOKE below
+--  is what keeps the views out of anonymous reach.)
+DO $sec$
+BEGIN
+  ALTER VIEW public.v_cars_full           SET (security_invoker = true);
+  ALTER VIEW public.v_pending_settlements SET (security_invoker = true);
+  ALTER VIEW public.v_dashboard_kpis      SET (security_invoker = true);
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'security_invoker not supported on this server, skipped';
+END
+$sec$;
 
 REVOKE ALL ON public.v_cars_full           FROM anon;
 REVOKE ALL ON public.v_pending_settlements FROM anon;
@@ -850,6 +880,14 @@ UPDATE public.cars c
 UPDATE public.purchases SET entry_number = id::text WHERE entry_number IS NULL;
 UPDATE public.suppliers SET code = id::text        WHERE code IS NULL OR code = '';
 UPDATE public.sale_payments SET reference = 'REG-' || LPAD(id::text, 4, '0') WHERE reference IS NULL;
+
+-- Sales recorded before the down payment became a payment row: recreate it so
+-- the totals stay right the next time a payment is added.
+INSERT INTO public.sale_payments (sale_id, car_id, amount, is_initial, date, description)
+SELECT s.id, s.car_id, s.amount_paid, true, s.date, 'Versement initial'
+  FROM public.sales s
+ WHERE COALESCE(s.amount_paid, 0) > 0
+   AND NOT EXISTS (SELECT 1 FROM public.sale_payments p WHERE p.sale_id = s.id);
 
 -- ============================================================================
 -- END OF PART 1 - continue with 02_security.sql

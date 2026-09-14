@@ -133,7 +133,9 @@ CREATE TRIGGER on_auth_user_created
 
 -- 3.1 Enable RLS everywhere -------------------------------------------------
 DO $rls$
-DECLARE t TEXT;
+DECLARE
+  t   TEXT;
+  pol TEXT;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
     'users','settings','suppliers','clients','worker_roles','workers',
@@ -146,10 +148,11 @@ BEGIN
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
     -- drop every previously created policy on the table so this file can be
     -- re-run after the permission model changes
-    EXECUTE (
-      SELECT COALESCE(string_agg(format('DROP POLICY IF EXISTS %I ON public.%I;', policyname, t), ' '), '')
-        FROM pg_policies WHERE schemaname = 'public' AND tablename = t
-    );
+    FOR pol IN
+      SELECT policyname FROM pg_policies WHERE schemaname = 'public' AND tablename = t
+    LOOP
+      EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', pol, t);
+    END LOOP;
   END LOOP;
 END
 $rls$;

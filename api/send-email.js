@@ -11,10 +11,9 @@
  *   BREVO_SENDER_NAME  (default: mhd showroom)
  */
 
-const DEFAULT_API_KEY =
-  "process.env.BREVO_API_KEY";
-const DEFAULT_SENDER_EMAIL = "icarmhd@gmail.com";
-const DEFAULT_SENDER_NAME = "mhd showroom";
+const DEFAULT_API_KEY = process.env.BREVO_API_KEY || "";
+const DEFAULT_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || "icarmhd@gmail.com";
+const DEFAULT_SENDER_NAME = process.env.BREVO_SENDER_NAME || "mhd showroom";
 
 module.exports = async function handler(req, res) {
   if (req.method === "OPTIONS") {
