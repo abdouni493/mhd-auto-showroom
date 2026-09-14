@@ -1,11 +1,19 @@
-# Backend (not deployed to Vercel)
+# ─────────────────────────────────────────────────────────────────────────────
+# Ce dépôt se déploie depuis SA RACINE (Vercel → Root Directory = ./).
+# vercel.json construit frontend/ et publie frontend/dist ; api/ devient les
+# fonctions serverless. Ne PAS créer de projet pointant sur backend/.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Ancien serveur Express — remplacé par Supabase, jamais déployé (voir backend/README.md)
 backend/
 
-# SQL files
+# Scripts SQL : exécutés à la main dans Supabase, inutiles au build
 *.sql
+sql/
 
 # Documentation
 README.md
+SETUP.md
 prompt.md
 
 # Misc

@@ -200,5 +200,78 @@ npm run dev       # http://localhost:5173
 npm run build     # frontend/dist
 ```
 
-Déploiement Vercel : `vercel.json` construit `frontend/` et publie
-`frontend/dist`, en laissant `/api/*` aux fonctions serverless.
+---
+
+## 11. Déploiement Vercel
+
+Le dépôt se déploie en **un seul projet, depuis la racine**. Il n'y a pas de
+serveur à héberger : le navigateur parle directement à Supabase, et la seule
+fonction serveur est `api/send-email.js`.
+
+### Réglages du projet Vercel
+
+| Réglage               | Valeur                              |
+|-----------------------|-------------------------------------|
+| **Framework Preset**  | **Other**                           |
+| **Root Directory**    | **`./`** (la racine — laisser vide) |
+| Build Command         | *(laisser par défaut)*              |
+| Output Directory      | *(laisser par défaut)*              |
+| Install Command       | *(laisser par défaut)*              |
+
+Les trois commandes viennent de `vercel.json`, il ne faut **rien** surcharger :
+
+```
+installCommand    npm --prefix frontend install
+buildCommand      npm --prefix frontend run build
+outputDirectory   frontend/dist
+```
+
+`api/send-email.js` est détecté automatiquement comme fonction serverless, et la
+règle `rewrites` renvoie toutes les autres URL vers `index.html` (routage React).
+
+### Variables d'environnement
+
+À ajouter dans **Settings → Environment Variables** (Production + Preview) :
+
+```
+BREVO_API_KEY        clé API Brevo v3 (xkeysib-…)
+BREVO_SENDER_EMAIL   icarmhd@gmail.com
+BREVO_SENDER_NAME    mhd showroom
+```
+
+Les clés Supabase sont publiques (anon key) et déjà dans le code : rien à
+ajouter pour la base de données.
+
+### ⚠️ Erreur fréquente : « Root Directory = backend »
+
+Créer un projet avec le préréglage **Express** et **Root Directory `backend`**
+échoue systématiquement, avec des logs du type :
+
+```
+Found .vercelignore (repository root)
+Removed 32 ignored files defined in .vercelignore
+  /backend/package.json
+  /backend/lib/prisma.js
+  ...
+Deployment failed with error.
+```
+
+Deux raisons :
+
+1. `backend/` est listé dans `.vercelignore` — ses fichiers sont retirés avant le
+   build, le dossier arrive donc **vide** sur la machine Vercel.
+2. Ce dossier est de toute façon **obsolète** : l'ancienne API Express + Prisma a
+   été remplacée par Supabase (voir `backend/README.md`). Aucune page de
+   l'application ne l'appelle.
+
+**Correction :** supprimer ce projet « backend » dans Vercel, puis dans le projet
+principal aller dans **Settings → Build and Deployment → Root Directory**, mettre
+**`./`**, enregistrer et relancer un déploiement (**Deployments → … → Redeploy**).
+
+### Vérifier après déploiement
+
+1. La page de connexion s'affiche et le login Supabase fonctionne.
+2. Recharger directement une URL interne (`/ventes`, `/stock`) : pas de 404
+   — c'est la règle `rewrites` qui fait son travail.
+3. **Ventes → Envoyer par email** : un envoi réussi confirme que
+   `api/send-email.js` et `BREVO_API_KEY` sont bien en place.
