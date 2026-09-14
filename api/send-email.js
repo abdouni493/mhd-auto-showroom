@@ -8,12 +8,12 @@
  * Configure the key in Vercel → Settings → Environment Variables:
  *   BREVO_API_KEY      (falls back to the key below)
  *   BREVO_SENDER_EMAIL (default: icarmhd@gmail.com)
- *   BREVO_SENDER_NAME  (default: mhd showroom)
+ *   BREVO_SENDER_NAME  (default: altech showroom)
  */
 
 const DEFAULT_API_KEY = process.env.BREVO_API_KEY || "";
 const DEFAULT_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || "icarmhd@gmail.com";
-const DEFAULT_SENDER_NAME = process.env.BREVO_SENDER_NAME || "mhd showroom";
+const DEFAULT_SENDER_NAME = process.env.BREVO_SENDER_NAME || "altech showroom";
 
 module.exports = async function handler(req, res) {
   if (req.method === "OPTIONS") {

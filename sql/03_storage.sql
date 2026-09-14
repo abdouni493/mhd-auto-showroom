@@ -1,5 +1,5 @@
 -- ============================================================================
---  SHOWROOM MHD AUTO - STORAGE  (part 3/3 : buckets used to save & display images)
+--  ALTECH SHOWROOM - STORAGE  (part 3/3 : buckets used to save & display images)
 --  Run AFTER 02_security.sql. Idempotent.
 --
 --  Buckets (all public-read so an <img src="..."> works everywhere):

@@ -18,7 +18,7 @@ export default function WebsiteNav() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
         <Link to="/website" className="flex items-center gap-3">
           <AnimatedLogo src={settings?.logo} size={38} rounded="rounded-lg" />
-          <span className="heading text-sm text-text-primary">{settings?.name || "Prestige Auto"}</span>
+          <span className="heading text-sm text-text-primary">{settings?.name || "Altech Showroom"}</span>
         </Link>
         <div className="flex items-center gap-4 sm:gap-6 text-xs font-bold uppercase tracking-wider">
           <Link to="/website" className="text-text-muted hover:text-text-primary transition hidden sm:block">Accueil</Link>

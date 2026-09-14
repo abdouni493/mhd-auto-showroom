@@ -1,5 +1,5 @@
 -- ============================================================================
---  SHOWROOM MHD AUTO - COMPLETE SUPABASE SCHEMA  (part 1/3 : tables & triggers)
+--  ALTECH SHOWROOM - COMPLETE SUPABASE SCHEMA  (part 1/3 : tables & triggers)
 --  Project : https://nnqrfbqxqfepjwglfgiu.supabase.co
 --
 --  Run 01_schema.sql, then 02_security.sql, then 03_storage.sql
@@ -129,7 +129,7 @@ ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS email_sender_name   TEXT;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS email_sender        TEXT;
 
 INSERT INTO public.settings (name, email_sender_name, email_sender)
-SELECT 'MHD AUTO', 'mhd showroom', 'icarmhd@gmail.com'
+SELECT 'ALTECH SHOWROOM', 'altech showroom', 'icarmhd@gmail.com'
 WHERE NOT EXISTS (SELECT 1 FROM public.settings);
 
 

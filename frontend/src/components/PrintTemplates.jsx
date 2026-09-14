@@ -108,7 +108,7 @@ export const L = {
     // New: deposit conditions
     depositConditionsTitle: "CONDITION RELATIVE AUX ARRHES",
     depositConditionsText: `Le montant versé par le client à la réservation du véhicule est expressément considéré comme des ARRHES DE RÉSERVATION.
-En cas de désistement, d’annulation ou de refus du client de finaliser l’achat du véhicule de son propre fait, les arrhes versées restent acquises à FIFOU AUTO et ne donnent lieu à aucun remboursement, sous réserve des dispositions légales impératives applicables.
+En cas de désistement, d’annulation ou de refus du client de finaliser l’achat du véhicule de son propre fait, les arrhes versées restent acquises à {{name}} et ne donnent lieu à aucun remboursement, sous réserve des dispositions légales impératives applicables.
 Le client reconnaît avoir été informé de cette condition avant le versement des arrhes, l’avoir lue, comprise et acceptée.`,
     depositManualMention: `Mention manuscrite du client : « Lu et approuvé, bon pour accord. »`,
   },
@@ -199,7 +199,7 @@ Le client reconnaît avoir été informé de cette condition avant le versement 
     // New: deposit conditions (Arabic translation)
     depositConditionsTitle: "شروط متعلقة بالعربون",
     depositConditionsText: `المبلغ المدفوع من قبل العميل عند حجز المركبة يُعتَبر صراحةً عربونًا للحجز.
-في حالة تراجع العميل أو إلغاءه أو امتناعه عن إتمام شراء المركبة لسبب يعود إليه، يظل العربون المدفوع محقّقًا لشركة FIFOU AUTO ولا يرد، مع مراعاة الأحكام القانونية الملزمة السارية.
+في حالة تراجع العميل أو إلغاءه أو امتناعه عن إتمام شراء المركبة لسبب يعود إليه، يظل العربون المدفوع محقّقًا لشركة {{name}} ولا يرد، مع مراعاة الأحكام القانونية الملزمة السارية.
 يقر العميل بأنه تم إعلامه بهذه الشروط قبل دفع العربون، وأنه قرأها وفهمها وقبلها.`,
     depositManualMention: `إشارة بخط اليد من العميل: «اطلعت ووافقت، صالح للموافقة.»`,
   },
@@ -496,14 +496,18 @@ export function InspectionBlock({ inspection, lang }) {
 }
 
 // ── Conditions block (compact bilingual-ready) ────────────────────────────
-export function ConditionsBlock({ lang }) {
+export function ConditionsBlock({ lang, showroom }) {
   const x = tr(lang);
+  // The clause names the seller: use the showroom identity from Paramètres so
+  // the printed text always matches the business actually selling the vehicle.
+  const seller = (showroom?.name || "ALTECH SHOWROOM").toUpperCase();
+  const text = x.depositConditionsText.replace(/\{\{name\}\}/g, seller);
   // Compact, small-font framed block to keep the page single-sheet friendly.
   return (
     <div style={{ marginTop: 8, breakInside: "avoid" }}>
       <Frame title={x.depositConditionsTitle} style={{ padding: 0 }}>
         <div style={{ fontSize: 10, color: INK, whiteSpace: "pre-line", lineHeight: 1.25 }}>
-          <div style={{ marginBottom: 6 }}>{x.depositConditionsText}</div>
+          <div style={{ marginBottom: 6 }}>{text}</div>
           <div style={{ fontWeight: 800 }}>{x.depositManualMention}</div>
         </div>
       </Frame>
@@ -628,7 +632,7 @@ export function SaleInvoice({ sale, showroom, lang = "fr" }) {
       <InspectionBlock inspection={sale.inspection} lang={lang} />
 
       {/* New: deposit/arrhes conditions */}
-      <ConditionsBlock lang={lang} />
+      <ConditionsBlock lang={lang} showroom={showroom} />
 
       <Signatures left={x.sigClient} right={x.sigShowroom} />
       <Footer showroom={showroom} lang={lang} />

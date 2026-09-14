@@ -182,7 +182,7 @@ export default function Home() {
     websiteApi.publicSpecialOffers().then((data) => setSpecials(data)).catch(() => setSpecials([]));
   }, []);
 
-  const name = settings?.name || "Prestige Auto";
+  const name = settings?.name || "Altech Showroom";
   const words = name.split(" ");
 
   return (

@@ -1,4 +1,4 @@
-# MHD AUTO — Showroom Management
+# ALTECH SHOWROOM — Showroom Management
 
 Application de gestion de showroom automobile : stock, achats, POS, ventes,
 règlements, caisse, clients, employés, dépenses, rapports,
@@ -177,7 +177,7 @@ Variables d'environnement Vercel (facultatives, des valeurs par défaut existent
 ```
 BREVO_API_KEY        clé API Brevo
 BREVO_SENDER_EMAIL   icarmhd@gmail.com
-BREVO_SENDER_NAME    mhd showroom
+BREVO_SENDER_NAME    altech showroom
 ```
 
 > L'expéditeur doit être **vérifié dans Brevo** (Senders & IP) sinon l'envoi est
@@ -235,7 +235,7 @@ règle `rewrites` renvoie toutes les autres URL vers `index.html` (routage React
 ```
 BREVO_API_KEY        clé API Brevo v3 (xkeysib-…)
 BREVO_SENDER_EMAIL   icarmhd@gmail.com
-BREVO_SENDER_NAME    mhd showroom
+BREVO_SENDER_NAME    altech showroom
 ```
 
 Les clés Supabase sont publiques (anon key) et déjà dans le code : rien à

@@ -21,7 +21,7 @@ export const BREVO = {
   // frontend/.env as VITE_BREVO_API_KEY to exercise the direct fallback below.
   apiKey: import.meta.env?.VITE_BREVO_API_KEY || "",
   senderEmail: "icarmhd@gmail.com",
-  senderName: "mhd showroom",
+  senderName: "altech showroom",
   endpoint: "https://api.brevo.com/v3/smtp/email",
 };
 

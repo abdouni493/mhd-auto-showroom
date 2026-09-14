@@ -1,5 +1,5 @@
 -- ============================================================================
--- MHD AUTO — MIGRATION 04  (September 2026)
+-- ALTECH SHOWROOM — MIGRATION 04  (September 2026)
 --
 -- Run this file ONCE on an existing database, after 01_schema.sql,
 -- 02_security.sql and 03_storage.sql.
@@ -290,6 +290,24 @@ REVOKE ALL ON public.v_dashboard_kpis      FROM anon;
 GRANT SELECT ON public.v_cars_full           TO authenticated;
 GRANT SELECT ON public.v_pending_settlements TO authenticated;
 GRANT SELECT ON public.v_dashboard_kpis      TO authenticated;
+
+
+-- ============================================================================
+-- PART H — rename the application to ALTECH SHOWROOM
+--          Only touches the row still carrying an old default name, so a
+--          showroom that already set its own identity in Paramètres keeps it.
+-- ============================================================================
+UPDATE public.settings
+   SET name = 'ALTECH SHOWROOM'
+ WHERE name IS NULL
+    OR btrim(name) = ''
+    OR upper(btrim(name)) IN ('MHD AUTO', 'SHOWROOM MHD', 'FIFOU AUTO', 'PRESTIGE AUTO');
+
+UPDATE public.settings
+   SET email_sender_name = 'altech showroom'
+ WHERE email_sender_name IS NULL
+    OR btrim(email_sender_name) = ''
+    OR lower(btrim(email_sender_name)) IN ('mhd showroom', 'fifou auto', 'prestige auto');
 
 
 -- ============================================================================

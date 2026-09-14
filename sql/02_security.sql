@@ -1,5 +1,5 @@
 -- ============================================================================
---  SHOWROOM MHD AUTO - SECURITY  (part 2/3 : auth, permissions, RLS)
+--  ALTECH SHOWROOM - SECURITY  (part 2/3 : auth, permissions, RLS)
 --  Run AFTER 01_schema.sql. Idempotent.
 --
 --  Model

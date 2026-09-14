@@ -1,4 +1,4 @@
-# 🚗 MHD AUTO — Showroom Management System
+# 🚗 ALTECH SHOWROOM — Showroom Management System
 
 A complete, production-ready bilingual (French/Arabic) automotive showroom
 management web application.
@@ -56,7 +56,7 @@ Environment variables (Settings → Environment Variables):
 ```
 BREVO_API_KEY        Brevo v3 API key (xkeysib-…), for sending documents by email
 BREVO_SENDER_EMAIL   icarmhd@gmail.com
-BREVO_SENDER_NAME    mhd showroom
+BREVO_SENDER_NAME    altech showroom
 ```
 
 Supabase uses a public anon key already present in the source — nothing to add

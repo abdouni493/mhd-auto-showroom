@@ -716,7 +716,7 @@ function EmailModal({ sale, docs, showroom, onClose }) {
           </Field>
 
           <p className="text-[0.65rem] text-text-muted">
-            {t("email.sender")} : <span className="text-text-primary">{showroom?.emailSenderName || "mhd showroom"}</span>{" "}
+            {t("email.sender")} : <span className="text-text-primary">{showroom?.emailSenderName || "altech showroom"}</span>{" "}
             &lt;{showroom?.emailSender || "icarmhd@gmail.com"}&gt;
           </p>
 

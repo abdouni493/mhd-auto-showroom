@@ -147,7 +147,7 @@ export default function Login() {
             <AnimatedLogo src={settings?.logo} size={72} rounded="rounded-2xl" />
           </motion.div>
           <motion.p className="text-text-muted text-xs uppercase tracking-[0.2em]" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
-            {settings?.name || "Prestige Auto"}
+            {settings?.name || "Altech Showroom"}
           </motion.p>
           <motion.h1 className="gradient-text heading text-4xl mt-1" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
             {mode === "register" ? t("login.createAdmin") : t("login.title")}
