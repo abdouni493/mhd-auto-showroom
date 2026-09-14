@@ -204,8 +204,8 @@ npm run build     # frontend/dist
 
 ## 11. Déploiement Vercel
 
-Le dépôt se déploie en **un seul projet, depuis la racine**. Il n'y a pas de
-serveur à héberger : le navigateur parle directement à Supabase, et la seule
+Le dépôt se déploie en **un seul projet, depuis la racine**. Il n'y a **aucun
+serveur à héberger** : le navigateur parle directement à Supabase, et la seule
 fonction serveur est `api/send-email.js`.
 
 ### Réglages du projet Vercel
@@ -213,10 +213,10 @@ fonction serveur est `api/send-email.js`.
 | Réglage               | Valeur                              |
 |-----------------------|-------------------------------------|
 | **Framework Preset**  | **Other**                           |
-| **Root Directory**    | **`./`** (la racine — laisser vide) |
-| Build Command         | *(laisser par défaut)*              |
-| Output Directory      | *(laisser par défaut)*              |
-| Install Command       | *(laisser par défaut)*              |
+| **Root Directory**    | **`./`** (la racine — ne pas changer) |
+| Build Command         | *(laisser vide)*                    |
+| Output Directory      | *(laisser vide)*                    |
+| Install Command       | *(laisser vide)*                    |
 
 Les trois commandes viennent de `vercel.json`, il ne faut **rien** surcharger :
 
@@ -242,14 +242,16 @@ BREVO_SENDER_NAME    mhd showroom
 Les clés Supabase sont publiques (anon key) et déjà dans le code : rien à
 ajouter pour la base de données.
 
-### ⚠️ Erreur fréquente : « Root Directory = backend »
+### ⚠️ Erreur fréquente : « Root Directory » pointé sur le backend
 
 Créer un projet avec le préréglage **Express** et **Root Directory `backend`**
-échoue systématiquement, avec des logs du type :
+échoue systématiquement. Les logs s'arrêtent en 1 seconde, avant même
+l'installation des dépendances :
 
 ```
+Cloning github.com/abdouni493/mhd-auto-showroom (Branch: main, Commit: …)
 Found .vercelignore (repository root)
-Removed 32 ignored files defined in .vercelignore
+Removed 34 ignored files defined in .vercelignore
   /backend/package.json
   /backend/lib/prisma.js
   ...
@@ -258,20 +260,55 @@ Deployment failed with error.
 
 Deux raisons :
 
-1. `backend/` est listé dans `.vercelignore` — ses fichiers sont retirés avant le
-   build, le dossier arrive donc **vide** sur la machine Vercel.
-2. Ce dossier est de toute façon **obsolète** : l'ancienne API Express + Prisma a
-   été remplacée par Supabase (voir `backend/README.md`). Aucune page de
-   l'application ne l'appelle.
+1. Ce dossier est listé dans `.vercelignore` — ses fichiers sont retirés **avant**
+   que Vercel n'entre dans le Root Directory. Le dossier arrive donc **vide** sur
+   la machine de build, et il n'y a rien à construire.
+2. Il est de toute façon **obsolète** : l'ancienne API Express + Prisma a été
+   remplacée par Supabase. Aucune page de l'application ne l'appelle.
 
-**Correction :** supprimer ce projet « backend » dans Vercel, puis dans le projet
-principal aller dans **Settings → Build and Deployment → Root Directory**, mettre
-**`./`**, enregistrer et relancer un déploiement (**Deployments → … → Redeploy**).
+Le dossier a été renommé `backend/` → `legacy-backend/` précisément pour que ce
+choix ne soit plus proposé à l'import (voir `legacy-backend/README.md`).
+
+> **Important :** le Root Directory est un **réglage du projet Vercel**, pas un
+> fichier du dépôt. Aucun commit, aucun `vercel.json` ne peut le corriger — il
+> faut le changer dans le tableau de bord (ou recréer le projet).
+
+### Corriger un projet déjà cassé
+
+**Option A — corriger le réglage (30 secondes)**
+
+1. Vercel → le projet → **Settings** → **Build and Deployment**.
+2. Section **Root Directory** : effacer `backend`, laisser **vide** (= `./`).
+3. Section **Framework Settings** : Framework Preset = **Other**, et
+   désactiver les éventuels *Override* sur Build / Output / Install Command.
+4. **Save**, puis **Deployments → le dernier → ⋯ → Redeploy**
+   (décocher « Use existing Build Cache »).
+
+**Option B — repartir d'un projet neuf**
+
+1. Supprimer le projet fautif : **Settings → Advanced → Delete Project**.
+2. **Add New → Project → Import** `mhd-auto-showroom`.
+3. Sur l'écran d'import : **ne pas** cliquer « Edit » à côté de Root Directory —
+   le laisser sur `./`. Framework Preset = **Other**.
+4. Ajouter les variables `BREVO_*`, puis **Deploy**.
+
+**Option C — en ligne de commande, sans passer par le tableau de bord**
+
+Depuis la racine du dépôt :
+
+```bash
+npx vercel login
+npx vercel link      # créer un NOUVEAU projet (ne pas relier celui qui est cassé)
+npx vercel --prod
+```
 
 ### Vérifier après déploiement
 
+Les logs d'un déploiement correct contiennent `npm --prefix frontend install`
+puis `vite build` et durent ~1 minute. Ensuite :
+
 1. La page de connexion s'affiche et le login Supabase fonctionne.
-2. Recharger directement une URL interne (`/ventes`, `/stock`) : pas de 404
-   — c'est la règle `rewrites` qui fait son travail.
+2. Recharger directement une URL interne (`/app/sales`, `/app/showroom`) : pas de
+   404 — c'est la règle `rewrites` qui fait son travail.
 3. **Ventes → Envoyer par email** : un envoi réussi confirme que
    `api/send-email.js` et `BREVO_API_KEY` sont bien en place.

@@ -1,48 +1,67 @@
-# 🚗 Prestige Auto — Showroom Management System
+# 🚗 MHD AUTO — Showroom Management System
 
-A complete, production-ready bilingual (French/Arabic) automotive showroom management web application.
+A complete, production-ready bilingual (French/Arabic) automotive showroom
+management web application.
 
 - **Frontend:** React 18 + Vite + React Router v6 + Tailwind CSS + Zustand + Recharts + react-i18next
-- **Backend:** Node.js + Express + Prisma ORM
-- **Database:** SQLite
-- **Auth:** JWT (httpOnly cookie + Bearer) + bcrypt
-- **Design:** Dark luxury crimson glassmorphism aesthetic
+- **Backend:** **none to host** — the browser talks to **Supabase** directly (PostgREST + RLS + Storage)
+- **Database:** Supabase PostgreSQL (schema, triggers and views in [`sql/`](sql/))
+- **Auth:** Supabase Auth (`@supabase/supabase-js`), permissions per worker role via RLS
+- **Serverless:** a single function, [`api/send-email.js`](api/send-email.js), proxying Brevo for document emails
+- **Design:** dark luxury crimson glassmorphism, with a light mode
+
+> **There is no server to deploy.** The `legacy-backend/` folder is an obsolete
+> Express + Prisma API kept only for reference — see
+> [`legacy-backend/README.md`](legacy-backend/README.md). Nothing in the app calls it.
 
 ---
 
 ## Installation
 
-### 1. Backend
+Everything runs from the repo root.
 
 ```bash
-cd backend
-npm install
-npx prisma generate
-npx prisma db push      # creates dev.db with all tables
-node prisma/seed.js     # seeds demo account + sample data
-npm run dev             # starts API on http://localhost:4000
+npm install --prefix frontend
+npm run dev       # http://localhost:5173
+npm run build     # builds to frontend/dist
 ```
 
-### 2. Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev             # starts app on http://localhost:5173
-```
-
-The Vite dev server proxies `/api` and `/uploads` to the backend on port 4000.
+Database setup (run the three `sql/` files once in the Supabase SQL editor) and
+all app documentation are in **[SETUP.md](SETUP.md)**.
 
 ---
 
-## Demo credentials
+## Deployment (Vercel)
+
+**One project, deployed from the repo root.**
+
+| Setting            | Value                                |
+|--------------------|--------------------------------------|
+| Framework Preset   | **Other**                            |
+| **Root Directory** | **`./`** — leave it at the root      |
+| Build / Output / Install | leave empty — `vercel.json` supplies them |
+
+[`vercel.json`](vercel.json) builds `frontend/` into `frontend/dist` and exposes
+`api/` as serverless functions; a rewrite sends every other path to `index.html`
+for client-side routing.
+
+> ⚠️ **Do not** set Root Directory to `legacy-backend` (or the old `backend`)
+> and do not pick the **Express** preset. That folder is excluded by
+> `.vercelignore` and holds dead code — a project rooted there always fails.
+
+Environment variables (Settings → Environment Variables):
 
 ```
-Email:    demo@showroom.dz
-Password: demo1234
+BREVO_API_KEY        Brevo v3 API key (xkeysib-…), for sending documents by email
+BREVO_SENDER_EMAIL   icarmhd@gmail.com
+BREVO_SENDER_NAME    mhd showroom
 ```
 
-Or click **"Compte démo — Accès direct"** on the login page.
+Supabase uses a public anon key already present in the source — nothing to add
+for the database.
+
+Full walkthrough, including recovery from a misconfigured project:
+**[SETUP.md § 11 Déploiement Vercel](SETUP.md)**.
 
 ---
 
@@ -73,22 +92,28 @@ Or click **"Compte démo — Accès direct"** on the login page.
 
 ## Features
 
-- Full CRUD with real SQLite persistence on every entity
+- Full CRUD with real Supabase persistence on every entity
 - 3-step Purchase and Sale wizards with image upload & inspection checklists
 - Invoice / receipt printing (`window.print()` with print-only templates)
 - Debt tracking and payment ledgers on purchases, sales, and cars
+- Owner settlements for consigned (client-owned) vehicles
 - Dashboard analytics (line / bar / doughnut charts)
 - Worker payroll with advances, absences, and role-based permission matrix
 - Public website with offers, special offers (countdown), reservations
-- Bilingual FR/AR with RTL layout switching
-- JSON database backup export
+- Bilingual FR/AR with RTL layout switching, dark and light modes
+- Sending documents by email through Brevo
 
 ---
 
 ## Project structure
 
 ```
-showroom/
-├── backend/    Express API, Prisma schema, seed, routes, middleware
-└── frontend/   React app (pages, components, store, hooks, i18n, utils)
+.
+├── api/              Vercel serverless functions (send-email.js)
+├── frontend/         React app (pages, components, store, hooks, i18n, utils)
+│   └── src/lib/      supabase.js (client) + api.js (all data access)
+├── sql/              Supabase schema, security/RLS, storage buckets
+├── legacy-backend/   ⚠️ obsolete Express + Prisma API — not deployed, reference only
+├── vercel.json       root deployment config
+└── SETUP.md          full documentation (FR)
 ```
