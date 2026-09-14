@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import { Eye, Pencil, Trash2, Printer, Wallet, Plus, Factory, User, Check, X, KeyRound, FileText, Upload, LayoutGrid, Table as TableIcon, Store, ClipboardList, FileSignature, ClipboardCheck, Gauge, Receipt, ChevronDown } from "lucide-react";
-import { carsApi, purchasesApi, suppliersApi, clientsApi, inspectionApi } from "../lib/api.js";
+import { Eye, Pencil, Trash2, Printer, Wallet, Plus, User, Check, X, KeyRound, FileText, Upload, LayoutGrid, Table as TableIcon, Store, ClipboardList, FileSignature, ClipboardCheck, Gauge, Receipt, ChevronDown } from "lucide-react";
+import { carsApi, purchasesApi, clientsApi, inspectionApi } from "../lib/api.js";
 import { useFetch } from "../hooks/useApi.js";
 import { useCan } from "../lib/permissions.js";
 import { useStore } from "../store/useStore.js";
@@ -10,6 +10,7 @@ import { Card, Badge, Modal, ConfirmModal, Field, EmptyState, SkeletonGrid, Step
 import PageHeader from "../components/PageHeader.jsx";
 import ActionMenu from "../components/ActionMenu.jsx";
 import SearchSelect from "../components/SearchSelect.jsx";
+import CreatableSelect from "../components/CreatableSelect.jsx";
 import ClientForm, { validateClient } from "../components/ClientForm.jsx";
 import { MultiImageUpload } from "../components/ImageUpload.jsx";
 import InspectionChecklist, { DEFAULT_INSPECTION, hasInspectionItems } from "../components/InspectionChecklist.jsx";
@@ -21,7 +22,6 @@ import { formatAmount, formatDate, toDateTimeLocal } from "../utils/format.js";
 
 const FILTERS = [
   { key: "", tkey: "common.all" },
-  { key: "sourceType=SUPPLIER", tkey: "purchase.filterSupplier" },
   { key: "sourceType=CLIENT", tkey: "purchase.filterClient" },
   { key: "sourceType=SHOWROOM", tkey: "purchase.filterShowroom" },
   { key: "paid=PAID", tkey: "purchase.filterPaid" },
@@ -43,10 +43,8 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
   const { settings } = useStore();
   const isEdit = !!editTarget;
   const [step, setStep] = useState(0);
-  const [sourceType, setSourceType] = useState(editTarget?.sourceType || "SUPPLIER");
-  const [supplier, setSupplier] = useState(editTarget?.sourceType !== "CLIENT" ? editTarget?.supplier || null : null);
+  const [sourceType, setSourceType] = useState(editTarget?.sourceType === "CLIENT" ? "CLIENT" : "SHOWROOM");
   const [client, setClient] = useState(editTarget?.sourceType === "CLIENT" ? editTarget?.client || null : null);
-  const [newSupplier, setNewSupplier] = useState(null);
   const [newClient, setNewClient] = useState(null);
   const [clientErrors, setClientErrors] = useState({});
   const [car, setCar] = useState(() => editTarget?.car
@@ -85,6 +83,27 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
   // documents — every known document type is shown as a checkable card; a type
   // can be checked (applicable to this car) with or without an attached file.
   const { data: docTypes, refetch: refetchTypes } = useFetch(() => carsApi.getDocumentTypes(), []);
+
+  // Colour & year reference lists — the pickers below can add to them without
+  // leaving the form, so the new value is available on the next purchase too.
+  const [colors, setColors] = useState([]);
+  const [years, setYears] = useState([]);
+  useEffect(() => {
+    carsApi.getColors().then(setColors).catch(() => {});
+    carsApi.getYears().then(setYears).catch(() => {});
+  }, []);
+  const colorOptions = colors.map((c) => ({ id: c.id, label: c.name, value: c.name }));
+  const yearOptions = years.map((y) => ({ id: y.id, label: String(y.year), value: String(y.year) }));
+  const createColor = async (name) => {
+    const created = await carsApi.createColor(name);
+    setColors((list) => (list.some((c) => c.id === created.id) ? list : [...list, created].sort((a, b) => a.name.localeCompare(b.name))));
+    return { id: created.id, label: created.name, value: created.name };
+  };
+  const createYear = async (year) => {
+    const created = await carsApi.createYear(year);
+    setYears((list) => (list.some((y) => y.id === created.id) ? list : [...list, created].sort((a, b) => b.year - a.year)));
+    return { id: created.id, label: String(created.year), value: String(created.year) };
+  };
   const [newDocType, setNewDocType] = useState("");
   const [showNewDocType, setShowNewDocType] = useState(false);
   const [uploadingType, setUploadingType] = useState("");
@@ -132,13 +151,6 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
     }
   };
 
-  const saveSupplier = async () => {
-    try {
-      const data = await suppliersApi.create(newSupplier);
-      setSupplier(data);
-      setNewSupplier(null);
-    } catch (e) { alert(e.message || "Erreur"); }
-  };
   const saveClient = async () => {
     const errs = validateClient(newClient || {});
     if (Object.keys(errs).length) { setClientErrors(errs); return; }
@@ -149,9 +161,9 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
     } catch (e) { alert(e.message || "Erreur"); }
   };
 
-  // A vehicle the showroom owner bought himself has no supplier and no client.
+  // A vehicle the showroom owner bought himself has no counterparty at all.
   const isShowroom = sourceType === "SHOWROOM";
-  const hasCounterparty = isShowroom || (sourceType === "SUPPLIER" ? !!supplier : !!client);
+  const hasCounterparty = isShowroom || !!client;
   const canNext1 = hasCounterparty;
 
   // Everything the wizard needs before a record can be written. In edit mode the
@@ -164,7 +176,6 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
     try {
       const payload = {
         sourceType,
-        supplierId: sourceType === "SUPPLIER" ? supplier?.id : null,
         clientId: sourceType === "CLIENT" ? client?.id : null,
         car: { ...car, year: car.year ? Number(car.year) : null, seats: car.seats ? Number(car.seats) : null, mileage: car.mileage ? Number(car.mileage) : null },
         purchasePrice: Number(pricing.purchasePrice) || 0,
@@ -228,15 +239,23 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
         {/* STEP 1 */}
         {step === 0 && (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <button onClick={() => setSourceType("SUPPLIER")} className={`p-4 rounded-xl border flex flex-col items-center justify-center gap-1.5 font-bold uppercase text-xs transition ${sourceType === "SUPPLIER" ? "border-violet-500 bg-violet-600/15 text-violet-300" : "border-red-600/30 text-text-muted"}`}>
-                <Factory size={20} /> {t("common.supplier")}
+            {/* Where the vehicle comes from — two choices since the supplier
+                feature was removed: the showroom bought it, or a client left it
+                on deposit ("prestation"). */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button onClick={() => setSourceType("SHOWROOM")} className={`p-4 rounded-xl border flex items-center gap-3 text-left rtl:text-right transition ${isShowroom ? "border-red-500 bg-red-600/15" : "border-red-600/30 hover:border-red-600/60"}`}>
+                <span className={`p-2 rounded-lg shrink-0 ${isShowroom ? "bg-red-600/25 text-red-300" : "bg-red-600/10 text-text-muted"}`}><Store size={20} /></span>
+                <span className="min-w-0">
+                  <span className={`block font-black uppercase text-xs tracking-wide ${isShowroom ? "text-red-300" : "text-text-muted"}`}>{t("purchase.sourceShowroom")}</span>
+                  <span className="block text-[0.68rem] text-text-muted mt-0.5 normal-case">{t("purchase.sourceShowroomHint")}</span>
+                </span>
               </button>
-              <button onClick={() => setSourceType("CLIENT")} className={`p-4 rounded-xl border flex flex-col items-center justify-center gap-1.5 font-bold uppercase text-xs text-center transition ${sourceType === "CLIENT" ? "border-blue-500 bg-blue-600/15 text-blue-300" : "border-red-600/30 text-text-muted"}`}>
-                <User size={20} /> {t("purchase.sourcePrestation")}
-              </button>
-              <button onClick={() => setSourceType("SHOWROOM")} className={`p-4 rounded-xl border flex flex-col items-center justify-center gap-1.5 font-bold uppercase text-xs transition ${isShowroom ? "border-red-500 bg-red-600/15 text-red-300" : "border-red-600/30 text-text-muted"}`}>
-                <Store size={20} /> {t("purchase.sourceShowroom")}
+              <button onClick={() => setSourceType("CLIENT")} className={`p-4 rounded-xl border flex items-center gap-3 text-left rtl:text-right transition ${sourceType === "CLIENT" ? "border-blue-500 bg-blue-600/15" : "border-red-600/30 hover:border-red-600/60"}`}>
+                <span className={`p-2 rounded-lg shrink-0 ${sourceType === "CLIENT" ? "bg-blue-600/25 text-blue-300" : "bg-red-600/10 text-text-muted"}`}><User size={20} /></span>
+                <span className="min-w-0">
+                  <span className={`block font-black uppercase text-xs tracking-wide ${sourceType === "CLIENT" ? "text-blue-300" : "text-text-muted"}`}>{t("purchase.sourcePrestation")}</span>
+                  <span className="block text-[0.68rem] text-text-muted mt-0.5 normal-case">{t("purchase.sourcePrestationHint")}</span>
+                </span>
               </button>
             </div>
 
@@ -250,37 +269,6 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
                   </div>
                 </div>
               </Card>
-            ) : sourceType === "SUPPLIER" ? (
-              <div>
-                {supplier ? (
-                  <Card className="p-4 border border-violet-500/40">
-                    <div className="flex justify-between items-center">
-                      <div><p className="heading text-sm text-text-primary">{supplier.fullName}</p><p className="text-xs text-text-muted">{supplier.phone} · {supplier.address}</p></div>
-                      <button className="btn-ghost text-xs py-1.5" onClick={() => setSupplier(null)}>{t("common.change")}</button>
-                    </div>
-                  </Card>
-                ) : (
-                  <>
-                    <SearchSelect fetcher={(q) => suppliersApi.list({ search: q })} placeholder={t("purchase.searchSupplier")} onSelect={setSupplier}
-                      renderItem={(s) => <div><p className="text-sm text-text-primary">{s.fullName}</p><p className="text-xs text-text-muted">{s.phone}</p></div>} />
-                    {!newSupplier ? (
-                      <button className="btn-ghost w-full mt-3" onClick={() => setNewSupplier({ fullName: "", phone: "", address: "", nif: "", nis: "", article: "", rs: "" })}><Plus size={14} /> {t("purchase.newSupplier")}</button>
-                    ) : (
-                      <Card className="p-4 mt-3 space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
-                          <Field label={t("login.fullName")} required><input className="input" value={newSupplier.fullName} onChange={(e) => setNewSupplier({ ...newSupplier, fullName: e.target.value })} /></Field>
-                          <Field label={t("common.phone")} required><input className="input" value={newSupplier.phone} onChange={(e) => setNewSupplier({ ...newSupplier, phone: e.target.value })} /></Field>
-                          <Field label={t("common.address")} className="col-span-2"><input className="input" value={newSupplier.address} onChange={(e) => setNewSupplier({ ...newSupplier, address: e.target.value })} /></Field>
-                        </div>
-                        <div className="grid grid-cols-4 gap-2">
-                          {["nif", "nis", "article", "rs"].map((f) => <Field key={f} label={f.toUpperCase()}><input className="input" value={newSupplier[f]} onChange={(e) => setNewSupplier({ ...newSupplier, [f]: e.target.value })} /></Field>)}
-                        </div>
-                        <div className="flex gap-2 justify-end"><button className="btn-ghost text-xs" onClick={() => setNewSupplier(null)}>{t("common.cancel")}</button><button className="btn-primary text-xs" onClick={saveSupplier}>{t("common.save")}</button></div>
-                      </Card>
-                    )}
-                  </>
-                )}
-              </div>
             ) : (
               <div>
                 {client ? (
@@ -325,8 +313,25 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
               <Field label={t("car.brand")} required><input className="input" value={car.brand || ""} onChange={setCarField("brand")} /></Field>
               <Field label={t("car.model")} required><input className="input" value={car.model || ""} onChange={setCarField("model")} /></Field>
               <Field label={t("car.plate")}><input className="input" value={car.plate || ""} onChange={setCarField("plate")} /></Field>
-              <Field label={t("car.year")}><input className="input" type="number" value={car.year || ""} onChange={setCarField("year")} /></Field>
-              <Field label={t("car.color")}><input className="input" value={car.color || ""} onChange={setCarField("color")} /></Field>
+              <Field label={t("car.year")}>
+                <CreatableSelect
+                  numeric
+                  value={car.year == null ? "" : String(car.year)}
+                  onChange={(v) => setCar((c) => ({ ...c, year: v }))}
+                  options={yearOptions}
+                  onCreate={createYear}
+                  placeholder={t("car.yearPlaceholder")}
+                />
+              </Field>
+              <Field label={t("car.color")}>
+                <CreatableSelect
+                  value={car.color || ""}
+                  onChange={(v) => setCar((c) => ({ ...c, color: v }))}
+                  options={colorOptions}
+                  onCreate={createColor}
+                  placeholder={t("car.colorPlaceholder")}
+                />
+              </Field>
               <Field label={t("car.vin")}><input className="input" value={car.vin || ""} onChange={setCarField("vin")} /></Field>
               <Field label={t("car.fiche")} className="sm:col-span-2"><textarea className="input" rows={2} value={car.fiche || ""} onChange={setCarField("fiche")} /></Field>
             </div>
@@ -471,10 +476,9 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
   );
 }
 
-// Supplier / Prestation (depot client) / Showroom
+// Prestation (depot client) / Showroom
 function SourceBadge({ sourceType }) {
   const { t } = useTranslation();
-  if (sourceType === "SUPPLIER") return <Badge color="supplier">{t("common.supplier")}</Badge>;
   if (sourceType === "CLIENT") return <Badge color="info">{t("purchase.sourcePrestation")}</Badge>;
   return <Badge color="accent">{t("purchase.sourceShowroom")}</Badge>;
 }
@@ -686,9 +690,7 @@ export default function Purchase() {
               {Object.entries({
                 [t("purchase.reference")]: viewItem.reference, [t("common.date")]: formatDate(viewItem.date),
                 [t("common.vehicle")]: `${viewItem.car?.brand} ${viewItem.car?.model}`, [t("car.plate")]: viewItem.car?.plate,
-                [t("purchase.source")]: viewItem.sourceType === "SUPPLIER"
-                  ? viewItem.supplier?.fullName
-                  : viewItem.sourceType === "CLIENT"
+                [t("purchase.source")]: viewItem.sourceType === "CLIENT"
                   ? `${viewItem.client?.firstName} ${viewItem.client?.lastName}`
                   : settings?.name || t("purchase.sourceShowroom"),
                 [t("showroom.purchasePrice")]: formatAmount(viewItem.purchasePrice), [t("showroom.sellingPrice")]: formatAmount(viewItem.sellingPrice),

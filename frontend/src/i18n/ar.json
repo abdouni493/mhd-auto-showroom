@@ -12,7 +12,6 @@
     "caisse": "الصندوق",
     "websiteSettings": "إعدادات الموقع",
     "websiteReservations": "حجوزات الموقع",
-    "suppliers": "الموردون",
     "clients": "العملاء",
     "workers": "الموظفون",
     "expenses": "المصاريف",
@@ -102,11 +101,15 @@
     "cards": "بطاقات",
     "table": "جدول",
     "client": "العميل",
-    "supplier": "المورد",
     "vehicle": "المركبة",
     "price": "السعر",
     "error": "خطأ",
-    "saved": "تم الحفظ ✓"
+    "saved": "تم الحفظ ✓",
+    "select": "اختر...",
+    "clear": "مسح",
+    "searchOrCreate": "ابحث أو أنشئ...",
+    "createValue": "إنشاء « {{value}} »",
+    "noResult": "لا توجد نتائج"
   },
   "energy": {
     "ESSENCE": "بنزين",
@@ -153,7 +156,6 @@
     "reserved": "المحجوزة",
     "revenueMonth": "إيرادات الشهر",
     "clientDebts": "ديون العملاء",
-    "supplierDebts": "ديون الموردين",
     "expensesMonth": "مصاريف الشهر",
     "netProfit": "صافي الربح",
     "salesPerMonth": "المبيعات شهرياً",
@@ -175,7 +177,6 @@
     "totalCars": "إجمالي المركبات",
     "soldTotal": "المباعة (الإجمالي)",
     "clients": "العملاء",
-    "suppliers": "الموردون",
     "activityPerMonth": "النشاط حسب الشهر",
     "purchases": "المشتريات",
     "operations": "نظرة عامة على العمليات",
@@ -183,7 +184,8 @@
     "totalSales": "إجمالي المبيعات",
     "totalExpenses": "إجمالي المصاريف",
     "clientsInDebt": "عملاء مدينون",
-    "suppliersInDebt": "موردون مدينون"
+    "purchasesInDebt": "مشتريات مدينة",
+    "purchaseDebts": "ديون المشتريات"
   },
   "car": {
     "brand": "الماركة",
@@ -221,7 +223,9 @@
     "specTrunk": "حجم الصندوق",
     "specWeight": "الوزن الفارغ",
     "specTank": "سعة الخزان",
-    "specDimensions": "الأبعاد (ط × ع × ا)"
+    "specDimensions": "الأبعاد (ط × ع × ا)",
+    "yearPlaceholder": "اختر سنة",
+    "colorPlaceholder": "اختر لوناً"
   },
   "client": {
     "firstName": "الاسم",
@@ -255,7 +259,6 @@
     "viewDetails": "عرض التفاصيل",
     "noCars": "لم يتم العثور على مركبة",
     "sectionVehicle": "معلومات المركبة",
-    "sectionSupplier": "المورد / المصدر",
     "sectionClient": "العميل",
     "sectionPricing": "التسعير",
     "sectionExpenses": "مصاريف المركبة",
@@ -276,7 +279,6 @@
     "editTitle": "تعديل الشراء",
     "saveChanges": "حفظ التعديلات",
     "updatedToast": "تم تحديث الشراء بنجاح",
-    "filterSupplier": "مورد",
     "filterClient": "عميل",
     "filterPaid": "مدفوع",
     "filterDebt": "دين",
@@ -286,8 +288,6 @@
     "stepVehicle": "المركبة",
     "stepInspection": "الفحص",
     "sourceTitle": "مصدر الشراء",
-    "searchSupplier": "ابحث عن مورد...",
-    "newSupplier": "إنشاء مورد جديد",
     "searchClient": "ابحث عن عميل...",
     "newClient": "إنشاء عميل جديد",
     "keysAndDocs": "المفاتيح والوثائق",
@@ -312,10 +312,12 @@
     "filterShowroom": "المعرض",
     "sourcePrestation": "خدمة (إيداع عميل)",
     "sourceShowroom": "المعرض",
-    "showroomHelp": "اشترى صاحب المعرض المركبة بنفسه، دون مورّد.",
+    "showroomHelp": "اشترى صاحب المعرض المركبة لحسابه الخاص.",
     "showroomNoDebt": "شراء المعرض : لا يوجد مبلغ متبقٍ.",
     "remark": "ملاحظة (استمارة الاستلام)",
-    "remarkHint": "لا شيء يُذكر"
+    "remarkHint": "لا شيء يُذكر",
+    "sourceShowroomHint": "المعرض يشتري المركبة لحسابه الخاص",
+    "sourcePrestationHint": "المركبة ملك لعميل وأودعت لدى المعرض"
   },
   "pos": {
     "title": "نقطة البيع — المركبات المتوفرة",
@@ -398,20 +400,6 @@
     "edit": "تعديل الدفعة",
     "deletedToast": "تم حذف الدفعة",
     "errorToast": "خطأ أثناء الدفع"
-  },
-  "suppliers": {
-    "title": "الموردون",
-    "new": "مورد جديد",
-    "none": "لا يوجد مورد",
-    "purchases": "المشتريات",
-    "totalPurchases": "إجمالي المشتريات",
-    "totalPaid": "إجمالي المدفوع",
-    "totalRest": "إجمالي المتبقي",
-    "companyName": "الاسم التجاري / الكامل",
-    "fiscal": "المعلومات الجبائية (اختياري)",
-    "editTitle": "تعديل المورد",
-    "newTitle": "مورد جديد",
-    "noPurchase": "لا توجد مشتريات"
   },
   "clients": {
     "title": "العملاء",
@@ -499,7 +487,7 @@
     "s4": "4. تحليل حسب المركبة",
     "s5": "5. مصاريف المعرض",
     "s6": "6. ديون العملاء",
-    "s7": "7. ديون الموردين / مشتريات العملاء",
+    "s7": "7. ديون المشتريات",
     "s8": "8. الموظفون والأجور",
     "s9": "9. بيع مركبات العملاء",
     "salesCount": "المبيعات",

@@ -12,7 +12,6 @@
     "caisse": "Caisse",
     "websiteSettings": "Paramètres Site",
     "websiteReservations": "Réservations Site",
-    "suppliers": "Fournisseurs",
     "clients": "Clients",
     "workers": "Employés",
     "expenses": "Dépenses",
@@ -102,11 +101,15 @@
     "cards": "Cartes",
     "table": "Tableau",
     "client": "Client",
-    "supplier": "Fournisseur",
     "vehicle": "Véhicule",
     "price": "Prix",
     "error": "Erreur",
-    "saved": "Enregistré ✓"
+    "saved": "Enregistré ✓",
+    "select": "Sélectionner...",
+    "clear": "Effacer",
+    "searchOrCreate": "Rechercher ou créer...",
+    "createValue": "Créer « {{value}} »",
+    "noResult": "Aucun résultat"
   },
   "energy": {
     "ESSENCE": "Essence",
@@ -153,7 +156,6 @@
     "reserved": "Réservées",
     "revenueMonth": "CA ce Mois",
     "clientDebts": "Dettes Clients",
-    "supplierDebts": "Dettes Fournisseurs",
     "expensesMonth": "Dépenses ce Mois",
     "netProfit": "Bénéfice Net",
     "salesPerMonth": "Ventes par Mois",
@@ -175,7 +177,6 @@
     "totalCars": "Total Véhicules",
     "soldTotal": "Vendues (total)",
     "clients": "Clients",
-    "suppliers": "Fournisseurs",
     "activityPerMonth": "Activité par Mois",
     "purchases": "Achats",
     "operations": "Aperçu des Opérations",
@@ -183,7 +184,8 @@
     "totalSales": "Total Ventes",
     "totalExpenses": "Total Dépenses",
     "clientsInDebt": "Clients en Dette",
-    "suppliersInDebt": "Fournisseurs en Dette"
+    "purchasesInDebt": "Achats en Dette",
+    "purchaseDebts": "Dettes sur Achats"
   },
   "car": {
     "brand": "Marque",
@@ -221,7 +223,9 @@
     "specTrunk": "Volume coffre",
     "specWeight": "Poids à vide",
     "specTank": "Capacité réservoir",
-    "specDimensions": "Dimensions (L x l x H)"
+    "specDimensions": "Dimensions (L x l x H)",
+    "yearPlaceholder": "Choisir une année",
+    "colorPlaceholder": "Choisir une couleur"
   },
   "client": {
     "firstName": "Prénom",
@@ -255,7 +259,6 @@
     "viewDetails": "Voir détails",
     "noCars": "Aucun véhicule trouvé",
     "sectionVehicle": "Informations Véhicule",
-    "sectionSupplier": "Fournisseur / Source",
     "sectionClient": "Client",
     "sectionPricing": "Tarification",
     "sectionExpenses": "Dépenses du Véhicule",
@@ -276,7 +279,6 @@
     "editTitle": "Modifier l'achat",
     "saveChanges": "Enregistrer les modifications",
     "updatedToast": "Achat mis à jour avec succès",
-    "filterSupplier": "Fournisseur",
     "filterClient": "Client",
     "filterPaid": "Payé",
     "filterDebt": "Dette",
@@ -286,8 +288,6 @@
     "stepVehicle": "Véhicule",
     "stepInspection": "Inspection",
     "sourceTitle": "Source d'achat",
-    "searchSupplier": "Rechercher un fournisseur...",
-    "newSupplier": "Créer un nouveau fournisseur",
     "searchClient": "Rechercher un client...",
     "newClient": "Créer un nouveau client",
     "keysAndDocs": "Clés & Documents",
@@ -312,10 +312,12 @@
     "filterShowroom": "Showroom",
     "sourcePrestation": "Prestation (Dépôt client)",
     "sourceShowroom": "Showroom",
-    "showroomHelp": "Le véhicule a été acheté par le propriétaire du showroom, sans fournisseur.",
+    "showroomHelp": "Le véhicule a été acheté par le propriétaire du showroom pour son propre compte.",
     "showroomNoDebt": "Achat du showroom : aucun montant restant dû.",
     "remark": "Remarque (formulaire de réception)",
-    "remarkHint": "R.A.S."
+    "remarkHint": "R.A.S.",
+    "sourceShowroomHint": "Le showroom achète le véhicule pour son propre compte",
+    "sourcePrestationHint": "Le véhicule appartient à un client et est déposé au showroom"
   },
   "pos": {
     "title": "POS — Véhicules Disponibles",
@@ -398,20 +400,6 @@
     "edit": "Modifier le paiement",
     "deletedToast": "Paiement supprimé",
     "errorToast": "Erreur lors du paiement"
-  },
-  "suppliers": {
-    "title": "Fournisseurs",
-    "new": "Nouveau Fournisseur",
-    "none": "Aucun fournisseur",
-    "purchases": "Achats",
-    "totalPurchases": "Total Achats",
-    "totalPaid": "Total Payé",
-    "totalRest": "Total Reste",
-    "companyName": "Raison sociale / Nom complet",
-    "fiscal": "Coordonnées fiscales (optionnel)",
-    "editTitle": "Modifier le fournisseur",
-    "newTitle": "Nouveau fournisseur",
-    "noPurchase": "Aucun achat"
   },
   "clients": {
     "title": "Clients",
@@ -499,7 +487,7 @@
     "s4": "4. Analyse par Véhicule",
     "s5": "5. Dépenses Showroom",
     "s6": "6. Dettes Clients",
-    "s7": "7. Dettes Fournisseurs / Achats Client",
+    "s7": "7. Dettes sur Achats",
     "s8": "8. Employés & Salaires",
     "s9": "9. Ventes de Véhicules de Clients",
     "salesCount": "Ventes",

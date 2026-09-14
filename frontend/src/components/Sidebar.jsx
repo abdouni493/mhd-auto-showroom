@@ -7,7 +7,7 @@ import AnimatedLogo from "./AnimatedLogo.jsx";
 import { initials } from "../utils/format.js";
 import {
   Gauge, CarFront, ShoppingBag, Calculator, Tag, Banknote, Vault,
-  MonitorSmartphone, CalendarClock, Truck, Contact, Briefcase, CircleDollarSign,
+  MonitorSmartphone, CalendarClock, Contact, Briefcase, CircleDollarSign,
   PieChart, SlidersHorizontal, LogOut, Languages, X,
 } from "lucide-react";
 
@@ -26,7 +26,6 @@ const NAV_GROUPS = [
     items: [
       { to: "/app/showroom", key: "showroom", icon: CarFront },
       { to: "/app/purchase", key: "purchase", icon: ShoppingBag },
-      { to: "/app/suppliers", key: "suppliers", icon: Truck },
     ],
   },
   {

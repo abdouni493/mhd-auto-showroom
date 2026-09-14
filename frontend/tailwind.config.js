@@ -14,7 +14,6 @@ export default {
         success: "#10b981",
         warning: "#f59e0b",
         info: "#3b82f6",
-        supplier: "#7c3aed",
         debt: "#fb7185",
       },
       fontFamily: {

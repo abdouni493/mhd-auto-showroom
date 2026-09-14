@@ -10,7 +10,6 @@ export const COLOR_HEX = {
   accent: "#dc2626",
   warning: "#f59e0b",
   info: "#3b82f6",
-  supplier: "#7c3aed",
   debt: "#fb7185",
   muted: "#f87171",
 };
@@ -23,7 +22,6 @@ const BADGE_STYLES = {
   accent: { classes: "bg-red-600/15 text-red-400 border-red-600/30", glow: "0 0 10px rgba(220,38,38,0.2)" },
   warning: { classes: "bg-amber-500/12 text-amber-400 border-amber-500/30", glow: "0 0 10px rgba(245,158,11,0.15)" },
   info: { classes: "bg-blue-500/15 text-blue-400 border-blue-500/30", glow: null },
-  supplier: { classes: "bg-violet-600/12 text-violet-400 border-violet-600/30", glow: "0 0 10px rgba(124,58,237,0.2)" },
   debt: { classes: "bg-rose-400/12 text-rose-300 border-rose-400/30", glow: "0 0 10px rgba(251,113,133,0.2)" },
   muted: { classes: "bg-white/5 text-text-muted border-white/10", glow: null },
 };
@@ -198,7 +196,7 @@ export function Stepper({ steps, current, onStepClick }) {
 // ---------- StatCard (with counting numbers) ----------
 const STAT_TEXT = {
   success: "text-emerald-400", accent: "text-red-400", warning: "text-amber-400",
-  info: "text-blue-400", supplier: "text-violet-400", debt: "text-rose-300",
+  info: "text-blue-400", debt: "text-rose-300",
 };
 
 function useCountUp(value) {

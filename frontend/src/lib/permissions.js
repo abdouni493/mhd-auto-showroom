@@ -7,7 +7,7 @@ export const SECTIONS = [
   // "settlements" gates the owner règlement of a vehicle left by a client
   // (the action lives on the Clients page, it has no sidebar entry of its own).
   "settlements",
-  "caisse", "websiteSettings", "websiteReservations", "suppliers", "clients",
+  "caisse", "websiteSettings", "websiteReservations", "clients",
   "workers", "expenses", "reports", "settings",
 ];
 
@@ -24,7 +24,6 @@ export const ROUTE_SECTION = {
   caisse: "caisse",
   "website-settings": "websiteSettings",
   "website-reservations": "websiteReservations",
-  suppliers: "suppliers",
   clients: "clients",
   workers: "workers",
   expenses: "expenses",

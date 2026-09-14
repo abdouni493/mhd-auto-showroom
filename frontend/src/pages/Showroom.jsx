@@ -45,7 +45,6 @@ function CarDetail({ car }) {
   const purchase = car.purchase;
   const sale = car.sales?.[0];
   const totalExpenses = (car.expenses || []).reduce((a, e) => a + e.amount, 0);
-  const supplier = purchase?.supplier;
   const client = sale?.client || purchase?.client;
 
   return (
@@ -85,21 +84,6 @@ function CarDetail({ car }) {
                 <span className="text-xs text-text-primary">{d.type}</span>
               </div>
             ))}
-          </div>
-        </Section>
-      )}
-
-      {supplier && (
-        <Section title={t("showroom.sectionSupplier")} tint="text-violet-400">
-          <div className="glass-card p-3 border border-violet-600/30">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
-              <DRow label={t("common.name")} value={supplier.fullName} />
-              <DRow label={t("common.phone")} value={supplier.phone} />
-              <DRow label={t("common.address")} value={supplier.address} />
-              <DRow label="NIF" value={supplier.nif} />
-              <DRow label="NIS" value={supplier.nis} />
-              <DRow label="Article" value={supplier.article} />
-            </div>
           </div>
         </Section>
       )}

@@ -1,7 +1,7 @@
 # MHD AUTO — Showroom Management
 
 Application de gestion de showroom automobile : stock, achats, POS, ventes,
-règlements, caisse, clients, fournisseurs, employés, dépenses, rapports,
+règlements, caisse, clients, employés, dépenses, rapports,
 site web public, impressions bilingues (FR / AR) et envoi des documents par email.
 
 ---
@@ -18,6 +18,7 @@ Dans **Supabase → SQL Editor → New query**, exécuter les trois fichiers du 
 | 1     | `sql/01_schema.sql`  | Types, tables, relations, triggers, vues, reprise de données    |
 | 2     | `sql/02_security.sql`| Authentification, permissions employés, RLS, rôles par défaut   |
 | 3     | `sql/03_storage.sql` | Buckets d'images/documents et leurs politiques d'accès          |
+| 4     | `sql/04_update_2026_09.sql` | Mise à jour : suppression des fournisseurs, couleurs & années de véhicule (base existante uniquement) |
 
 Les trois fichiers sont **idempotents** : on peut les relancer sans rien casser.
 
@@ -34,11 +35,13 @@ settings              identité du showroom imprimée sur chaque document
 users                 comptes administrateurs (liés à auth.users)
 worker_roles          carte des permissions (JSONB) par rôle
 workers               employés + compte de connexion optionnel (auth_id)
-suppliers / clients   tiers
+clients               tiers
 cars                  véhicules (+ specs pour la fiche technique, price public)
 car_document_types    types de documents (carte grise, double clés, …)
 car_documents         documents scannés d'un véhicule
-purchases             achats : SUPPLIER | CLIENT (dépôt) | SHOWROOM
+car_colors            couleurs proposées dans le formulaire d'achat
+car_years             années proposées dans le formulaire d'achat
+purchases             achats : CLIENT (dépôt) | SHOWROOM
 purchase_payments     règlements d'une dette d'achat
 sales                 ventes (dont showroom_share pour les véhicules client)
 sale_payments         encaissements sur une vente
@@ -94,7 +97,7 @@ Trois rôles prêts à l'emploi sont créés : **Vendeur**, **Gestionnaire de st
 **Comptable**. Ils restent entièrement modifiables.
 
 Sections disponibles : `dashboard, showroom, purchase, pos, sales, payments,
-settlements, caisse, websiteSettings, websiteReservations, suppliers, clients,
+settlements, caisse, websiteSettings, websiteReservations, clients,
 workers, expenses, reports, settings`.
 
 ---
@@ -113,13 +116,12 @@ connectés. L'URL publique complète est stockée en base.
 
 ---
 
-## 5. Achats — les trois sources
+## 5. Achats — les deux sources
 
 | Source                          | Contrepartie      | Particularité                              |
 |---------------------------------|-------------------|--------------------------------------------|
-| **Fournisseur**                 | `suppliers`       | dette possible (montant versé)             |
-| **Prestation (Dépôt client)**   | `clients`         | le véhicule appartient au client           |
 | **Showroom**                    | aucune            | pas de « montant versé », aucune dette      |
+| **Prestation (Dépôt client)**   | `clients`         | le véhicule appartient au client           |
 
 ---
 

@@ -155,7 +155,7 @@ export default function Reports() {
   ];
   const purchaseCols = [
     { key: "ref", label: "Véhicule", render: (p) => `${p.car?.brand} ${p.car?.model}` },
-    { key: "src", label: "Source", render: (p) => (p.sourceType === "SUPPLIER" ? "Fournisseur" : p.sourceType === "CLIENT" ? "Dépôt client" : "Showroom"), cls: "text-text-muted" },
+    { key: "src", label: "Source", render: (p) => (p.sourceType === "CLIENT" ? "Dépôt client" : "Showroom"), cls: "text-text-muted" },
     { key: "price", label: "Prix", render: (p) => money(p.purchasePrice), cls: "text-text-primary font-bold" },
     { key: "rest", label: "Reste", render: (p) => money(p.amountRest), cls: "text-rose-400" },
     { key: "date", label: "Date", render: (p) => formatDate(p.date), cls: "text-text-muted" },
@@ -173,7 +173,7 @@ export default function Reports() {
     { key: "rest", label: "Reste", render: (d) => money(d.rest), cls: "text-rose-400 font-bold" },
     { key: "date", label: "Date", render: (d) => formatDate(d.date), cls: "text-text-muted" },
   ];
-  const debtSupplierCols = [
+  const debtPurchaseCols = [
     { key: "source", label: "Source", render: (d) => d.source },
     { key: "car", label: "Véhicule", render: (d) => `${d.car?.brand} ${d.car?.model}`, cls: "text-text-muted" },
     { key: "rest", label: "Reste", render: (d) => money(d.rest), cls: "text-rose-400 font-bold" },
@@ -194,10 +194,10 @@ export default function Reports() {
 
   // row → detail object
   const saleDetail = (s) => ({ car: s.car, rows: [["Client", `${s.client?.firstName} ${s.client?.lastName}`], ["Téléphone", s.client?.phonePrimary], ["Véhicule", `${s.car?.brand} ${s.car?.model}`], ["Plaque", s.car?.plate], ["Prix de vente", money(s.totalAfterReduction)], ["Achat initial", money(s.purchasePrice || 0)], ["Profit", money(s.totalAfterReduction - (s.purchasePrice || 0))], ["Payé", money(s.amountPaid)], ["Date", formatDate(s.date)]] });
-  const purchaseDetail = (p) => ({ car: p.car, rows: [["Référence", p.reference], ["Véhicule", `${p.car?.brand} ${p.car?.model}`], ["Plaque", p.car?.plate], ["Source", p.sourceType === "SUPPLIER" ? p.supplier?.fullName : p.sourceType === "CLIENT" ? (p.client ? `${p.client.firstName} ${p.client.lastName}` : "—") : "Showroom"], ["Prix", money(p.purchasePrice)], ["Payé", money(p.amountPaid)], ["Reste", money(p.amountRest)], ["Date", formatDate(p.date)]] });
+  const purchaseDetail = (p) => ({ car: p.car, rows: [["Référence", p.reference], ["Véhicule", `${p.car?.brand} ${p.car?.model}`], ["Plaque", p.car?.plate], ["Source", p.sourceType === "CLIENT" ? (p.client ? `${p.client.firstName} ${p.client.lastName}` : "—") : "Showroom"], ["Prix", money(p.purchasePrice)], ["Payé", money(p.amountPaid)], ["Reste", money(p.amountRest)], ["Date", formatDate(p.date)]] });
   const carDetail = (c) => ({ car: c.car, expenseList: c.expenseList, rows: [["Véhicule", `${c.car?.brand} ${c.car?.model}`], ["Plaque", c.car?.plate], ["Prix d'achat", money(c.purchasePrice)], ["Dépenses", money(c.expenses)], ["Coût total", money(c.totalCost)], ["Prix de vente", money(c.salePrice)], ["Profit brut", money(c.grossMargin)], ["Profit net", money(c.netMargin)], ["Marge %", `${c.netMarginPct}%`]] });
   const debtClientDetail = (d) => ({ car: d.car, rows: [["Client", `${d.client?.firstName} ${d.client?.lastName}`], ["Véhicule", `${d.car?.brand} ${d.car?.model}`], ["Total", money(d.total)], ["Payé", money(d.paid)], ["Reste", money(d.rest)], ["Date", formatDate(d.date)]] });
-  const debtSupplierDetail = (d) => ({ car: d.car, rows: [["Source", d.source], ["Véhicule", `${d.car?.brand} ${d.car?.model}`], ["Total", money(d.total)], ["Payé", money(d.paid)], ["Reste", money(d.rest)], ["Date", formatDate(d.date)]] });
+  const debtPurchaseDetail = (d) => ({ car: d.car, rows: [["Source", d.source], ["Véhicule", `${d.car?.brand} ${d.car?.model}`], ["Total", money(d.total)], ["Payé", money(d.paid)], ["Reste", money(d.rest)], ["Date", formatDate(d.date)]] });
   const payrollDetail = (p) => ({ rows: [["Employé", p.fullName], ["Rôle", p.role], ["Type", p.paymentType], ["Salaire base", money(p.baseSalary)], ["Acomptes", money(p.advances)], ["Absences", money(p.absences)], ["Net payé", money(p.netPaid)]] });
   const expenseDetail = (e) => ({ rows: [["Nom", e.name], ["Description", e.description || "—"], ["Montant", money(e.amount)], ["Date", formatDate(e.date)]] });
 
@@ -258,9 +258,9 @@ export default function Reports() {
           <Section title="4. Analyse par Véhicule"><DataBlock cols={carCols} rows={report.carAnalysis} view={view} onRow={(r) => setDetail({ title: "Analyse véhicule", ...carDetail(r) })} /></Section>
           <Section title="5. Dépenses Showroom"><DataBlock cols={expenseCols} rows={report.showroomExpenses} view={view} onRow={(r) => setDetail({ title: "Dépense", ...expenseDetail(r) })} /></Section>
           <Section title="6. Dettes Clients"><DataBlock cols={debtClientCols} rows={report.clientDebts} view={view} onRow={(r) => setDetail({ title: "Dette client", ...debtClientDetail(r) })} /></Section>
-          <Section title="7. Dettes Fournisseurs / Achats Client"><DataBlock cols={debtSupplierCols} rows={report.supplierDebts} view={view} onRow={(r) => setDetail({ title: "Dette", ...debtSupplierDetail(r) })} /></Section>
+          <Section title="7. Dettes sur Achats"><DataBlock cols={debtPurchaseCols} rows={report.purchaseDebts} view={view} onRow={(r) => setDetail({ title: "Dette", ...debtPurchaseDetail(r) })} /></Section>
           <Section title="8. Employés & Salaires"><DataBlock cols={payrollCols} rows={report.payroll} view={view} onRow={(r) => setDetail({ title: "Salaire", ...payrollDetail(r) })} /></Section>
-          <Section title="9. Ventes de Véhicules de Clients"><DataBlock cols={debtSupplierCols} rows={report.clientSourcedPurchases} view={view} onRow={(r) => setDetail({ title: "Véhicule client", ...debtSupplierDetail(r) })} /></Section>
+          <Section title="9. Ventes de Véhicules de Clients"><DataBlock cols={debtPurchaseCols} rows={report.clientSourcedPurchases} view={view} onRow={(r) => setDetail({ title: "Véhicule client", ...debtPurchaseDetail(r) })} /></Section>
         </div>
       )}
 

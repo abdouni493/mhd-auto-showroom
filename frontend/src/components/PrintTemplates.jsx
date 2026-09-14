@@ -25,7 +25,7 @@ export const L = {
     telPrefix: "Tél :",
     docNo: "N°",
     purchaseTitle: "Bon d'Achat",
-    purchaseExtraSupplier: "Achat auprès d'un fournisseur",
+    purchaseExtraShowroom: "Achat effectué par le showroom",
     purchaseExtraClient: "Achat auprès d'un client",
     saleTitle: "Facture de Vente",
     saleNormal: "Vente normale",
@@ -39,7 +39,7 @@ export const L = {
     amount: "Montant",
     beneficiary: "Bénéficiaire",
     sigBeneficiary: "Signature Bénéficiaire",
-    supplier: "Fournisseur",
+    showroomOwner: "Acquéreur (Showroom)",
     client: "Client",
     clientSeller: "Client (vendeur)",
     vehicle: "Véhicule",
@@ -72,7 +72,7 @@ export const L = {
     paymentHistory: "Historique des paiements",
     inspectionReport: "Rapport d'inspection",
     security: "Sécurité", equipment: "Équipements", comfort: "Confort",
-    sigSupplier: "Signature Fournisseur",
+    sigShowroomBuyer: "Signature Acquéreur",
     sigSeller: "Signature Vendeur",
     sigClient: "Signature Client",
     sigShowroom: "Signature & Cachet Showroom",
@@ -116,7 +116,7 @@ Le client reconnaît avoir été informé de cette condition avant le versement 
     telPrefix: "الهاتف :",
     docNo: "رقم",
     purchaseTitle: "وصل شراء",
-    purchaseExtraSupplier: "شراء من مورّد",
+    purchaseExtraShowroom: "شراء قام به المعرض",
     purchaseExtraClient: "شراء من عميل",
     saleTitle: "فاتورة بيع",
     saleNormal: "بيع عادي",
@@ -130,7 +130,7 @@ Le client reconnaît avoir été informé de cette condition avant le versement 
     amount: "المبلغ",
     beneficiary: "المستفيد",
     sigBeneficiary: "توقيع المستفيد",
-    supplier: "المورّد",
+    showroomOwner: "المشتري (المعرض)",
     client: "العميل",
     clientSeller: "العميل (البائع)",
     vehicle: "المركبة",
@@ -163,7 +163,7 @@ Le client reconnaît avoir été informé de cette condition avant le versement 
     paymentHistory: "سجل الدفعات",
     inspectionReport: "تقرير الفحص",
     security: "الأمان", equipment: "التجهيزات", comfort: "الراحة",
-    sigSupplier: "توقيع المورّد",
+    sigShowroomBuyer: "توقيع المشتري",
     sigSeller: "توقيع البائع",
     sigClient: "توقيع العميل",
     sigShowroom: "التوقيع وختم المعرض",
@@ -381,18 +381,19 @@ export function ClientBlock({ client, title, lang }) {
   );
 }
 
-export function SupplierBlock({ supplier, lang }) {
+// The showroom itself as the buying party — printed on a purchase the owner
+// made on his own behalf (source "SHOWROOM").
+export function ShowroomPartyBlock({ showroom, lang }) {
   const x = tr(lang);
-  const s = supplier || {};
+  const s = showroom || {};
   return (
-    <Frame title={x.supplier}>
-      <Row lang={lang} label={x.companyName} value={s.fullName} strong />
+    <Frame title={x.showroomOwner}>
+      <Row lang={lang} label={x.companyName} value={s.name} strong />
       <Row lang={lang} label={x.phone} value={s.phone} />
       <Row lang={lang} label={x.address} value={s.address} />
       {s.nif && <Row lang={lang} label="NIF" value={s.nif} />}
       {s.nis && <Row lang={lang} label="NIS" value={s.nis} />}
-      {s.article && <Row lang={lang} label={x.article} value={s.article} />}
-      {s.rs && <Row lang={lang} label="RS" value={s.rs} last />}
+      {s.rc && <Row lang={lang} label="RC" value={s.rc} last />}
     </Frame>
   );
 }
@@ -545,7 +546,7 @@ export function Footer({ showroom, lang }) {
 // ============================================================================
 export function PurchaseInvoice({ purchase, showroom, lang = "fr" }) {
   const x = tr(lang);
-  const isSupplier = purchase.sourceType === "SUPPLIER";
+  const isClient = purchase.sourceType === "CLIENT";
   return (
     <div style={sheetStyle(lang)}>
       <Header showroom={showroom} lang={lang} />
@@ -554,12 +555,12 @@ export function PurchaseInvoice({ purchase, showroom, lang = "fr" }) {
         title={x.purchaseTitle}
         reference={purchase.reference || purchase.id}
         date={formatDateTime(purchase.date)}
-        extra={isSupplier ? x.purchaseExtraSupplier : x.purchaseExtraClient}
+        extra={isClient ? x.purchaseExtraClient : x.purchaseExtraShowroom}
       />
       <div style={grid2}>
-        {isSupplier
-          ? <SupplierBlock supplier={purchase.supplier} lang={lang} />
-          : <ClientBlock client={purchase.client} title={x.clientSeller} lang={lang} />}
+        {isClient
+          ? <ClientBlock client={purchase.client} title={x.clientSeller} lang={lang} />
+          : <ShowroomPartyBlock showroom={showroom} lang={lang} />}
         <CarBlock car={purchase.car} lang={lang} />
       </div>
 
@@ -577,7 +578,7 @@ export function PurchaseInvoice({ purchase, showroom, lang = "fr" }) {
       </div>
 
       <InspectionBlock inspection={purchase.inspection} lang={lang} />
-      <Signatures left={isSupplier ? x.sigSupplier : x.sigSeller} right={x.sigShowroom} />
+      <Signatures left={isClient ? x.sigSeller : x.sigShowroomBuyer} right={x.sigShowroom} />
       <Footer showroom={showroom} lang={lang} />
     </div>
   );

@@ -9,7 +9,7 @@ import ActionMenu from "../components/ActionMenu.jsx";
 import { formatAmount, formatDate, toDateInput, initials } from "../utils/format.js";
 
 const PAY_LABELS = { MONTHLY: "Mensuel", DAILY: "Journalier", NONE: "Aucun" };
-const SECTION_LABELS = { dashboard: "Tableau de bord", showroom: "Showroom", purchase: "Achats", pos: "POS", sales: "Ventes", payments: "Paiements", settlements: "Règlements propriétaires", caisse: "Caisse (Dépôts/Retraits)", websiteSettings: "Site Web", websiteReservations: "Réservations Site", suppliers: "Fournisseurs", clients: "Clients", workers: "Employés", expenses: "Dépenses", reports: "Rapports", settings: "Paramètres" };
+const SECTION_LABELS = { dashboard: "Tableau de bord", showroom: "Showroom", purchase: "Achats", pos: "POS", sales: "Ventes", payments: "Paiements", settlements: "Règlements propriétaires", caisse: "Caisse (Dépôts/Retraits)", websiteSettings: "Site Web", websiteReservations: "Réservations Site", clients: "Clients", workers: "Employés", expenses: "Dépenses", reports: "Rapports", settings: "Paramètres" };
 const ACTION_LABELS = { view: "Voir", create: "Créer", edit: "Modifier", delete: "Supprimer", print: "Imprimer" };
 
 export default function Workers() {

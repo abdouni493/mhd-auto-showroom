@@ -8,8 +8,8 @@ import { supabase } from "./lib/supabase.js";
 import { useStore } from "./store/useStore.js";
 
 // Apply the saved theme before the first paint so the app never flashes the
-// wrong palette on reload.
-document.documentElement.setAttribute("data-theme", localStorage.getItem("theme") || "dark");
+// wrong palette on reload. Light is the default for a first visit.
+document.documentElement.setAttribute("data-theme", localStorage.getItem("theme") || "light");
 
 // Keep the store in sync with Supabase auth (e.g. token refresh / sign-out).
 supabase.auth.onAuthStateChange((event) => {

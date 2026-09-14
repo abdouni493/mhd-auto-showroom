@@ -5,7 +5,7 @@ export const useStore = create((set, get) => ({
   user: null,
   settings: null,
   language: localStorage.getItem("lang") || "fr",
-  theme: localStorage.getItem("theme") || "dark",
+  theme: localStorage.getItem("theme") || "light",
   authChecked: false,
   // Number of sold client vehicles whose owner has not been settled yet.
   // Feeds the dashboard alert, the sidebar badge and the Clients page banner.

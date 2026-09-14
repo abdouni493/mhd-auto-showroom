@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import { useNavigate } from "react-router-dom";
 import {
-  Car, CheckCircle, Clock, Tag, Users, Factory, Receipt, HardHat,
+  Car, CheckCircle, Clock, Tag, Users, Receipt, HardHat,
   CalendarClock, EyeOff, ShoppingCart, Wallet, TrendingUp, HandCoins, ChevronRight,
 } from "lucide-react";
 import { useFetch } from "../hooks/useApi.js";
@@ -130,9 +130,8 @@ export default function Dashboard() {
         <StatCard index={2} label={t("dashboard.reserved")} value={counts.reserved} icon={Clock} color="warning" />
         <StatCard index={3} label={t("dashboard.soldTotal")} value={counts.sold} icon={Tag} color="info" />
         <StatCard index={4} label={t("dashboard.clients")} value={counts.totalClients} icon={Users} color="info" />
-        <StatCard index={5} label={t("dashboard.suppliers")} value={counts.totalSuppliers} icon={Factory} color="supplier" />
-        <StatCard index={6} label={t("dashboard.workers")} value={counts.totalWorkers} icon={HardHat} color="warning" />
-        <StatCard index={7} label={t("dashboard.soldThisMonth")} value={counts.soldThisMonth} icon={TrendingUp} color="success" />
+        <StatCard index={5} label={t("dashboard.workers")} value={counts.totalWorkers} icon={HardHat} color="warning" />
+        <StatCard index={6} label={t("dashboard.soldThisMonth")} value={counts.soldThisMonth} icon={TrendingUp} color="success" />
       </div>
 
       {/* Charts (activity counts + status mix — no money) */}
@@ -173,7 +172,7 @@ export default function Dashboard() {
         <MiniStat index={1} icon={Receipt} label={t("dashboard.totalSales")} value={counts.totalSales} color="text-emerald-400" />
         <MiniStat index={2} icon={Wallet} label={t("dashboard.totalExpenses")} value={counts.totalExpenses} color="text-amber-400" />
         <MiniStat index={3} icon={Users} label={t("dashboard.clientsInDebt")} value={counts.clientsInDebt} color="text-rose-300" />
-        <MiniStat index={4} icon={Factory} label={t("dashboard.suppliersInDebt")} value={counts.suppliersInDebt} color="text-rose-300" />
+        <MiniStat index={4} icon={ShoppingCart} label={t("dashboard.purchasesInDebt")} value={counts.purchasesInDebt} color="text-rose-300" />
         <MiniStat index={5} icon={CalendarClock} label={t("dashboard.pendingReservations")} value={website.pendingReservations} color="text-amber-400" />
         <MiniStat index={6} icon={HandCoins} label={t("settlements.pendingLabel")} value={settlements.count} color="text-amber-400" />
       </div>
@@ -189,7 +188,7 @@ export default function Dashboard() {
                 <div className="w-12 h-9 rounded-lg overflow-hidden shrink-0"><CarImage images={p.car?.images} heightClass="h-9" /></div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-text-primary truncate font-medium">{p.car?.brand} {p.car?.model}</p>
-                  <p className="text-xs text-text-muted truncate">{p.supplier?.fullName || (p.client ? `${p.client.firstName} ${p.client.lastName}` : "—")}</p>
+                  <p className="text-xs text-text-muted truncate">{p.client ? `${p.client.firstName} ${p.client.lastName}` : t("purchase.sourceShowroom")}</p>
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-xs text-text-muted">{formatDate(p.date)}</p>
@@ -242,10 +241,9 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <Card className="p-5">
           <h3 className="heading text-sm text-text-primary mb-4">{t("dashboard.workers")}</h3>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="text-center"><HardHat className="mx-auto text-amber-400 mb-1" size={22} /><p className="text-2xl font-black text-text-primary">{workers.count}</p><p className="label-caps">{t("dashboard.workers")}</p></div>
             <div className="text-center"><Users className="mx-auto text-blue-400 mb-1" size={22} /><p className="text-2xl font-black text-blue-400">{counts.totalClients}</p><p className="label-caps">{t("dashboard.clients")}</p></div>
-            <div className="text-center"><Factory className="mx-auto text-violet-400 mb-1" size={22} /><p className="text-2xl font-black text-violet-400">{counts.totalSuppliers}</p><p className="label-caps">{t("dashboard.suppliers")}</p></div>
           </div>
         </Card>
 

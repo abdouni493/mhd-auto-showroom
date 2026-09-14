@@ -81,13 +81,12 @@ const CAR_FULL = `
   *,
   car_documents(*),
   expenses(*),
-  purchases(*, supplier:suppliers(*), client:clients(*), purchase_payments(*)),
+  purchases(*, client:clients(*), purchase_payments(*)),
   sales(*, client:clients(*), payments:sale_payments(*))
 `;
 const PURCHASE_FULL = `
   *,
   car:cars(*, car_documents(*)),
-  supplier:suppliers(*),
   client:clients(*),
   purchase_payments(*)
 `;
@@ -308,8 +307,9 @@ export const settingsApi = {
   // Export the main tables as a JSON object (Database tab → Backup).
   async backup() {
     const tables = [
-      "settings", "users", "workers", "worker_roles", "suppliers", "clients",
-      "cars", "car_documents", "purchases", "purchase_payments", "sales",
+      "settings", "users", "workers", "worker_roles", "clients",
+      "cars", "car_colors", "car_years", "car_documents", "purchases",
+      "purchase_payments", "sales",
       "sale_payments", "expenses", "worker_payments", "worker_advances",
       "worker_absences", "special_offers", "website_reservations",
     ];
@@ -482,6 +482,47 @@ export const carsApi = {
     if (error) throw error;
     return toCamel(data);
   },
+
+  // ── Colours & years ──────────────────────────────────────────
+  // Reference lists behind the two pickers of the purchase form. Creating an
+  // entry that already exists returns the existing row instead of failing on
+  // the UNIQUE constraint, so a double click never shows an error.
+  async getColors() {
+    const { data, error } = await supabase.from("car_colors").select("*").order("name");
+    if (error) throw error;
+    return rows(data);
+  },
+  async createColor(name) {
+    const clean = String(name || "").trim();
+    if (!clean) throw new Error("Nom de couleur vide");
+    const { data, error } = await supabase.from("car_colors").insert({ name: clean }).select().single();
+    if (error) {
+      if (error.code === "23505") {
+        const { data: found } = await supabase.from("car_colors").select("*").ilike("name", clean).limit(1);
+        if (found?.length) return toCamel(found[0]);
+      }
+      throw error;
+    }
+    return toCamel(data);
+  },
+  async getYears() {
+    const { data, error } = await supabase.from("car_years").select("*").order("year", { ascending: false });
+    if (error) throw error;
+    return rows(data);
+  },
+  async createYear(year) {
+    const value = Number(year);
+    if (!Number.isInteger(value) || value < 1900 || value > 2100) throw new Error("Année invalide");
+    const { data, error } = await supabase.from("car_years").insert({ year: value }).select().single();
+    if (error) {
+      if (error.code === "23505") {
+        const { data: found } = await supabase.from("car_years").select("*").eq("year", value).limit(1);
+        if (found?.length) return toCamel(found[0]);
+      }
+      throw error;
+    }
+    return toCamel(data);
+  },
   // Remove orphaned car records (AVAILABLE with no purchase) left behind
   // by previous purchase deletions that failed to clean up the car.
   async cleanupOrphaned() {
@@ -524,7 +565,7 @@ export const purchasesApi = {
     return result;
   },
   async create({
-    sourceType, supplierId, clientId, car, purchasePrice, sellingPrice, amountPaid,
+    sourceType, clientId, car, purchasePrice, sellingPrice, amountPaid,
     inspection, date, documents = [], receivedAt, receivedBy, receivedPhone, remark,
   }) {
     // 1. create the car (images/docs are already-uploaded URLs)
@@ -555,7 +596,6 @@ export const purchasesApi = {
       .insert({
         car_id: carRow.id,
         source_type: sourceType,
-        supplier_id: sourceType === "SUPPLIER" ? supplierId || null : null,
         client_id: sourceType === "CLIENT" ? clientId || null : null,
         purchase_price: price,
         selling_price: Number(sellingPrice) || 0,
@@ -573,12 +613,12 @@ export const purchasesApi = {
     return getPurchaseFull(purchase.id); // enriched (joins) so the invoice can print
   },
   async update(id, {
-    sourceType, supplierId, clientId, car, purchasePrice, sellingPrice, amountPaid,
+    sourceType, clientId, car, purchasePrice, sellingPrice, amountPaid,
     inspection, date, receivedAt, receivedBy, receivedPhone, remark,
   }) {
     const { data: existing, error: exError } = await supabase
       .from("purchases")
-      .select("car_id, source_type, supplier_id, client_id, purchase_price, selling_price, amount_paid, date, received_at")
+      .select("car_id, source_type, client_id, purchase_price, selling_price, amount_paid, date, received_at")
       .eq("id", id)
       .single();
     if (exError) throw exError;
@@ -606,14 +646,13 @@ export const purchasesApi = {
       }
     }
 
-    // 3. the purchase — a supplier purchase must clear client_id and vice versa,
-    //    otherwise the old counterparty stays attached after switching source.
+    // 3. the purchase — a showroom purchase must clear client_id, otherwise the
+    //    old owner stays attached after switching source.
     const source = sourceType ?? existing.source_type;
     const price = Number(purchasePrice ?? existing.purchase_price) || 0;
     const paid = source === "SHOWROOM" ? price : Number(amountPaid ?? existing.amount_paid) || 0;
     const patch = {
       source_type: source,
-      supplier_id: source === "SUPPLIER" ? supplierId || null : null,
       client_id: source === "CLIENT" ? clientId || null : null,
       purchase_price: price,
       selling_price: Number(sellingPrice ?? existing.selling_price) || 0,
@@ -1097,64 +1136,6 @@ export const settlementsApi = {
   },
 };
 
-// ── SUPPLIERS ─────────────────────────────────────────────────
-function supplierWrite(p) {
-  return {
-    full_name: p.fullName,
-    phone: p.phone,
-    address: p.address,
-    nif: p.nif,
-    nis: p.nis,
-    article: p.article,
-    rs: p.rs,
-  };
-}
-
-export const suppliersApi = {
-  async list({ search = "" } = {}) {
-    let q = supabase
-      .from("suppliers")
-      .select("*, purchases(purchase_price, amount_paid, amount_rest)")
-      .order("full_name");
-    if (search) q = q.or(`full_name.ilike.%${search}%,phone.ilike.%${search}%`);
-    const { data, error } = await q;
-    if (error) throw error;
-    return rows(data).map((s) => {
-      const purchases = s.purchases || [];
-      s.stats = {
-        totalPurchases: purchases.length,
-        totalAmount: purchases.reduce((a, p) => a + (p.purchasePrice || 0), 0),
-        totalPaid: purchases.reduce((a, p) => a + (p.amountPaid || 0), 0),
-        totalRest: purchases.reduce((a, p) => a + (p.amountRest > 0 ? p.amountRest : 0), 0),
-      };
-      delete s.purchases;
-      return s;
-    });
-  },
-  async create(payload) {
-    const { data, error } = await supabase.from("suppliers").insert(supplierWrite(payload)).select().single();
-    if (error) throw error;
-    return toCamel(data);
-  },
-  async update(id, payload) {
-    const { data, error } = await supabase.from("suppliers").update(supplierWrite(payload)).eq("id", id).select().single();
-    if (error) throw error;
-    return toCamel(data);
-  },
-  async delete(id) {
-    const { error } = await supabase.from("suppliers").delete().eq("id", id);
-    if (error) throw error;
-  },
-  async purchases(id) {
-    const { data } = await supabase
-      .from("purchases")
-      .select("*, car:cars(*, car_documents(*))")
-      .eq("supplier_id", id)
-      .order("created_at", { ascending: false });
-    return rows(data).map(shapePurchase);
-  },
-};
-
 // ── WORKERS ───────────────────────────────────────────────────
 // Provision a login for a worker. Uses an isolated client so creating the account
 // does NOT replace the admin's current session.
@@ -1576,18 +1557,17 @@ export const dashboardApi = {
     const monthStartISO = monthStart.toISOString();
     const monthStr = monthKey(now);
 
-    const [carsRes, salesRes, purchasesRes, expensesRes, workersRes, workerPaymentsRes, advancesRes, reservationsRes, clientsRes, suppliersRes, pendingSettlements] =
+    const [carsRes, salesRes, purchasesRes, expensesRes, workersRes, workerPaymentsRes, advancesRes, reservationsRes, clientsRes, pendingSettlements] =
       await Promise.all([
         supabase.from("cars").select("id, status, hidden, created_at"),
         supabase.from("sales").select("*, car:cars(brand, model, plate, images, status), client:clients(*)").order("date", { ascending: false }),
-        supabase.from("purchases").select("*, car:cars(brand, model, plate, images), supplier:suppliers(*), client:clients(*)").order("date", { ascending: false }),
+        supabase.from("purchases").select("*, car:cars(brand, model, plate, images), client:clients(*)").order("date", { ascending: false }),
         supabase.from("expenses").select("*, car:cars(brand, model, plate, images)").order("date", { ascending: false }),
         supabase.from("workers").select("id"),
         supabase.from("worker_payments").select("amount, date"),
         supabase.from("worker_advances").select("amount"),
         supabase.from("website_reservations").select("id").eq("status", "PENDING"),
         supabase.from("clients").select("id"),
-        supabase.from("suppliers").select("id"),
         settlementsApi.pending().catch(() => []),
       ]);
 
@@ -1599,7 +1579,7 @@ export const dashboardApi = {
     const salesMonth = sales.filter((s) => s.date >= monthStartISO);
     const caMonth = salesMonth.reduce((a, s) => a + (s.totalAfterReduction || 0), 0);
     const clientDebts = sales.reduce((a, s) => a + (s.amountRest > 0 ? s.amountRest : 0), 0);
-    const supplierDebts = purchases.reduce((a, p) => a + (p.amountRest > 0 ? p.amountRest : 0), 0);
+    const purchaseDebts = purchases.reduce((a, p) => a + (p.amountRest > 0 ? p.amountRest : 0), 0);
     const totalExpensesAll = expenses.reduce((a, e) => a + (e.amount || 0), 0);
     const expensesMonthTotal = expenses
       .filter((e) => (e.date || "").slice(0, 7) === monthStr)
@@ -1652,7 +1632,7 @@ export const dashboardApi = {
     const soldCount = cars.filter((c) => c.status === "SOLD").length;
     const reservedCount = cars.filter((c) => c.status === "RESERVED").length;
     const clientsInDebt = sales.filter((s) => s.amountRest > 0).length;
-    const suppliersInDebt = purchases.filter((p) => p.amountRest > 0).length;
+    const purchasesInDebt = purchases.filter((p) => p.amountRest > 0).length;
 
     return {
       kpis: {
@@ -1661,7 +1641,7 @@ export const dashboardApi = {
         carsReserved: reservedCount,
         caMonth,
         clientDebts,
-        supplierDebts,
+        purchaseDebts,
         expensesMonth: expensesMonthTotal,
         netProfit: totalSalesAll - totalPurchaseAll - totalExpensesAll,
       },
@@ -1676,11 +1656,10 @@ export const dashboardApi = {
         totalPurchases: purchases.length,
         totalSales: sales.length,
         totalClients: (clientsRes.data || []).length,
-        totalSuppliers: (suppliersRes.data || []).length,
         totalWorkers: (workersRes.data || []).length,
         totalExpenses: expenses.length,
         clientsInDebt,
-        suppliersInDebt,
+        purchasesInDebt,
         pendingSettlements: pendingSettlements.length,
       },
       charts: {
@@ -1879,7 +1858,7 @@ export const reportsApi = {
     const [salesRes, purchasesRes, expensesRes, workersRes] = await Promise.all([
       applyRange(supabase.from("sales").select("*, car:cars(*), client:clients(*)").order("date", { ascending: false })),
       applyRange(
-        supabase.from("purchases").select("*, car:cars(*), supplier:suppliers(*), client:clients(*)").order("date", { ascending: false })
+        supabase.from("purchases").select("*, car:cars(*), client:clients(*)").order("date", { ascending: false })
       ),
       (() => {
         let q = supabase.from("expenses").select("*, car:cars(*)").order("date", { ascending: false });
@@ -1955,10 +1934,10 @@ export const reportsApi = {
         date: s.date,
       }));
 
-    const supplierDebts = purchases
+    const purchaseDebts = purchases
       .filter((p) => p.amountRest > 0)
       .map((p) => ({
-        source: p.sourceType === "SUPPLIER" ? p.supplier?.fullName : p.client ? `${p.client.firstName} ${p.client.lastName}` : "—",
+        source: p.client ? `${p.client.firstName} ${p.client.lastName}` : "—",
         sourceType: p.sourceType,
         car: p.car,
         total: p.purchasePrice,
@@ -2016,7 +1995,7 @@ export const reportsApi = {
       carAnalysis,
       showroomExpenses,
       clientDebts,
-      supplierDebts,
+      purchaseDebts,
       payroll,
       clientSourcedPurchases,
     };
@@ -2036,7 +2015,6 @@ export default {
   purchasesApi,
   salesApi,
   clientsApi,
-  suppliersApi,
   workersApi,
   expensesApi,
   cashApi,

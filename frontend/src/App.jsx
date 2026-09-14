@@ -15,7 +15,6 @@ import Payments from "./pages/Payments.jsx";
 import Caisse from "./pages/Caisse.jsx";
 import WebsiteSettings from "./pages/WebsiteSettings.jsx";
 import WebsiteReservations from "./pages/WebsiteReservations.jsx";
-import Suppliers from "./pages/Suppliers.jsx";
 import Clients from "./pages/Clients.jsx";
 import Workers from "./pages/Workers.jsx";
 import Expenses from "./pages/Expenses.jsx";
@@ -96,7 +95,6 @@ export default function App() {
         <Route path="caisse" element={<Caisse />} />
         <Route path="website-settings" element={<WebsiteSettings />} />
         <Route path="website-reservations" element={<WebsiteReservations />} />
-        <Route path="suppliers" element={<Suppliers />} />
         <Route path="clients" element={<Clients />} />
         <Route path="workers" element={<Workers />} />
         <Route path="expenses" element={<Expenses />} />

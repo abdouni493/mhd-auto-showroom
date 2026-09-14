@@ -81,7 +81,6 @@ Full walkthrough, including recovery from a misconfigured project:
 | `/app/pos` | Caisse / POS (3-step sale flow + invoice print) |
 | `/app/sales` | Sales list (pay debt, edit, delete, print) |
 | `/app/payments` | Client car payments + receipts |
-| `/app/suppliers` | Suppliers + purchase history |
 | `/app/clients` | Clients + full history |
 | `/app/workers` | Workers, roles, permissions, advances, absences, payroll |
 | `/app/expenses` | Car & showroom expenses |

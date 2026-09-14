@@ -138,9 +138,10 @@ DECLARE
   pol TEXT;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
-    'users','settings','suppliers','clients','worker_roles','workers',
+    'users','settings','clients','worker_roles','workers',
     'worker_payments','worker_advances','worker_absences','cars',
-    'car_document_types','car_documents','purchases','purchase_payments',
+    'car_document_types','car_documents','car_colors','car_years',
+    'purchases','purchase_payments',
     'sales','sale_payments','client_settlements','expenses','cash_transactions',
     'special_offers','website_reservations','email_logs'
   ]
@@ -188,15 +189,19 @@ BEGIN
     SELECT * FROM (VALUES
       -- table,                 view sections,
       --                        create sections,        edit sections,          delete sections
-      ('cars',                  ARRAY['showroom','purchase','pos','sales','payments','expenses','reports','dashboard','websiteSettings','websiteReservations','settlements','clients','suppliers'],
+      ('cars',                  ARRAY['showroom','purchase','pos','sales','payments','expenses','reports','dashboard','websiteSettings','websiteReservations','settlements','clients'],
                                 ARRAY['purchase'],      ARRAY['showroom','purchase','pos','sales','websiteSettings'], ARRAY['purchase','showroom']),
       ('car_documents',         ARRAY['showroom','purchase','pos','sales','reports','dashboard','websiteSettings'],
                                 ARRAY['purchase'],      ARRAY['purchase','showroom'], ARRAY['purchase','showroom']),
       ('car_document_types',    ARRAY['showroom','purchase','pos','sales'],
                                 ARRAY['purchase'],      ARRAY['purchase'],      ARRAY['purchase']),
-      ('purchases',             ARRAY['purchase','showroom','pos','sales','payments','reports','dashboard','suppliers','clients','settlements'],
+      ('car_colors',            ARRAY['showroom','purchase','pos','sales','websiteSettings','reports','dashboard'],
+                                ARRAY['purchase','showroom'], ARRAY['purchase'], ARRAY['purchase']),
+      ('car_years',             ARRAY['showroom','purchase','pos','sales','websiteSettings','reports','dashboard'],
+                                ARRAY['purchase','showroom'], ARRAY['purchase'], ARRAY['purchase']),
+      ('purchases',             ARRAY['purchase','showroom','pos','sales','payments','reports','dashboard','clients','settlements'],
                                 ARRAY['purchase'],      ARRAY['purchase'],      ARRAY['purchase']),
-      ('purchase_payments',     ARRAY['purchase','showroom','reports','dashboard','suppliers'],
+      ('purchase_payments',     ARRAY['purchase','showroom','reports','dashboard'],
                                 ARRAY['purchase'],      ARRAY['purchase'],      ARRAY['purchase']),
       ('sales',                 ARRAY['sales','pos','showroom','payments','reports','dashboard','clients','settlements'],
                                 ARRAY['pos'],           ARRAY['sales','pos','payments'], ARRAY['sales']),
@@ -206,8 +211,6 @@ BEGIN
                                 ARRAY['settlements','clients'], ARRAY['settlements','clients'], ARRAY['settlements','clients']),
       ('clients',               ARRAY['clients','purchase','pos','sales','payments','caisse','reports','dashboard','settlements','showroom'],
                                 ARRAY['clients','purchase','pos','caisse'], ARRAY['clients','purchase','pos','sales'], ARRAY['clients']),
-      ('suppliers',             ARRAY['suppliers','purchase','reports','dashboard','showroom'],
-                                ARRAY['suppliers','purchase'], ARRAY['suppliers'], ARRAY['suppliers']),
       ('expenses',              ARRAY['expenses','showroom','sales','reports','dashboard','settlements'],
                                 ARRAY['expenses'],      ARRAY['expenses'],      ARRAY['expenses']),
       ('cash_transactions',     ARRAY['caisse','reports','dashboard'],
@@ -266,6 +269,10 @@ CREATE POLICY "cars public read" ON public.cars
   FOR SELECT TO anon USING (true);
 CREATE POLICY "car_documents public read" ON public.car_documents
   FOR SELECT TO anon USING (true);
+CREATE POLICY "car_colors public read" ON public.car_colors
+  FOR SELECT TO anon USING (true);
+CREATE POLICY "car_years public read" ON public.car_years
+  FOR SELECT TO anon USING (true);
 CREATE POLICY "special_offers public read" ON public.special_offers
   FOR SELECT TO anon USING (true);
 CREATE POLICY "website_reservations public insert" ON public.website_reservations
@@ -296,7 +303,6 @@ INSERT INTO public.worker_roles (name, permissions) VALUES
     "dashboard":  {"view":true},
     "showroom":   {"view":true,"edit":true},
     "purchase":   {"view":true,"create":true,"edit":true,"print":true},
-    "suppliers":  {"view":true,"create":true,"edit":true},
     "clients":    {"view":true,"create":true},
     "expenses":   {"view":true,"create":true,"edit":true}
   }'::jsonb
@@ -313,7 +319,6 @@ INSERT INTO public.worker_roles (name, permissions) VALUES
     "caisse":      {"view":true,"create":true,"edit":true,"print":true},
     "expenses":    {"view":true,"create":true,"edit":true,"delete":true,"print":true},
     "clients":     {"view":true},
-    "suppliers":   {"view":true},
     "reports":     {"view":true,"print":true}
   }'::jsonb
 )

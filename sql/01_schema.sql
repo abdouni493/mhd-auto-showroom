@@ -39,11 +39,10 @@ BEGIN
     CREATE TYPE gearbox_type AS ENUM ('MANUAL', 'AUTO');
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'source_type') THEN
-    -- SUPPLIER : bought from a supplier
     -- CLIENT   : "Prestation (Depot client)" - the car belongs to a client and
     --            is only displayed / marketed by the showroom for the owner
-    -- SHOWROOM : the showroom owner bought the car himself, no supplier
-    CREATE TYPE source_type AS ENUM ('SUPPLIER', 'CLIENT', 'SHOWROOM');
+    -- SHOWROOM : the showroom owner bought the car himself
+    CREATE TYPE source_type AS ENUM ('CLIENT', 'SHOWROOM');
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'sale_type') THEN
     CREATE TYPE sale_type AS ENUM ('NORMAL', 'DEPOSIT');
@@ -135,39 +134,6 @@ WHERE NOT EXISTS (SELECT 1 FROM public.settings);
 
 
 -- ----------------------------------------------------------------------------
--- 2.3  suppliers (Fournisseurs)
--- ----------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.suppliers (
-  id         SERIAL PRIMARY KEY,
-  code       TEXT,                               -- "Code fournisseur" (Bon d'entree)
-  full_name  TEXT NOT NULL,
-  phone      TEXT,
-  address    TEXT,
-  nif        TEXT,
-  nis        TEXT,
-  article    TEXT,
-  rs         TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE public.suppliers ADD COLUMN IF NOT EXISTS code TEXT;
-
-CREATE OR REPLACE FUNCTION public.set_supplier_code()
-RETURNS TRIGGER LANGUAGE plpgsql AS $fn$
-BEGIN
-  IF NEW.code IS NULL OR NEW.code = '' THEN
-    NEW.code := NEW.id::text;
-  END IF;
-  RETURN NEW;
-END;
-$fn$;
-
-DROP TRIGGER IF EXISTS trg_supplier_code ON public.suppliers;
-CREATE TRIGGER trg_supplier_code
-  BEFORE INSERT ON public.suppliers
-  FOR EACH ROW EXECUTE FUNCTION public.set_supplier_code();
-
-
--- ----------------------------------------------------------------------------
 -- 2.4  clients
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.clients (
@@ -202,7 +168,7 @@ CREATE INDEX IF NOT EXISTS idx_clients_name ON public.clients(last_name, first_n
 --                         "delete":bool, "print":bool } }
 --      sections: dashboard, showroom, purchase, pos, sales, payments,
 --                settlements, caisse, websiteSettings, websiteReservations,
---                suppliers, clients, workers, expenses, reports, settings
+--                clients, workers, expenses, reports, settings
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.worker_roles (
   id          SERIAL PRIMARY KEY,
@@ -333,6 +299,36 @@ CREATE INDEX IF NOT EXISTS idx_car_documents_car_id ON public.car_documents(car_
 
 
 -- ----------------------------------------------------------------------------
+-- 2.9b car_colors + car_years
+--      Reference lists behind the "Couleur" and "Annee" pickers of the
+--      purchase form. The user picks an existing entry or creates a new one
+--      without leaving the form.
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.car_colors (
+  id         SERIAL PRIMARY KEY,
+  name       TEXT UNIQUE NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO public.car_colors (name) VALUES
+  ('Blanc'), ('Noir'), ('Gris'), ('Gris metallise'), ('Argent'), ('Bleu'),
+  ('Bleu nuit'), ('Rouge'), ('Bordeaux'), ('Vert'), ('Beige'), ('Marron'),
+  ('Orange'), ('Jaune'), ('Dore')
+ON CONFLICT (name) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS public.car_years (
+  id         SERIAL PRIMARY KEY,
+  year       INT UNIQUE NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_car_years_year ON public.car_years(year DESC);
+
+INSERT INTO public.car_years (year)
+SELECT g FROM generate_series(1990, EXTRACT(YEAR FROM NOW())::int + 1) AS g
+ON CONFLICT (year) DO NOTHING;
+
+
+-- ----------------------------------------------------------------------------
 -- 2.10 purchases (Achats)
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.purchases (
@@ -340,8 +336,7 @@ CREATE TABLE IF NOT EXISTS public.purchases (
   reference      TEXT UNIQUE,                     -- ACH-0001
   entry_number   TEXT,                            -- "N Bon d'entree"
   car_id         INT NOT NULL REFERENCES public.cars(id) ON DELETE CASCADE,
-  source_type    source_type NOT NULL DEFAULT 'SUPPLIER',
-  supplier_id    INT REFERENCES public.suppliers(id) ON DELETE SET NULL,
+  source_type    source_type NOT NULL DEFAULT 'SHOWROOM',
   client_id      INT REFERENCES public.clients(id) ON DELETE SET NULL,
   purchase_price NUMERIC(12,2) NOT NULL DEFAULT 0,
   selling_price  NUMERIC(12,2) DEFAULT 0,
@@ -362,7 +357,6 @@ ALTER TABLE public.purchases ADD COLUMN IF NOT EXISTS received_phone TEXT;
 ALTER TABLE public.purchases ADD COLUMN IF NOT EXISTS remark         TEXT;
 CREATE INDEX IF NOT EXISTS idx_purchases_car_id      ON public.purchases(car_id);
 CREATE INDEX IF NOT EXISTS idx_purchases_client_id   ON public.purchases(client_id);
-CREATE INDEX IF NOT EXISTS idx_purchases_supplier_id ON public.purchases(supplier_id);
 CREATE INDEX IF NOT EXISTS idx_purchases_source_type ON public.purchases(source_type);
 
 CREATE OR REPLACE FUNCTION public.set_purchase_reference()
@@ -761,15 +755,12 @@ SELECT
   p.id                     AS purchase_id,
   p.reference              AS purchase_reference,
   p.source_type,
-  p.supplier_id,
   p.client_id              AS owner_client_id,
   p.purchase_price,
   p.selling_price,
   p.amount_paid            AS purchase_amount_paid,
   p.amount_rest            AS purchase_amount_rest,
   p.date                   AS purchase_date,
-  s.full_name              AS supplier_name,
-  s.phone                  AS supplier_phone,
   sl.id                    AS sale_id,
   sl.client_id             AS buyer_client_id,
   sl.sale_type,
@@ -785,7 +776,6 @@ FROM public.cars c
 LEFT JOIN LATERAL (
   SELECT * FROM public.purchases WHERE car_id = c.id ORDER BY created_at DESC LIMIT 1
 ) p ON true
-LEFT JOIN public.suppliers s ON s.id = p.supplier_id
 LEFT JOIN LATERAL (
   SELECT * FROM public.sales WHERE car_id = c.id ORDER BY created_at DESC LIMIT 1
 ) sl ON true
@@ -838,7 +828,7 @@ SELECT
   (SELECT COALESCE(SUM(amount_rest), 0) FROM public.sales
      WHERE amount_rest > 0)                                                AS client_debts,
   (SELECT COALESCE(SUM(amount_rest), 0) FROM public.purchases
-     WHERE amount_rest > 0)                                                AS supplier_debts,
+     WHERE amount_rest > 0)                                                AS purchase_debts,
   (SELECT COALESCE(SUM(amount), 0) FROM public.expenses
      WHERE date >= date_trunc('month', CURRENT_DATE)::date)                AS expenses_month,
   (SELECT COUNT(*) FROM public.v_pending_settlements)                      AS pending_settlements;
@@ -878,7 +868,6 @@ UPDATE public.cars c
    AND COALESCE(p.selling_price, 0) > 0;
 
 UPDATE public.purchases SET entry_number = id::text WHERE entry_number IS NULL;
-UPDATE public.suppliers SET code = id::text        WHERE code IS NULL OR code = '';
 UPDATE public.sale_payments SET reference = 'REG-' || LPAD(id::text, 4, '0') WHERE reference IS NULL;
 
 -- Sales recorded before the down payment became a payment row: recreate it so

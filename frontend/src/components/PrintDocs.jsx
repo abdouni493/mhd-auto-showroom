@@ -31,7 +31,6 @@ const D = {
     entryTitle: "Bon d'Entrée",
     entryExtra: "Réception d'un véhicule en stock",
     entryNo: "N° Bon d'entrée",
-    supplierCode: "Code fournisseur",
     clientCode: "Code client",
     showroomCode: "Code interne",
     vehicleDescription: "Description du véhicule",
@@ -48,7 +47,7 @@ const D = {
     total: "Total",
     remark: "Remarque",
     sigAgency: "Signature et cachet de l'Agence",
-    sigSupplierPrint: "Empreinte et signature du Fournisseur",
+    sigShowroomPrint: "Empreinte et signature du Showroom",
     owner: "Propriétaire",
     // Engagement
     engagementTitle: "Contrat de Dépôt de Véhicule",
@@ -65,7 +64,7 @@ const D = {
     // Réception
     receptionTitle: "Formulaire Réception Véhicule",
     receptionExtra: "État du véhicule et accessoires remis",
-    supplierLabel: "Fournisseur",
+    sourceLabel: "Source du véhicule",
     brandLabel: "Marque du véhicule",
     chassisLabel: "Numéro de châssis",
     mileageLabel: "Kilométrage",
@@ -135,6 +134,9 @@ const D = {
     settlementDetail: "Décompte du règlement",
     salePrice: "Prix de vente du véhicule",
     showroomShare: "Part du showroom",
+    showroomPartHT: "Part du showroom (HT)",
+    showroomPartTva: "TVA sur part du showroom",
+    showroomPartTTC: "Part du showroom (TTC)",
     expensesTotal: "Total des dépenses",
     ownerAmount: "Net à verser au propriétaire",
     expensesList: "Détail des dépenses engagées",
@@ -149,7 +151,6 @@ const D = {
     entryTitle: "وصل دخول",
     entryExtra: "استلام مركبة في المخزون",
     entryNo: "رقم وصل الدخول",
-    supplierCode: "رمز المورّد",
     clientCode: "رمز العميل",
     showroomCode: "الرمز الداخلي",
     vehicleDescription: "وصف المركبة",
@@ -166,7 +167,7 @@ const D = {
     total: "المجموع",
     remark: "ملاحظة",
     sigAgency: "توقيع وختم الوكالة",
-    sigSupplierPrint: "بصمة وتوقيع المورّد",
+    sigShowroomPrint: "بصمة وتوقيع المعرض",
     owner: "المالك",
     engagementTitle: "عقد إيداع السيارات",
     engagementExtra: "إيداع لغرض العرض و التسويق",
@@ -181,7 +182,7 @@ const D = {
     on: "في",
     receptionTitle: "استمارة استلام المركبة",
     receptionExtra: "حالة المركبة و الملحقات المسلّمة",
-    supplierLabel: "المورّد",
+    sourceLabel: "مصدر المركبة",
     brandLabel: "ماركة المركبة",
     chassisLabel: "رقم الهيكل",
     mileageLabel: "المسافة المقطوعة",
@@ -245,6 +246,9 @@ const D = {
     settlementDetail: "كشف التسوية",
     salePrice: "سعر بيع المركبة",
     showroomShare: "حصة المعرض",
+    showroomPartHT: "حصة المعرض (دون الرسم)",
+    showroomPartTva: "الرسم على حصة المعرض",
+    showroomPartTTC: "حصة المعرض (مع الرسم)",
     expensesTotal: "إجمالي المصاريف",
     ownerAmount: "الصافي المستحق للمالك",
     expensesList: "تفصيل المصاريف المنفقة",
@@ -349,20 +353,13 @@ export function BonEntree({ purchase, showroom, lang = "fr", dateTime }) {
   const s = tableStyles(lang);
   const car = purchase?.car || {};
   const when = dateTime || purchase?.date;
-  const isSupplier = purchase?.sourceType === "SUPPLIER";
   const isClient = purchase?.sourceType === "CLIENT";
-  const sourceName = isSupplier
-    ? purchase?.supplier?.fullName
-    : isClient
+  const sourceName = isClient
     ? `${purchase?.client?.firstName || ""} ${purchase?.client?.lastName || ""}`.trim()
     : showroom?.name;
-  const sourceLabel = isSupplier ? x.supplierLabel : isClient ? x.owner : x.showroomCat;
-  const codeLabel = isSupplier ? x.supplierCode : isClient ? x.clientCode : x.showroomCode;
-  const code = isSupplier
-    ? purchase?.supplier?.code || purchase?.supplierId
-    : isClient
-    ? purchase?.clientId
-    : purchase?.reference;
+  const sourceLabel = isClient ? x.owner : x.showroomCat;
+  const codeLabel = isClient ? x.clientCode : x.showroomCode;
+  const code = isClient ? purchase?.clientId : purchase?.reference;
 
   return (
     <div style={sheetStyle(lang)}>
@@ -455,7 +452,7 @@ export function BonEntree({ purchase, showroom, lang = "fr", dateTime }) {
         <div style={{ minHeight: 34, fontSize: 10 }}>{purchase?.remark || ""}</div>
       </Frame>
 
-      <Signatures left={x.sigAgency} right={isSupplier ? x.sigSupplierPrint : x.sigOwner} />
+      <Signatures left={x.sigAgency} right={isClient ? x.sigOwner : x.sigShowroomPrint} />
       <Footer showroom={showroom} lang={lang} />
     </div>
   );
@@ -546,10 +543,8 @@ export function ReceptionForm({ purchase, showroom, lang = "fr", dateTime, docTy
   const attached = new Set((car.documents || []).map((d) => d.type));
   // every known document type is printed; the ones held for this car are ticked
   const list = docTypes.length ? docTypes : Array.from(attached);
-  const isSupplier = purchase?.sourceType === "SUPPLIER";
-  const sourceName = isSupplier
-    ? purchase?.supplier?.fullName
-    : purchase?.client
+  const isClient = purchase?.sourceType === "CLIENT";
+  const sourceName = isClient && purchase?.client
     ? `${purchase.client.firstName || ""} ${purchase.client.lastName || ""}`.trim()
     : showroom?.name;
 
@@ -566,7 +561,7 @@ export function ReceptionForm({ purchase, showroom, lang = "fr", dateTime, docTy
 
       <Frame title={x.vehicle}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 18px" }}>
-          <FormLine lang={lang} label={x.supplierLabel} value={sourceName} />
+          <FormLine lang={lang} label={x.sourceLabel} value={sourceName} />
           <FormLine lang={lang} label={x.brandLabel} value={carName(car)} />
           <FormLine lang={lang} label={x.chassisLabel} value={car.vin} />
           <FormLine lang={lang} label={x.plate} value={car.plate} />
@@ -597,11 +592,11 @@ export function ReceptionForm({ purchase, showroom, lang = "fr", dateTime, docTy
         </Frame>
         <Frame title={x.handedTo}>
           <FormLine lang={lang} label={x.handedTo} value={purchase?.receivedBy} />
-          <FormLine lang={lang} label={x.phoneNo} value={purchase?.receivedPhone || purchase?.supplier?.phone || purchase?.client?.phonePrimary} />
+          <FormLine lang={lang} label={x.phoneNo} value={purchase?.receivedPhone || purchase?.client?.phonePrimary || showroom?.phone} />
         </Frame>
       </div>
 
-      <Signatures left={x.sigAgency} right={isSupplier ? x.sigSupplierPrint : x.sigOwner} />
+      <Signatures left={x.sigAgency} right={isClient ? x.sigOwner : x.sigShowroomPrint} />
       <Footer showroom={showroom} lang={lang} />
     </div>
   );
@@ -885,7 +880,17 @@ export function FactureDocument({ sale, showroom, lang = "fr", proforma = false,
   const reduction = Math.max(0, afterTax - totalAfterReduction);
   const stampRate = sale?.stampEnabled ? Number(sale.stampRate) || 0 : 0;
   const stamp = Math.round((totalAfterReduction * stampRate) / 100);
-  const grandTotal = totalAfterReduction + stamp;
+
+  // Part kept by the showroom on a vehicle it sells for its owner. It is billed
+  // as a service of its own: shown before tax, taxed at the invoice TVA rate,
+  // shown again after tax, and added to the total of this invoice.
+  const showroomPart = Math.max(0, Number(sale?.showroomShare) || 0);
+  const showroomPartTva = Math.round((showroomPart * tvaRate) / 100);
+  const showroomPartTTC = showroomPart + showroomPartTva;
+
+  const grandTotal = totalAfterReduction + stamp + showroomPartTTC;
+  const paid = Number(sale?.amountPaid) || 0;
+  const remaining = Math.max(0, grandTotal - paid);
 
   const year = new Date(sale?.date || Date.now()).getFullYear();
   const num = invoiceNumber || `${String(sale?.id ?? "").padStart(2, "0")}/${year}`;
@@ -1018,6 +1023,28 @@ export function FactureDocument({ sale, showroom, lang = "fr", proforma = false,
                 <td style={{ ...s.td, textAlign: s.end, fontWeight: 800, ...ltr }}>{formatAmount(stamp)}</td>
               </tr>
             )}
+            {showroomPart > 0 && (
+              <>
+                <tr>
+                  <td style={{ ...s.td, fontWeight: 700, background: SOFT, ...exact }}>{x.showroomPartHT}</td>
+                  <td style={{ ...s.td, textAlign: s.end, fontWeight: 800, background: SOFT, ...ltr, ...exact }}>
+                    {formatAmount(showroomPart)}
+                  </td>
+                </tr>
+                {tvaRate > 0 && (
+                  <tr>
+                    <td style={{ ...s.td, fontWeight: 700 }}>{`${x.showroomPartTva} ${tvaRate}%`}</td>
+                    <td style={{ ...s.td, textAlign: s.end, fontWeight: 800, ...ltr }}>{formatAmount(showroomPartTva)}</td>
+                  </tr>
+                )}
+                <tr>
+                  <td style={{ ...s.td, fontWeight: 800, color: ACCENT }}>{x.showroomPartTTC}</td>
+                  <td style={{ ...s.td, textAlign: s.end, fontWeight: 900, color: ACCENT, ...ltr }}>
+                    {formatAmount(showroomPartTTC)}
+                  </td>
+                </tr>
+              </>
+            )}
             <tr>
               <td style={{ ...s.tf, textTransform: "uppercase", background: ACCENT, color: "#fff", border: `1px solid ${ACCENT}` }}>
                 {x.totalTTC}
@@ -1055,13 +1082,11 @@ export function FactureDocument({ sale, showroom, lang = "fr", proforma = false,
           {!proforma && (
             <>
               <div style={{ color: MUTE }}>
-                {x.deposit} : <b style={{ color: INK, ...ltr }}>{formatAmount(sale?.amountPaid)}</b>
+                {x.deposit} : <b style={{ color: INK, ...ltr }}>{formatAmount(paid)}</b>
               </div>
               <div style={{ color: MUTE }}>
                 {x.rest} :{" "}
-                <b style={{ color: (sale?.amountRest || 0) > 0 ? ACCENT : "#047857", ...ltr }}>
-                  {formatAmount(sale?.amountRest)}
-                </b>
+                <b style={{ color: remaining > 0 ? ACCENT : "#047857", ...ltr }}>{formatAmount(remaining)}</b>
               </div>
             </>
           )}
