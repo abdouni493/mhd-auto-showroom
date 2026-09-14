@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import { Check, ChevronDown, Plus, Search, X } from "lucide-react";
+import { Check, ChevronDown, Plus, Search, Trash2, X } from "lucide-react";
 
 /**
  * Picker for a short reference list (vehicle colour, vehicle year, ...) that
@@ -13,6 +13,8 @@ import { Check, ChevronDown, Plus, Search, X } from "lucide-react";
  *   onChange   (value) => void
  *   options    [{ id, label, value }]
  *   onCreate   async (typedText) => created option — omit to make the list closed
+ *   onDelete   async (option) => void — omit to make the entries permanent.
+ *              Asks for a confirmation inside the row before firing.
  *   numeric    filter the search box to digits and validate a year-like value
  */
 export default function CreatableSelect({
@@ -20,6 +22,7 @@ export default function CreatableSelect({
   onChange,
   options = [],
   onCreate,
+  onDelete,
   placeholder,
   numeric = false,
   disabled = false,
@@ -29,6 +32,9 @@ export default function CreatableSelect({
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+  // id of the entry whose row is currently asking "really delete?"
+  const [confirmId, setConfirmId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const boxRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -44,6 +50,7 @@ export default function CreatableSelect({
     if (open) {
       setQuery("");
       setError("");
+      setConfirmId(null);
       // let the panel mount before stealing the focus
       const id = setTimeout(() => inputRef.current?.focus(), 30);
       return () => clearTimeout(id);
@@ -64,6 +71,20 @@ export default function CreatableSelect({
   const pick = (option) => {
     onChange(option.value);
     setOpen(false);
+  };
+
+  const remove = async (option) => {
+    if (!onDelete || deletingId != null) return;
+    setDeletingId(option.id ?? option.value);
+    setError("");
+    try {
+      await onDelete(option);
+      setConfirmId(null);
+    } catch (e) {
+      setError(e?.message || t("common.error"));
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const create = async () => {
@@ -163,19 +184,66 @@ export default function CreatableSelect({
 
             <div className="max-h-52 overflow-y-auto space-y-0.5">
               {filtered.map((o) => {
+                const key = o.id ?? o.value;
                 const active = String(o.value) === String(value);
+                const asking = confirmId === key;
+
+                if (asking) {
+                  return (
+                    <div
+                      key={key}
+                      className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-red-600/12 border border-red-600/40"
+                    >
+                      <span className="flex-1 min-w-0 text-xs text-text-primary truncate">
+                        {t("common.confirmDelete")} — <b>{o.label}</b>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmId(null)}
+                        className="shrink-0 text-[0.65rem] uppercase font-bold tracking-wide text-text-muted hover:text-text-primary"
+                      >
+                        {t("common.cancel")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => remove(o)}
+                        disabled={deletingId != null}
+                        className="shrink-0 text-[0.65rem] uppercase font-bold tracking-wide text-red-400 hover:text-red-300 disabled:opacity-60"
+                      >
+                        {deletingId === key ? "..." : t("common.delete")}
+                      </button>
+                    </div>
+                  );
+                }
+
                 return (
-                  <button
-                    key={o.id ?? o.value}
-                    type="button"
-                    onClick={() => pick(o)}
-                    className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-sm text-left rtl:text-right transition ${
-                      active ? "bg-red-600/15 text-text-primary" : "text-text-muted hover:bg-red-600/8 hover:text-text-primary"
+                  <div
+                    key={key}
+                    className={`group flex items-center gap-1 rounded-lg transition ${
+                      active ? "bg-red-600/15" : "hover:bg-red-600/8"
                     }`}
                   >
-                    <span className="truncate">{o.label}</span>
-                    {active && <Check size={14} className="text-red-400 shrink-0" />}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => pick(o)}
+                      className={`flex-1 min-w-0 flex items-center justify-between gap-2 px-2.5 py-2 text-sm text-left rtl:text-right ${
+                        active ? "text-text-primary" : "text-text-muted group-hover:text-text-primary"
+                      }`}
+                    >
+                      <span className="truncate">{o.label}</span>
+                      {active && <Check size={14} className="text-red-400 shrink-0" />}
+                    </button>
+                    {onDelete && (
+                      <button
+                        type="button"
+                        title={t("common.delete")}
+                        onClick={() => { setError(""); setConfirmId(key); }}
+                        className="shrink-0 p-1.5 mr-1 rtl:mr-0 rtl:ml-1 rounded-md text-text-muted opacity-50 group-hover:opacity-100 focus:opacity-100 hover:text-red-400 hover:bg-red-600/15 transition"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
                 );
               })}
               {filtered.length === 0 && !canCreate && (

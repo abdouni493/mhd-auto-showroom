@@ -40,6 +40,7 @@ const GEARBOXES = [["MANUAL", "gearbox.MANUAL"], ["AUTO", "gearbox.AUTO"]];
 
 function PurchaseForm({ onClose, onSaved, editTarget }) {
   const { t } = useTranslation();
+  const can = useCan();
   const { settings } = useStore();
   const isEdit = !!editTarget;
   const [step, setStep] = useState(0);
@@ -98,6 +99,14 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
     const created = await carsApi.createColor(name);
     setColors((list) => (list.some((c) => c.id === created.id) ? list : [...list, created].sort((a, b) => a.name.localeCompare(b.name))));
     return { id: created.id, label: created.name, value: created.name };
+  };
+  // Removing a colour is list maintenance, not a change to any vehicle: the
+  // cars that already use it keep their colour. Gated on the same permission
+  // the database policy checks, so the button never fails silently.
+  const canEditColors = can("purchase", "delete");
+  const deleteColor = async (option) => {
+    await carsApi.deleteColor(option.id);
+    setColors((list) => list.filter((c) => c.id !== option.id));
   };
   const createYear = async (year) => {
     const created = await carsApi.createYear(year);
@@ -329,6 +338,7 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
                   onChange={(v) => setCar((c) => ({ ...c, color: v }))}
                   options={colorOptions}
                   onCreate={createColor}
+                  onDelete={canEditColors ? deleteColor : undefined}
                   placeholder={t("car.colorPlaceholder")}
                 />
               </Field>

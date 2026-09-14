@@ -505,6 +505,16 @@ export const carsApi = {
     }
     return toCamel(data);
   },
+  // Removing a colour only shrinks the picker list: cars keep the colour text
+  // that was saved on them, since cars.color is plain text, not a reference.
+  // RLS silently deletes nothing when the account lacks the right, so the
+  // deleted row is read back to turn that into a real error.
+  async deleteColor(id) {
+    const { data, error } = await supabase.from("car_colors").delete().eq("id", id).select("id");
+    if (error) throw error;
+    if (!data?.length) throw new Error("Suppression refusée : permission insuffisante");
+    return true;
+  },
   async getYears() {
     const { data, error } = await supabase.from("car_years").select("*").order("year", { ascending: false });
     if (error) throw error;
