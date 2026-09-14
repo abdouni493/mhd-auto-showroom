@@ -4,6 +4,9 @@ import { useStore } from "../store/useStore.js";
 // permission map. Order is the sidebar display order.
 export const SECTIONS = [
   "dashboard", "showroom", "purchase", "pos", "sales", "payments",
+  // "settlements" gates the owner règlement of a vehicle left by a client
+  // (the action lives on the Clients page, it has no sidebar entry of its own).
+  "settlements",
   "caisse", "websiteSettings", "websiteReservations", "suppliers", "clients",
   "workers", "expenses", "reports", "settings",
 ];
@@ -37,9 +40,12 @@ export function can(user, section, action = "view") {
 }
 
 // First sidebar section the user is allowed to view (used for default landing).
+// Sections without a sidebar entry of their own are never a landing page.
+const NO_ROUTE = new Set(["settlements"]);
+
 export function firstAllowedSection(user) {
   if (!user || user.isAdmin) return "dashboard";
-  return SECTIONS.find((s) => can(user, s, "view")) || null;
+  return SECTIONS.find((s) => !NO_ROUTE.has(s) && can(user, s, "view")) || null;
 }
 
 // Hook: returns a `can(section, action)` bound to the current user, reactive to login.

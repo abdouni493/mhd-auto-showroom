@@ -50,11 +50,24 @@ function shapeSale(s) {
   const totalCost = purchasePrice + carExpenses;
   const salePrice = Number(s.totalAfterReduction) || 0;
 
+  // A "client car" (Prestation / Dépôt client) belongs to its owner: the gain of
+  // the showroom is its share, not the difference with a purchase price.
+  s.sourceType = purchaseObj?.sourceType || purchaseObj?.source_type || null;
+  s.isClientCar = s.sourceType === "CLIENT";
+  s.showroomShare = Number(s.showroomShare) || 0;
+
   s.purchasePrice = purchasePrice;
   s.carExpenses = carExpenses;
   s.totalCost = totalCost;
-  s.hasPurchaseInfo = purchasePrice > 0 || carExpenses > 0;
-  s.gain = s.hasPurchaseInfo ? salePrice - totalCost : 0;
+  if (s.isClientCar) {
+    // showroom result = its share minus what it spent on the vehicle
+    s.hasPurchaseInfo = true;
+    s.gain = s.showroomShare - carExpenses;
+    s.ownerAmount = salePrice - s.showroomShare - carExpenses;
+  } else {
+    s.hasPurchaseInfo = purchasePrice > 0 || carExpenses > 0;
+    s.gain = s.hasPurchaseInfo ? salePrice - totalCost : 0;
+  }
 
   return s;
 }
@@ -150,6 +163,13 @@ async function mergeProfile(authUser) {
 }
 
 export const auth = {
+  // Used by the login page to show the "Créer un compte administrateur" button
+  // only while the showroom has no administrator yet.
+  async adminExists() {
+    const { data, error } = await supabase.rpc("admin_exists");
+    if (error) return true; // fail closed: never offer registration on an error
+    return !!data;
+  },
   async login(email, password) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
@@ -379,6 +399,7 @@ function carInsert(car) {
     vin: car.vin,
     keys_count: car.keysCount === "" || car.keysCount == null ? null : Number(car.keysCount),
     fiche: car.fiche,
+    specs: car.specs ?? {},
     images: car.images || [],
     inspection: car.inspection ?? {},
   };
@@ -424,8 +445,8 @@ export const carsApi = {
     const map = {
       brand: "brand", model: "model", plate: "plate", year: "year", color: "color",
       energy: "energy", gearbox: "gearbox", seats: "seats", mileage: "mileage", vin: "vin",
-      keysCount: "keys_count", fiche: "fiche", images: "images", inspection: "inspection",
-      status: "status", hidden: "hidden",
+      keysCount: "keys_count", fiche: "fiche", specs: "specs", images: "images",
+      inspection: "inspection", status: "status", hidden: "hidden", price: "price",
     };
     for (const [camel, snake] of Object.entries(map)) {
       if (payload[camel] !== undefined) patch[snake] = payload[camel];
@@ -502,7 +523,10 @@ export const purchasesApi = {
     if (paid === "DEBT") return result.filter((p) => p.amountRest > 0);
     return result;
   },
-  async create({ sourceType, supplierId, clientId, car, purchasePrice, sellingPrice, amountPaid, inspection, date, documents = [] }) {
+  async create({
+    sourceType, supplierId, clientId, car, purchasePrice, sellingPrice, amountPaid,
+    inspection, date, documents = [], receivedAt, receivedBy, receivedPhone, remark,
+  }) {
     // 1. create the car (images/docs are already-uploaded URLs)
     const { data: carRow, error: carError } = await supabase
       .from("cars")
@@ -521,16 +545,25 @@ export const purchasesApi = {
     }
 
     // 3. the purchase
+    // A vehicle bought by the showroom owner himself has no counterparty and no
+    // debt: what it cost is what was paid.
+    const price = Number(purchasePrice) || 0;
+    const paid = sourceType === "SHOWROOM" ? price : Number(amountPaid) || 0;
+
     const { data: purchase, error: purError } = await supabase
       .from("purchases")
       .insert({
         car_id: carRow.id,
         source_type: sourceType,
-        supplier_id: supplierId || null,
-        client_id: clientId || null,
-        purchase_price: Number(purchasePrice) || 0,
+        supplier_id: sourceType === "SUPPLIER" ? supplierId || null : null,
+        client_id: sourceType === "CLIENT" ? clientId || null : null,
+        purchase_price: price,
         selling_price: Number(sellingPrice) || 0,
-        amount_paid: Number(amountPaid) || 0,
+        amount_paid: paid,
+        received_at: receivedAt || date || null,
+        received_by: receivedBy || null,
+        received_phone: receivedPhone || null,
+        remark: remark || null,
         date,
       })
       .select()
@@ -539,10 +572,13 @@ export const purchasesApi = {
 
     return getPurchaseFull(purchase.id); // enriched (joins) so the invoice can print
   },
-  async update(id, { sourceType, supplierId, clientId, car, purchasePrice, sellingPrice, amountPaid, inspection, date }) {
+  async update(id, {
+    sourceType, supplierId, clientId, car, purchasePrice, sellingPrice, amountPaid,
+    inspection, date, receivedAt, receivedBy, receivedPhone, remark,
+  }) {
     const { data: existing, error: exError } = await supabase
       .from("purchases")
-      .select("car_id, source_type, supplier_id, client_id, purchase_price, selling_price, amount_paid, date")
+      .select("car_id, source_type, supplier_id, client_id, purchase_price, selling_price, amount_paid, date, received_at")
       .eq("id", id)
       .single();
     if (exError) throw exError;
@@ -573,18 +609,23 @@ export const purchasesApi = {
     // 3. the purchase — a supplier purchase must clear client_id and vice versa,
     //    otherwise the old counterparty stays attached after switching source.
     const source = sourceType ?? existing.source_type;
-    const { error: purError } = await supabase
-      .from("purchases")
-      .update({
-        source_type: source,
-        supplier_id: source === "SUPPLIER" ? supplierId || null : null,
-        client_id: source === "CLIENT" ? clientId || null : null,
-        purchase_price: Number(purchasePrice ?? existing.purchase_price) || 0,
-        selling_price: Number(sellingPrice ?? existing.selling_price) || 0,
-        amount_paid: Number(amountPaid ?? existing.amount_paid) || 0,
-        date: date || existing.date,
-      })
-      .eq("id", id);
+    const price = Number(purchasePrice ?? existing.purchase_price) || 0;
+    const paid = source === "SHOWROOM" ? price : Number(amountPaid ?? existing.amount_paid) || 0;
+    const patch = {
+      source_type: source,
+      supplier_id: source === "SUPPLIER" ? supplierId || null : null,
+      client_id: source === "CLIENT" ? clientId || null : null,
+      purchase_price: price,
+      selling_price: Number(sellingPrice ?? existing.selling_price) || 0,
+      amount_paid: paid,
+      date: date || existing.date,
+    };
+    if (receivedAt !== undefined) patch.received_at = receivedAt || null;
+    if (receivedBy !== undefined) patch.received_by = receivedBy || null;
+    if (receivedPhone !== undefined) patch.received_phone = receivedPhone || null;
+    if (remark !== undefined) patch.remark = remark || null;
+
+    const { error: purError } = await supabase.from("purchases").update(patch).eq("id", id);
     if (purError) throw purError;
 
     return getPurchaseFull(id);
@@ -697,10 +738,15 @@ export const salesApi = {
         total_before_tax: Number(payload.basePrice) || 0,
         tva_enabled: !!payload.tvaEnabled,
         tva_rate: payload.tvaRate ? Number(payload.tvaRate) : 0,
+        stamp_enabled: !!payload.stampEnabled,
+        stamp_rate: payload.stampRate ? Number(payload.stampRate) : 2,
         reduction_type: payload.reductionType || "NONE",
         reduction_value: payload.reductionValue ? Number(payload.reductionValue) : 0,
         total_after_reduction: total,
         amount_paid: Number(payload.amountPaid) || 0,
+        // Part kept by the showroom when the vehicle belongs to a client
+        showroom_share: Number(payload.showroomShare) || 0,
+        payment_method: payload.paymentMethod || null,
         client_take_car: payload.clientTakeCar !== false,
         inspection: payload.inspection ?? {},
         date: payload.date,
@@ -741,6 +787,10 @@ export const salesApi = {
       total_after_reduction: computeSaleTotal(merged),
     };
     if (payload.amountPaid !== undefined) patch.amount_paid = Number(payload.amountPaid) || 0;
+    if (payload.showroomShare !== undefined) patch.showroom_share = Number(payload.showroomShare) || 0;
+    if (payload.stampEnabled !== undefined) patch.stamp_enabled = !!payload.stampEnabled;
+    if (payload.stampRate !== undefined) patch.stamp_rate = Number(payload.stampRate) || 0;
+    if (payload.paymentMethod !== undefined) patch.payment_method = payload.paymentMethod || null;
     if (payload.clientTakeCar !== undefined) patch.client_take_car = !!payload.clientTakeCar;
     if (payload.clientId !== undefined) patch.client_id = payload.clientId || null;
     if (payload.inspection !== undefined) patch.inspection = payload.inspection ?? {};
@@ -806,16 +856,20 @@ export const clientsApi = {
   async list() {
     const { data, error } = await supabase
       .from("clients")
-      .select("*, purchases(id), sales(id, amount_rest)")
+      .select("*, purchases(id, source_type), sales(id, amount_rest)")
       .order("created_at", { ascending: false });
     if (error) throw error;
     return rows(data).map((c) => {
       shapeClient(c);
+      const deposits = (c.purchases || []).filter((p) => p.sourceType === "CLIENT");
       c.stats = {
         totalPurchases: c.purchases?.length || 0,
         totalSales: c.sales?.length || 0,
         saleRest: (c.sales || []).reduce((a, s) => a + (s.amountRest > 0 ? s.amountRest : 0), 0),
+        depositCars: deposits.length,
       };
+      // Owners of deposited vehicles are the only clients that can be settled.
+      c.hasDepositCars = deposits.length > 0;
       return c;
     });
   },
@@ -851,16 +905,24 @@ export const clientsApi = {
       .from("purchases")
       .select("*, car:cars(*, car_documents(*))")
       .eq("client_id", id);
+    const { data: settlementsData } = await supabase
+      .from("client_settlements")
+      .select(SETTLEMENT_FULL)
+      .eq("client_id", id)
+      .order("date", { ascending: false });
     const sales = rows(salesData).map(shapeSale);
     const purchases = rows(purchasesData).map(shapePurchase);
+    const settlements = rows(settlementsData).map(shapeSettlement);
     return {
       sales,
       purchases,
+      settlements,
       stats: {
         totalSaleAmount: sales.reduce((a, s) => a + (s.totalAfterReduction || 0), 0),
         totalPurchaseAmount: purchases.reduce((a, p) => a + (p.purchasePrice || 0), 0),
         totalPaid: sales.reduce((a, s) => a + (s.amountPaid || 0), 0),
         totalRest: sales.reduce((a, s) => a + (s.amountRest || 0), 0),
+        totalSettled: settlements.reduce((a, x) => a + (x.ownerAmount || 0), 0),
       },
     };
   },
@@ -868,6 +930,135 @@ export const clientsApi = {
     const ext = file.name.split(".").pop();
     const path = `${clientId || "new"}/${crypto.randomUUID()}.${ext}`;
     return uploadFile(BUCKETS.clientPhotos, path, file);
+  },
+};
+
+
+// ── CLIENT SETTLEMENTS (Règlements propriétaires) ─────────────────────────
+// A vehicle deposited by a client ("Prestation / Dépôt client") that has been
+// sold owes its owner:
+//     prix de vente − part du showroom − dépenses engagées sur le véhicule
+// Until that règlement is created, an alert is raised on the dashboard, on the
+// sidebar Clients entry and on the Clients page.
+const SETTLEMENT_FULL = `
+  *,
+  client:clients(*),
+  car:cars(*, car_documents(*)),
+  sale:sales(*),
+  purchase:purchases(*)
+`;
+
+function shapeSettlement(st) {
+  if (!st) return st;
+  if (st.client) shapeClient(st.client);
+  if (st.car) shapeCar(st.car);
+  return st;
+}
+
+const carExpensesOf = (car) =>
+  (car?.expenses || []).filter((e) => e.type === "CAR" || !e.type);
+
+export const settlementsApi = {
+  // Every sale of a client-owned vehicle that has not been settled yet.
+  async pending() {
+    const [{ data: salesData, error }, { data: done }] = await Promise.all([
+      supabase
+        .from("sales")
+        .select(
+          "*, car:cars(*, car_documents(*), expenses(*), purchases(*, client:clients(*))), client:clients(*)"
+        )
+        .order("date", { ascending: false }),
+      supabase.from("client_settlements").select("sale_id"),
+    ]);
+    if (error) throw error;
+    const settled = new Set((done || []).map((r) => r.sale_id));
+
+    return rows(salesData)
+      .map(shapeSale)
+      .filter((sale) => !settled.has(sale.id))
+      .map((sale) => {
+        const purchase = sale.car?.purchase || (sale.car?.purchases || [])[0] || null;
+        if (!purchase || purchase.sourceType !== "CLIENT" || !purchase.clientId) return null;
+        const expenses = carExpensesOf(sale.car);
+        const expensesTotal = expenses.reduce((a, e) => a + (Number(e.amount) || 0), 0);
+        const salePrice = Number(sale.totalAfterReduction) || 0;
+        const showroomShare = Number(sale.showroomShare) || 0;
+        return {
+          saleId: sale.id,
+          sale,
+          purchaseId: purchase.id,
+          purchase,
+          clientId: purchase.clientId,
+          client: purchase.client ? shapeClient({ ...purchase.client }) : null,
+          carId: sale.carId,
+          car: sale.car,
+          salePrice,
+          showroomShare,
+          expenses,
+          expensesTotal,
+          ownerAmount: salePrice - showroomShare - expensesTotal,
+          date: sale.date,
+        };
+      })
+      .filter(Boolean);
+  },
+
+  async pendingCount() {
+    return (await settlementsApi.pending()).length;
+  },
+
+  // Pending règlements grouped by owner — used by the Clients page badges.
+  async pendingByClient() {
+    const list = await settlementsApi.pending();
+    const map = {};
+    for (const p of list) (map[p.clientId] ||= []).push(p);
+    return map;
+  },
+
+  async list({ clientId = "" } = {}) {
+    let q = supabase.from("client_settlements").select(SETTLEMENT_FULL).order("date", { ascending: false });
+    if (clientId) q = q.eq("client_id", clientId);
+    const { data, error } = await q;
+    if (error) throw error;
+    return rows(data).map(shapeSettlement);
+  },
+
+  async get(id) {
+    const { data, error } = await supabase.from("client_settlements").select(SETTLEMENT_FULL).eq("id", id).single();
+    if (error) throw error;
+    return shapeSettlement(toCamel(data));
+  },
+
+  async create(payload) {
+    const { data, error } = await supabase
+      .from("client_settlements")
+      .insert({
+        client_id: payload.clientId,
+        car_id: payload.carId || null,
+        sale_id: payload.saleId || null,
+        purchase_id: payload.purchaseId || null,
+        sale_price: Number(payload.salePrice) || 0,
+        showroom_share: Number(payload.showroomShare) || 0,
+        expenses_total: Number(payload.expensesTotal) || 0,
+        owner_amount: Number(payload.ownerAmount) || 0,
+        // snapshot: the receipt must keep printing the same list later on
+        expenses: (payload.expenses || []).map((e) => ({
+          name: e.name, description: e.description, amount: Number(e.amount) || 0, date: e.date,
+        })),
+        payment_method: payload.paymentMethod || null,
+        note: payload.note || null,
+        status: "SETTLED",
+        date: payload.date || new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+    if (error) throw error;
+    return settlementsApi.get(data.id);
+  },
+
+  async delete(id) {
+    const { error } = await supabase.from("client_settlements").delete().eq("id", id);
+    if (error) throw error;
   },
 };
 
@@ -1350,7 +1541,7 @@ export const dashboardApi = {
     const monthStartISO = monthStart.toISOString();
     const monthStr = monthKey(now);
 
-    const [carsRes, salesRes, purchasesRes, expensesRes, workersRes, workerPaymentsRes, advancesRes, reservationsRes, clientsRes, suppliersRes] =
+    const [carsRes, salesRes, purchasesRes, expensesRes, workersRes, workerPaymentsRes, advancesRes, reservationsRes, clientsRes, suppliersRes, pendingSettlements] =
       await Promise.all([
         supabase.from("cars").select("id, status, hidden, created_at"),
         supabase.from("sales").select("*, car:cars(brand, model, plate, images, status), client:clients(*)").order("date", { ascending: false }),
@@ -1362,6 +1553,7 @@ export const dashboardApi = {
         supabase.from("website_reservations").select("id").eq("status", "PENDING"),
         supabase.from("clients").select("id"),
         supabase.from("suppliers").select("id"),
+        settlementsApi.pending().catch(() => []),
       ]);
 
     const cars = rows(carsRes.data);
@@ -1454,6 +1646,7 @@ export const dashboardApi = {
         totalExpenses: expenses.length,
         clientsInDebt,
         suppliersInDebt,
+        pendingSettlements: pendingSettlements.length,
       },
       charts: {
         months,
@@ -1477,6 +1670,12 @@ export const dashboardApi = {
         pendingReservations: (reservationsRes.data || []).length,
         hiddenOffers: cars.filter((c) => c.hidden).length,
       },
+      // Vehicles sold for a client whose owner has not been settled yet.
+      settlements: {
+        pending: pendingSettlements,
+        count: pendingSettlements.length,
+        total: pendingSettlements.reduce((a, p) => a + (p.ownerAmount || 0), 0),
+      },
     };
   },
 };
@@ -1484,6 +1683,9 @@ export const dashboardApi = {
 // ── WEBSITE ───────────────────────────────────────────────────
 function priceFromCar(car) {
   if (!car) return 0;
+  // `cars.price` is kept in sync with the purchase by a database trigger, so the
+  // public site can show a price without reading the purchases table.
+  if (Number(car.price) > 0) return Number(car.price);
   const list = car.purchases || (car.purchase ? [car.purchase] : []);
   return list[0]?.sellingPrice || 0;
 }
@@ -1794,6 +1996,7 @@ export function imageUrl(path) {
 export default {
   auth,
   settingsApi,
+  settlementsApi,
   carsApi,
   purchasesApi,
   salesApi,

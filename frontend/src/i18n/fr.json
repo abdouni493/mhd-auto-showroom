@@ -1,5 +1,7 @@
 {
-  "app": { "title": "Gestion Showroom" },
+  "app": {
+    "title": "Gestion Showroom"
+  },
   "nav": {
     "dashboard": "Tableau de Bord",
     "showroom": "Showroom",
@@ -17,7 +19,10 @@
     "reports": "Rapports",
     "settings": "Paramètres",
     "logout": "Déconnexion",
-    "management": "Management"
+    "management": "Management",
+    "language": "Langue",
+    "lightMode": "Mode clair",
+    "darkMode": "Mode sombre"
   },
   "caisse": {
     "lockTitle": "Caisse protégée",
@@ -103,8 +108,16 @@
     "error": "Erreur",
     "saved": "Enregistré ✓"
   },
-  "energy": { "ESSENCE": "Essence", "DIESEL": "Diesel", "HYBRID": "Hybride", "ELECTRIC": "Électrique" },
-  "gearbox": { "MANUAL": "Manuelle", "AUTO": "Automatique" },
+  "energy": {
+    "ESSENCE": "Essence",
+    "DIESEL": "Diesel",
+    "HYBRID": "Hybride",
+    "ELECTRIC": "Électrique"
+  },
+  "gearbox": {
+    "MANUAL": "Manuelle",
+    "AUTO": "Automatique"
+  },
   "status": {
     "AVAILABLE": "Disponible",
     "SOLD": "Vendu",
@@ -129,7 +142,9 @@
     "loginFailed": "Échec de la connexion",
     "demoFailed": "Échec de la connexion démo",
     "registerFailed": "Échec de la création du compte",
-    "passwordMismatch": "Les mots de passe ne correspondent pas"
+    "passwordMismatch": "Les mots de passe ne correspondent pas",
+    "createAdminHelp": "Aucun administrateur n'existe encore. Créez le compte principal du showroom.",
+    "passwordTooShort": "Le mot de passe doit contenir au moins 6 caractères."
   },
   "dashboard": {
     "title": "Tableau de Bord",
@@ -195,7 +210,18 @@
     "noFileYet": "Aucun fichier",
     "noDocTypes": "Aucun type de document. Créez-en un.",
     "scanOptional": "Le scan des documents est optionnel",
-    "dropImages": "Glissez des images ici ou cliquez pour parcourir"
+    "dropImages": "Glissez des images ici ou cliquez pour parcourir",
+    "specsTitle": "Fiche technique (spécifications)",
+    "specsHelp": "Ces informations apparaissent sur la fiche technique imprimée.",
+    "specEngine": "Moteur",
+    "specPower": "Puissance",
+    "specTransmission": "Transmission",
+    "specConsumption": "Consommation",
+    "specWheelbase": "Empattement",
+    "specTrunk": "Volume coffre",
+    "specWeight": "Poids à vide",
+    "specTank": "Capacité réservoir",
+    "specDimensions": "Dimensions (L x l x H)"
   },
   "client": {
     "firstName": "Prénom",
@@ -282,7 +308,14 @@
     "reference": "Référence",
     "source": "Source",
     "alreadyPaid": "Déjà payé",
-    "amountToPay": "Montant à payer"
+    "amountToPay": "Montant à payer",
+    "filterShowroom": "Showroom",
+    "sourcePrestation": "Prestation (Dépôt client)",
+    "sourceShowroom": "Showroom",
+    "showroomHelp": "Le véhicule a été acheté par le propriétaire du showroom, sans fournisseur.",
+    "showroomNoDebt": "Achat du showroom : aucun montant restant dû.",
+    "remark": "Remarque (formulaire de réception)",
+    "remarkHint": "R.A.S."
   },
   "pos": {
     "title": "POS — Véhicules Disponibles",
@@ -311,7 +344,13 @@
     "finalize": "Finaliser la vente",
     "finalized": "Vente finalisée ✓",
     "finalizedToast": "Vente finalisée avec succès",
-    "printPrompt": "Voulez-vous imprimer la facture ?"
+    "printPrompt": "Voulez-vous imprimer la facture ?",
+    "clientCarTitle": "Véhicule d'un client",
+    "owner": "Propriétaire",
+    "showroomShare": "Part du showroom",
+    "ownerAmount": "Net au propriétaire",
+    "settlementHint": "Un règlement propriétaire sera à créer depuis la fiche client après la vente.",
+    "depositCar": "Dépôt client"
   },
   "sales": {
     "title": "Ventes",
@@ -561,5 +600,85 @@
     "contactUs": "Contactez-nous",
     "followUs": "Suivez-nous",
     "carNotFound": "Véhicule introuvable."
+  },
+  "navGroup": {
+    "pilotage": "Pilotage",
+    "stock": "Stock & Achats",
+    "commerce": "Ventes",
+    "people": "Tiers",
+    "finance": "Finance",
+    "web": "Site Web",
+    "system": "Système"
+  },
+  "settlements": {
+    "title": "Règlements",
+    "action": "Créer un règlement",
+    "newTitle": "Règlement du propriétaire",
+    "create": "Créer le règlement",
+    "createdToast": "Règlement créé avec succès",
+    "alertTitle": "Règlements propriétaires en attente",
+    "alertShort": "Règlements",
+    "alertDesc": "{{count}} véhicule(s) de client vendus dont le propriétaire n'a pas encore été réglé.",
+    "pendingFor": "{{count}} règlement(s) à créer",
+    "pendingLabel": "Règlements en attente",
+    "depositBadge": "{{count}} véhicule(s) en dépôt",
+    "salePrice": "Prix de vente",
+    "expensesTotal": "Total dépenses",
+    "ownerAmount": "Net au propriétaire",
+    "expensesList": "Dépenses engagées sur le véhicule",
+    "noExpense": "Aucune dépense engagée sur ce véhicule.",
+    "saleRef": "Vente",
+    "paymentMethod": "Mode de paiement",
+    "paymentMethodHint": "Espèces, chèque, virement...",
+    "note": "Observation",
+    "historyTitle": "Règlements propriétaire",
+    "none": "Aucun règlement",
+    "nonePending": "Aucun règlement en attente pour ce client."
+  },
+  "print": {
+    "printings": "Impressions",
+    "hubTitle": "Impressions",
+    "hubHelp": "Choisissez un document, réglez ses options, puis la langue d'impression.",
+    "chooseLang": "Langue du document",
+    "noDocs": "Aucun document disponible",
+    "dateTime": "Date et heure",
+    "amountReceived": "Montant versé",
+    "bonEntree": "Bon d'entrée + Inspection",
+    "bonEntreeDesc": "Entrée du véhicule en stock, avec le rapport d'inspection",
+    "reception": "Formulaire réception véhicule",
+    "receptionDesc": "État du véhicule et accessoires remis",
+    "engagement": "Engagement (contrat de dépôt)",
+    "engagementDesc": "Dépôt du véhicule pour exposition et commercialisation",
+    "fiche": "Fiche technique",
+    "ficheDesc": "Spécifications du véhicule et prix de vente",
+    "purchaseInvoice": "Bon d'achat",
+    "purchaseInvoiceDesc": "Justificatif de l'achat du véhicule",
+    "factureFinale": "Facture finale",
+    "factureFinaleDesc": "Facture de vente définitive (HT, TVA, timbre, TTC)",
+    "factureProforma": "Facture proforma",
+    "factureProformaDesc": "Devis client, document non comptable",
+    "bonVersement": "Bon de versement",
+    "bonVersementDesc": "Reçu d'un encaissement sur la vente",
+    "bonEntreeSortie": "Bon d'entrée / sortie",
+    "bonEntreeSortieDesc": "Sortie du véhicule avec documents remis",
+    "saleInvoice": "Facture de vente",
+    "saleInvoiceDesc": "Récapitulatif complet de la vente et inspection",
+    "settlement": "Reçu de règlement propriétaire",
+    "settlementDesc": "Décompte remis au propriétaire du véhicule"
+  },
+  "email": {
+    "action": "Envoyer par email",
+    "title": "Envoyer les documents par email",
+    "help": "Sélectionnez les documents à envoyer au client. Ils sont envoyés dans un seul message.",
+    "documents": "Documents à envoyer",
+    "to": "Email du client",
+    "subject": "Objet",
+    "send": "Envoyer",
+    "sender": "Expéditeur",
+    "sentToast": "Email envoyé au client ✓",
+    "failed": "L'envoi a échoué",
+    "missingEmail": "Renseignez l'adresse email du client.",
+    "missingDocs": "Sélectionnez au moins un document.",
+    "subjectFor": "Documents de la vente"
   }
 }

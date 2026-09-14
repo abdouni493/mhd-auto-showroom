@@ -4,15 +4,17 @@ import {
   BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
+import { useNavigate } from "react-router-dom";
 import {
   Car, CheckCircle, Clock, Tag, Users, Factory, Receipt, HardHat,
-  CalendarClock, EyeOff, ShoppingCart, Wallet, TrendingUp,
+  CalendarClock, EyeOff, ShoppingCart, Wallet, TrendingUp, HandCoins, ChevronRight,
 } from "lucide-react";
 import { useFetch } from "../hooks/useApi.js";
 import { dashboardApi } from "../lib/api.js";
 import { StatCard, Card, Badge, SkeletonGrid } from "../components/ui.jsx";
 import { CarImage } from "../components/CarCard.jsx";
-import { formatDate, STATUS_LABELS } from "../utils/format.js";
+import { formatAmount, formatDate, STATUS_LABELS } from "../utils/format.js";
+import { useCan } from "../lib/permissions.js";
 
 const PIE_COLORS = { AVAILABLE: "#10b981", SOLD: "#dc2626", RESERVED: "#f59e0b" };
 
@@ -60,6 +62,8 @@ const tooltipStyle = {
 
 export default function Dashboard() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const can = useCan();
   const { data, loading } = useFetch(() => dashboardApi.stats(), []);
 
   if (loading || !data) {
@@ -72,11 +76,52 @@ export default function Dashboard() {
   }
 
   const { counts, charts, lists, workers, website } = data;
+  const settlements = data.settlements || { pending: [], count: 0, total: 0 };
   const pieData = Object.entries(charts.statusDistribution).map(([k, v]) => ({ name: STATUS_LABELS[k], key: k, value: v }));
 
   return (
     <div>
       <h1 className="heading text-3xl text-text-primary mb-6">{t("dashboard.title")}</h1>
+
+      {/* Owner règlements waiting to be created (client vehicles already sold) */}
+      {settlements.count > 0 && can("clients", "view") && (
+        <motion.button
+          onClick={() => navigate("/app/clients?settle=1")}
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          whileHover={{ scale: 1.005 }}
+          whileTap={{ scale: 0.995 }}
+          className="w-full text-left rtl:text-right glass-card p-4 mb-6 border border-amber-500/45 bg-amber-500/5 flex items-center gap-4"
+        >
+          <motion.span
+            className="p-2.5 rounded-xl bg-amber-500/15 text-amber-400 shrink-0"
+            animate={{ scale: [1, 1.08, 1] }}
+            transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <HandCoins size={22} />
+          </motion.span>
+          <div className="flex-1 min-w-0">
+            <p className="heading text-sm text-amber-400">{t("settlements.alertTitle")}</p>
+            <p className="text-xs text-text-muted mt-0.5">
+              {t("settlements.alertDesc", { count: settlements.count })}
+              {settlements.total > 0 && ` · ${t("settlements.ownerAmount")} : ${formatAmount(settlements.total)}`}
+            </p>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {settlements.pending.slice(0, 4).map((s) => (
+                <span key={s.saleId} className="text-[0.65rem] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                  {s.car?.brand} {s.car?.model} — {s.client?.firstName} {s.client?.lastName}
+                </span>
+              ))}
+              {settlements.pending.length > 4 && (
+                <span className="text-[0.65rem] px-2 py-0.5 text-text-muted">
+                  +{settlements.pending.length - 4}
+                </span>
+              )}
+            </div>
+          </div>
+          <ChevronRight size={20} className="text-amber-400 shrink-0" />
+        </motion.button>
+      )}
 
       {/* Inventory KPIs (counts only — no money) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -130,6 +175,7 @@ export default function Dashboard() {
         <MiniStat index={3} icon={Users} label={t("dashboard.clientsInDebt")} value={counts.clientsInDebt} color="text-rose-300" />
         <MiniStat index={4} icon={Factory} label={t("dashboard.suppliersInDebt")} value={counts.suppliersInDebt} color="text-rose-300" />
         <MiniStat index={5} icon={CalendarClock} label={t("dashboard.pendingReservations")} value={website.pendingReservations} color="text-amber-400" />
+        <MiniStat index={6} icon={HandCoins} label={t("settlements.pendingLabel")} value={settlements.count} color="text-amber-400" />
       </div>
 
       {/* Recent activity lists (no amounts) */}

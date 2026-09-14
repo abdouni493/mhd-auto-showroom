@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "framer-motion";
-import { Car, Mail, Lock, ExternalLink } from "lucide-react";
+import { Mail, Lock, ExternalLink, UserPlus, User, AtSign, ArrowLeft } from "lucide-react";
 import { useStore } from "../store/useStore.js";
+import { auth as authApi } from "../lib/api.js";
 import AnimatedLogo from "../components/AnimatedLogo.jsx";
 
 function GlowBackground() {
@@ -34,15 +35,23 @@ const fieldAnim = (delay) => ({
 export default function Login() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const { login, user, settings, loadSettings, language, setLanguage } = useStore();
+  const { login, register, user, settings, loadSettings, language, setLanguage } = useStore();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // The very first run of the application has no account at all. While no
+  // administrator exists the registration button is offered; as soon as one is
+  // created it disappears for good.
+  const [adminExists, setAdminExists] = useState(true);
+  const [mode, setMode] = useState("login"); // "login" | "register"
+  const [reg, setReg] = useState({ fullName: "", username: "", email: "", password: "", confirm: "" });
+
   useEffect(() => {
     loadSettings();
+    authApi.adminExists().then(setAdminExists).catch(() => setAdminExists(true));
     if (user) navigate("/app/dashboard");
   }, [user]);
 
@@ -54,11 +63,41 @@ export default function Login() {
       await login(email, password);
       navigate("/app/dashboard");
     } catch (err) {
-      setError(err.message || "Échec de la connexion");
+      setError(err.message || t("login.loginFailed"));
     } finally {
       setLoading(false);
     }
   };
+
+  const doRegister = async (e) => {
+    e?.preventDefault();
+    setError("");
+    if (reg.password !== reg.confirm) {
+      setError(t("login.passwordMismatch"));
+      return;
+    }
+    if (reg.password.length < 6) {
+      setError(t("login.passwordTooShort"));
+      return;
+    }
+    setLoading(true);
+    try {
+      await register({
+        fullName: reg.fullName,
+        username: reg.username || reg.email.split("@")[0],
+        email: reg.email,
+        password: reg.password,
+      });
+      setAdminExists(true);
+      navigate("/app/dashboard");
+    } catch (err) {
+      setError(err.message || t("login.registerFailed"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const setRegField = (f) => (e) => setReg((r) => ({ ...r, [f]: e.target.value }));
 
   const toggleLang = () => {
     const next = language === "fr" ? "ar" : "fr";
@@ -111,10 +150,65 @@ export default function Login() {
             {settings?.name || "Prestige Auto"}
           </motion.p>
           <motion.h1 className="gradient-text heading text-4xl mt-1" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
-            {t("login.title")}
+            {mode === "register" ? t("login.createAdmin") : t("login.title")}
           </motion.h1>
         </div>
 
+        {mode === "register" ? (
+          <form onSubmit={doRegister} className="space-y-4">
+            <p className="text-xs text-text-muted text-center -mt-2 mb-1">{t("login.createAdminHelp")}</p>
+
+            <motion.div {...fieldAnim(0.05)}>
+              <label className="label-caps text-red-400/80">{t("login.fullName")}</label>
+              <div className="relative">
+                <User className="absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-red-500/70" size={16} />
+                <input className="input pl-10 rtl:pl-3 rtl:pr-10" value={reg.fullName} onChange={setRegField("fullName")} required />
+              </div>
+            </motion.div>
+
+            <motion.div {...fieldAnim(0.1)}>
+              <label className="label-caps text-red-400/80">{t("login.username")}</label>
+              <div className="relative">
+                <AtSign className="absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-red-500/70" size={16} />
+                <input className="input pl-10 rtl:pl-3 rtl:pr-10" value={reg.username} onChange={setRegField("username")} />
+              </div>
+            </motion.div>
+
+            <motion.div {...fieldAnim(0.15)}>
+              <label className="label-caps text-red-400/80">{t("login.email")}</label>
+              <div className="relative">
+                <Mail className="absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-red-500/70" size={16} />
+                <input className="input pl-10 rtl:pl-3 rtl:pr-10" type="email" value={reg.email} onChange={setRegField("email")} required />
+              </div>
+            </motion.div>
+
+            <motion.div {...fieldAnim(0.2)}>
+              <label className="label-caps text-red-400/80">{t("login.password")}</label>
+              <div className="relative">
+                <Lock className="absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-red-500/70" size={16} />
+                <input className="input pl-10 rtl:pl-3 rtl:pr-10" type="password" value={reg.password} onChange={setRegField("password")} required />
+              </div>
+            </motion.div>
+
+            <motion.div {...fieldAnim(0.25)}>
+              <label className="label-caps text-red-400/80">{t("login.confirmPassword")}</label>
+              <div className="relative">
+                <Lock className="absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-red-500/70" size={16} />
+                <input className="input pl-10 rtl:pl-3 rtl:pr-10" type="password" value={reg.confirm} onChange={setRegField("confirm")} required />
+              </div>
+            </motion.div>
+
+            {error && <p className="text-rose-400 text-sm text-center">{error}</p>}
+
+            <motion.button type="submit" disabled={loading} className="btn-primary w-full shine-btn" {...fieldAnim(0.3)} whileTap={{ scale: 0.97 }}>
+              {loading ? "..." : <><UserPlus size={15} /> {t("login.register")}</>}
+            </motion.button>
+
+            <button type="button" onClick={() => { setMode("login"); setError(""); }} className="btn-ghost w-full">
+              <ArrowLeft size={14} /> {t("common.back")}
+            </button>
+          </form>
+        ) : (
         <form onSubmit={doLogin} className="space-y-4">
           <motion.div {...fieldAnim(0.7)}>
             <label className="label-caps text-red-400/80">{t("login.email")}</label>
@@ -143,7 +237,22 @@ export default function Login() {
           >
             {loading ? "..." : t("login.submit")}
           </motion.button>
+
+          {/* Only offered while the showroom has no administrator yet */}
+          {!adminExists && (
+            <motion.div className="pt-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.95 }}>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="flex-1 h-px bg-red-600/25" />
+                <span className="text-[0.62rem] uppercase tracking-widest text-text-muted">{t("login.or")}</span>
+                <div className="flex-1 h-px bg-red-600/25" />
+              </div>
+              <button type="button" className="btn-ghost w-full" onClick={() => { setMode("register"); setError(""); }}>
+                <UserPlus size={15} /> {t("login.createAdmin")}
+              </button>
+            </motion.div>
+          )}
         </form>
+        )}
       </motion.div>
     </div>
   );

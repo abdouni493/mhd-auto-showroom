@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import { Eye, Pencil, Trash2, Printer, Wallet, LayoutGrid, Table as TableIcon, TrendingUp, X, UserCog } from "lucide-react";
-import { salesApi, clientsApi, inspectionApi } from "../lib/api.js";
+import { Eye, Pencil, Trash2, Printer, Wallet, LayoutGrid, Table as TableIcon, TrendingUp, X, UserCog, Mail, Receipt, FileText, Banknote, ArrowRightLeft, Send, HandCoins } from "lucide-react";
+import { salesApi, clientsApi, carsApi, inspectionApi } from "../lib/api.js";
 import { useFetch } from "../hooks/useApi.js";
 import { useCan } from "../lib/permissions.js";
 import { useStore } from "../store/useStore.js";
@@ -14,7 +14,9 @@ import ClientForm, { validateClient } from "../components/ClientForm.jsx";
 import InspectionChecklist, { DEFAULT_INSPECTION, hasInspectionItems } from "../components/InspectionChecklist.jsx";
 import { CarImage } from "../components/CarCard.jsx";
 import { SaleInvoice } from "../components/PrintTemplates.jsx";
-import { usePrintDialog } from "../components/PrintChooser.jsx";
+import { BonVersement, BonEntreeSortie, FactureDocument } from "../components/PrintDocs.jsx";
+import PrintHub, { DocPicker } from "../components/PrintHub.jsx";
+import { renderDocsToHtml, documentLabels, sendDocumentsEmail } from "../lib/email.js";
 import { formatAmount, formatDate, initials, toDateTimeLocal, ENERGY_LABELS, GEARBOX_LABELS } from "../utils/format.js";
 
 const FILTERS = [
@@ -280,7 +282,7 @@ function SaleEditForm({ sale, onClose, onSaved }) {
 export default function Sales() {
   const { t } = useTranslation();
   const can = useCan();
-  const { settings } = useStore();
+  const { settings, refreshSettlements } = useStore();
   const toast = useToast();
   const [filter, setFilter] = useState("");
   const [search, setSearch] = useState("");
@@ -296,10 +298,58 @@ export default function Sales() {
   const [payAmount, setPayAmount] = useState("");
   const [editItem, setEditItem] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
+  const [printTarget, setPrintTarget] = useState(null);
+  const [mailTarget, setMailTarget] = useState(null);
 
-  const openPrint = usePrintDialog();
-  // Print buttons open a French / Arabic chooser first.
-  const doPrint = (s) => openPrint((lang) => <SaleInvoice sale={s} showroom={settings} lang={lang} />);
+  const { data: docTypeRows } = useFetch(() => carsApi.getDocumentTypes(), []);
+  const docTypeNames = (docTypeRows || []).map((d) => d.name);
+
+  // Every printable document of a sale. The same list feeds the "Impressions"
+  // hub and the "Envoyer par email" picker.
+  const saleDocs = (sale) => {
+    if (!sale) return [];
+    return [
+      {
+        key: "facture-finale",
+        label: t("print.factureFinale"),
+        desc: t("print.factureFinaleDesc"),
+        icon: Receipt,
+        render: (lang) => <FactureDocument sale={sale} showroom={settings} lang={lang} />,
+      },
+      {
+        key: "facture-proforma",
+        label: t("print.factureProforma"),
+        desc: t("print.factureProformaDesc"),
+        icon: FileText,
+        render: (lang) => <FactureDocument sale={sale} showroom={settings} lang={lang} proforma />,
+      },
+      {
+        key: "bon-versement",
+        label: t("print.bonVersement"),
+        desc: t("print.bonVersementDesc"),
+        icon: Banknote,
+        options: [{ name: "amount", label: t("print.amountReceived"), type: "number", default: String(sale.amountPaid ?? "") }],
+        render: (lang, o) => <BonVersement sale={sale} showroom={settings} lang={lang} amount={o.amount} />,
+      },
+      {
+        key: "bon-entree-sortie",
+        label: t("print.bonEntreeSortie"),
+        desc: t("print.bonEntreeSortieDesc"),
+        icon: ArrowRightLeft,
+        options: [{ name: "dateTime", label: t("print.dateTime"), type: "datetime", default: toDateTimeLocal(sale.date) }],
+        render: (lang, o) => (
+          <BonEntreeSortie sale={sale} showroom={settings} lang={lang} dateTime={o.dateTime} docTypes={docTypeNames} />
+        ),
+      },
+      {
+        key: "facture-vente",
+        label: t("print.saleInvoice"),
+        desc: t("print.saleInvoiceDesc"),
+        icon: Printer,
+        render: (lang) => <SaleInvoice sale={sale} showroom={settings} lang={lang} />,
+      },
+    ];
+  };
 
   const pay = async () => {
     await salesApi.addPayment(payTarget.id, payTarget.carId, Number(payAmount));
@@ -310,6 +360,7 @@ export default function Sales() {
   const confirmDelete = async () => {
     await salesApi.delete(deleteId);
     setDeleteId(null); refetch();
+    refreshSettlements();
     toast(t("sales.deletedToast"), "info");
   };
 
@@ -317,7 +368,8 @@ export default function Sales() {
     { label: t("common.view"), icon: Eye, onClick: () => setViewItem(s) },
     can("sales", "edit") && { label: t("common.edit"), icon: Pencil, onClick: () => setEditItem(s) },
     can("sales", "edit") && s.amountRest > 0 && { label: t("common.payDebt"), icon: Wallet, onClick: () => { setPayTarget(s); setPayAmount(String(s.amountRest)); } },
-    can("sales", "print") && { label: t("common.print"), icon: Printer, onClick: () => doPrint(s) },
+    can("sales", "print") && { label: t("print.printings"), icon: Printer, onClick: () => setPrintTarget(s) },
+    can("sales", "print") && { label: t("email.action"), icon: Mail, onClick: () => setMailTarget(s) },
     can("sales", "delete") && { label: t("common.delete"), icon: Trash2, danger: true, onClick: () => setDeleteId(s.id) },
   ];
 
@@ -484,6 +536,20 @@ export default function Sales() {
               </div>
             </div>
 
+            {viewItem.isClientCar && (
+              <div className="glass-card p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/5">
+                <div className="flex items-center gap-2 mb-2 text-amber-400">
+                  <HandCoins size={15} />
+                  <span className="label-caps !mb-0 !text-amber-400">{t("pos.clientCarTitle")}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div><p className="text-text-muted text-[10px]">{t("pos.showroomShare")}</p><p className="font-bold text-text-primary mt-0.5">{formatAmount(viewItem.showroomShare)}</p></div>
+                  <div><p className="text-text-muted text-[10px]">{t("sales.carExpenses")}</p><p className="font-bold text-amber-400 mt-0.5">{formatAmount(viewItem.carExpenses)}</p></div>
+                  <div><p className="text-text-muted text-[10px]">{t("pos.ownerAmount")}</p><p className="font-black text-emerald-400 mt-0.5">{formatAmount(viewItem.ownerAmount)}</p></div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-x-6">
               {Object.entries({
                 [t("purchase.reference")]: viewItem.reference, [t("common.date")]: formatDate(viewItem.date),
@@ -501,7 +567,10 @@ export default function Sales() {
                 )}
               </div>
             )}
-            <button className="btn-ghost w-full" onClick={() => doPrint(viewItem)}><Printer size={14} /> {t("sales.printInvoice")}</button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button className="btn-ghost" onClick={() => { setPrintTarget(viewItem); setViewItem(null); }}><Printer size={14} /> {t("print.printings")}</button>
+              <button className="btn-ghost" onClick={() => { setMailTarget(viewItem); setViewItem(null); }}><Mail size={14} /> {t("email.action")}</button>
+            </div>
           </div>
         )}
       </Modal>
@@ -526,12 +595,134 @@ export default function Sales() {
             key={editItem.id}
             sale={editItem}
             onClose={() => setEditItem(null)}
-            onSaved={() => { setEditItem(null); refetch(); toast(t("sales.updatedToast")); }}
+            onSaved={() => { setEditItem(null); refetch(); refreshSettlements(); toast(t("sales.updatedToast")); }}
           />
         )}
       </AnimatePresence>
 
+      {/* Impressions - every document of this sale */}
+      <PrintHub
+        open={!!printTarget}
+        onClose={() => setPrintTarget(null)}
+        title={t("print.printings")}
+        docs={saleDocs(printTarget)}
+      />
+
+      {/* Envoi par email (Brevo) */}
+      <EmailModal
+        sale={mailTarget}
+        docs={saleDocs(mailTarget)}
+        showroom={settings}
+        onClose={() => setMailTarget(null)}
+      />
+
       <ConfirmModal open={!!deleteId} onClose={() => setDeleteId(null)} onConfirm={confirmDelete} message={t("sales.deleteMsg")} />
     </div>
+  );
+}
+
+/**
+ * Send one or several printing templates of a sale to the client, through
+ * Brevo. The documents are the very same templates the printer produces.
+ */
+function EmailModal({ sale, docs, showroom, onClose }) {
+  const { t } = useTranslation();
+  const toast = useToast();
+  const [selected, setSelected] = useState([]);
+  const [to, setTo] = useState("");
+  const [subject, setSubject] = useState("");
+  const [lang, setLang] = useState("fr");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!sale) return;
+    setSelected(["facture-finale"]);
+    setTo(sale.client?.email || "");
+    setSubject(`${showroom?.name || "Showroom"} — ${t("email.subjectFor")} ${sale.reference}`);
+    setLang("fr");
+    setError("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sale?.id]);
+
+  const send = async () => {
+    setError("");
+    if (!to.trim()) { setError(t("email.missingEmail")); return; }
+    if (selected.length === 0) { setError(t("email.missingDocs")); return; }
+    setSending(true);
+    try {
+      const html = renderDocsToHtml(docs, selected, lang, { title: subject });
+      await sendDocumentsEmail({
+        to: to.trim(),
+        toName: `${sale.client?.firstName || ""} ${sale.client?.lastName || ""}`.trim(),
+        subject,
+        html,
+        lang,
+        templates: documentLabels(docs, selected),
+        saleId: sale.id,
+        clientId: sale.clientId || sale.client?.id || null,
+        senderEmail: showroom?.emailSender || undefined,
+        senderName: showroom?.emailSenderName || undefined,
+        replyTo: showroom?.email || undefined,
+      });
+      toast(t("email.sentToast"));
+      onClose();
+    } catch (e) {
+      setError(e?.message || t("email.failed"));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={!!sale}
+      onClose={onClose}
+      title={t("email.title")}
+      size="lg"
+      footer={
+        <>
+          <button className="btn-ghost" onClick={onClose}>{t("common.cancel")}</button>
+          <button className="btn-primary" onClick={send} disabled={sending}>
+            {sending ? "..." : <><Send size={14} /> {t("email.send")}</>}
+          </button>
+        </>
+      }
+    >
+      {sale && (
+        <div className="space-y-4">
+          <p className="text-xs text-text-muted">{t("email.help")}</p>
+
+          <div>
+            <p className="label-caps">{t("email.documents")}</p>
+            <DocPicker docs={docs} value={selected} onChange={setSelected} />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label={t("email.to")} required>
+              <input className="input" type="email" value={to} onChange={(e) => setTo(e.target.value)} placeholder="client@email.com" />
+            </Field>
+            <div>
+              <p className="label-caps">{t("print.chooseLang")}</p>
+              <div className="flex gap-2">
+                <button className={`chip flex-1 ${lang === "fr" ? "chip-active" : ""}`} onClick={() => setLang("fr")}>Français</button>
+                <button className={`chip flex-1 ${lang === "ar" ? "chip-active" : ""}`} onClick={() => setLang("ar")}>العربية</button>
+              </div>
+            </div>
+          </div>
+
+          <Field label={t("email.subject")}>
+            <input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} />
+          </Field>
+
+          <p className="text-[0.65rem] text-text-muted">
+            {t("email.sender")} : <span className="text-text-primary">{showroom?.emailSenderName || "mhd showroom"}</span>{" "}
+            &lt;{showroom?.emailSender || "icarmhd@gmail.com"}&gt;
+          </p>
+
+          {error && <p className="text-rose-400 text-sm">{error}</p>}
+        </div>
+      )}
+    </Modal>
   );
 }

@@ -8,19 +8,19 @@ import { PrintLogo } from "./AnimatedLogo.jsx";
  * page with no large empty gaps.
  * ========================================================================== */
 
-const ACCENT = "#b91c1c"; // crimson brand colour
-const INK = "#111827";
-const MUTE = "#6b7280";
-const LINE = "#d1d5db";
-const SOFT = "#f3f4f6";
+export const ACCENT = "#b91c1c"; // crimson brand colour
+export const INK = "#111827";
+export const MUTE = "#6b7280";
+export const LINE = "#d1d5db";
+export const SOFT = "#f3f4f6";
 
-const exact = { WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" };
+export const exact = { WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" };
 // Keep latin text / numbers / amounts / dates rendering left-to-right even inside
 // an RTL (Arabic) document, so "4 800 000 DA" never bidi-reverses to "DA 000 800 4".
-const ltr = { direction: "ltr", unicodeBidi: "isolate" };
+export const ltr = { direction: "ltr", unicodeBidi: "isolate" };
 
 // ── Bilingual label dictionary ────────────────────────────────────────────
-const L = {
+export const L = {
   fr: {
     telPrefix: "Tél :",
     docNo: "N°",
@@ -144,7 +144,7 @@ Le client reconnaît avoir été informé de cette condition avant le versement 
     idDoc: "وثيقة الهوية",
     deliveredOn: "صادرة في",
     expiresOn: "تنتهي في",
-    brand: "الماركة", model: "الطرا��", plate: "رقم التسجيل", year: "السنة",
+    brand: "الماركة", model: "الطراز", plate: "رقم التسجيل", year: "السنة",
     color: "اللون", energy: "الطاقة", gearbox: "علبة السرعة", seats: "المقاعد",
     mileage: "المسافة المقطوعة", keys: "عدد المفاتيح", vin: "رقم الهيكل", documents: "الوثائق",
     financialInfo: "المعلومات المالية",
@@ -205,10 +205,10 @@ Le client reconnaît avoir été informé de cette condition avant le versement 
   },
 };
 
-const tr = (lang) => L[lang] || L.fr;
-const isAr = (lang) => lang === "ar";
+export const tr = (lang) => L[lang] || L.fr;
+export const isAr = (lang) => lang === "ar";
 
-function sheetStyle(lang) {
+export function sheetStyle(lang) {
   return {
     fontFamily: isAr(lang)
       ? "'Segoe UI', Tahoma, Arial, sans-serif"
@@ -227,7 +227,7 @@ function sheetStyle(lang) {
 }
 
 // ── Small building blocks ────────────────────────────────────────────────
-function Frame({ title, children, style }) {
+export function Frame({ title, children, style }) {
   return (
     <div style={{ border: `1px solid ${LINE}`, borderRadius: 6, overflow: "hidden", breakInside: "avoid", ...style }}>
       <div
@@ -249,7 +249,7 @@ function Frame({ title, children, style }) {
   );
 }
 
-function Row({ label, value, strong, last, lang }) {
+export function Row({ label, value, strong, last, lang }) {
   const v = value == null || value === "" ? "—" : value;
   return (
     <div
@@ -267,10 +267,10 @@ function Row({ label, value, strong, last, lang }) {
   );
 }
 
-const grid2 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "9px" };
+export const grid2 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "9px" };
 
 // ── Header (full logo, no frame) + showroom legal block ───────────────────
-function Header({ showroom, lang }) {
+export function Header({ showroom, lang }) {
   const x = tr(lang);
   // Render each contact segment as its own isolated run so latin numbers/emails
   // never bidi-reverse next to the Arabic "الهاتف :" label.
@@ -326,7 +326,7 @@ function Header({ showroom, lang }) {
 }
 
 // ── Document title band ───────────────────────────────────────────────────
-function TitleBar({ title, reference, date, extra, lang }) {
+export function TitleBar({ title, reference, date, extra, lang }) {
   const x = tr(lang);
   const accentSide = isAr(lang) ? { borderRight: `4px solid ${ACCENT}` } : { borderLeft: `4px solid ${ACCENT}` };
   return (
@@ -361,7 +361,7 @@ function TitleBar({ title, reference, date, extra, lang }) {
 }
 
 // ── Party blocks (all available details) ──────────────────────────────────
-function ClientBlock({ client, title, lang }) {
+export function ClientBlock({ client, title, lang }) {
   const x = tr(lang);
   const c = client || {};
   const doc = [c.docType, c.docNumber].filter(Boolean).join(" ");
@@ -381,7 +381,7 @@ function ClientBlock({ client, title, lang }) {
   );
 }
 
-function SupplierBlock({ supplier, lang }) {
+export function SupplierBlock({ supplier, lang }) {
   const x = tr(lang);
   const s = supplier || {};
   return (
@@ -397,7 +397,7 @@ function SupplierBlock({ supplier, lang }) {
   );
 }
 
-function CarBlock({ car, lang }) {
+export function CarBlock({ car, lang }) {
   const x = tr(lang);
   const c = car || {};
   const docs = c.documents || [];
@@ -422,7 +422,7 @@ function CarBlock({ car, lang }) {
 }
 
 // ── Financial frame ───────────────────────────────────────────────────────
-function MoneyFrame({ title, lines, total, rest, lang }) {
+export function MoneyFrame({ title, lines, total, rest, lang }) {
   return (
     <Frame title={title}>
       {lines.map((l, i) => (
@@ -455,7 +455,7 @@ function MoneyFrame({ title, lines, total, rest, lang }) {
 }
 
 // ── Inspection (compact, 3 columns) ───────────────────────────────────────
-function InspectionBlock({ inspection, lang }) {
+export function InspectionBlock({ inspection, lang }) {
   if (!inspection) return null;
   const x = tr(lang);
   const cats = [
@@ -495,7 +495,7 @@ function InspectionBlock({ inspection, lang }) {
 }
 
 // ── Conditions block (compact bilingual-ready) ────────────────────────────
-function ConditionsBlock({ lang }) {
+export function ConditionsBlock({ lang }) {
   const x = tr(lang);
   // Compact, small-font framed block to keep the page single-sheet friendly.
   return (
@@ -511,7 +511,7 @@ function ConditionsBlock({ lang }) {
 }
 
 // ── Signatures + footer ───────────────────────────────────────────────────
-function Signatures({ left, right }) {
+export function Signatures({ left, right }) {
   const box = {
     border: `1px solid ${LINE}`,
     borderRadius: 6,
@@ -530,7 +530,7 @@ function Signatures({ left, right }) {
   );
 }
 
-function Footer({ showroom, lang }) {
+export function Footer({ showroom, lang }) {
   const x = tr(lang);
   return (
     <div style={{ marginTop: 10, paddingTop: 6, borderTop: `1px solid ${LINE}`, display: "flex", justifyContent: "space-between", fontSize: 8.5, color: MUTE }}>
@@ -678,7 +678,7 @@ export function PaymentReceipt({ payment, showroom, history = [], lang = "fr" })
 const monthKeyOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 
 // Summary tile used by the report header strip
-function StatBox({ label, value, accent }) {
+export function StatBox({ label, value, accent }) {
   return (
     <div
       style={{

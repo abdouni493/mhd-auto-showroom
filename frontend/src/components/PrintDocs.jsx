@@ -1,0 +1,1199 @@
+import {
+  ACCENT, INK, MUTE, LINE, SOFT, exact, ltr, grid2,
+  sheetStyle, tr, isAr, Frame, Row, Header, TitleBar,
+  ClientBlock, CarBlock, InspectionBlock, Signatures, Footer,
+} from "./PrintTemplates.jsx";
+import { PrintLogo } from "./AnimatedLogo.jsx";
+import { formatAmount, formatDate, formatDateTime } from "../utils/format.js";
+import { numberToWords } from "../utils/numberToWords.js";
+
+/* ============================================================================
+ * Additional A4 print templates, bilingual (fr / ar), built from the paper
+ * documents the showroom already uses:
+ *
+ *   BonEntree        Bon d'entrée + rapport d'inspection (date/heure au choix)
+ *   EngagementDepot  Contrat de dépôt — عقد ايداع السيارات
+ *   ReceptionForm    Formulaire réception véhicule (date/heure au choix)
+ *   FicheTechnique   Fiche technique (prix de vente modifiable)
+ *   BonVersement     Bon de versement (encaissement sur une vente)
+ *   BonEntreeSortie  Bon d'entrée / sortie du véhicule (date/heure au choix)
+ *   FactureDocument  Facture proforma & facture finale
+ *   SettlementReceipt Règlement du propriétaire d'un véhicule en dépôt
+ *
+ * They share the header / frames / signature blocks of PrintTemplates.jsx so
+ * every document of the application looks like it belongs to the same set.
+ * ========================================================================== */
+
+// ── Extra bilingual labels (merged over the shared dictionary) ──────────────
+const D = {
+  fr: {
+    // Bon d'entrée
+    entryTitle: "Bon d'Entrée",
+    entryExtra: "Réception d'un véhicule en stock",
+    entryNo: "N° Bon d'entrée",
+    supplierCode: "Code fournisseur",
+    clientCode: "Code client",
+    showroomCode: "Code interne",
+    vehicleDescription: "Description du véhicule",
+    stopSumVoucher: "Arrêté le présent bon à la somme de :",
+    bonDate: "Date du bon",
+    colCarCode: "Code véhicule",
+    colBrand: "Marque",
+    colVehicle: "Véhicule",
+    colPlate: "Immat.",
+    colSerial: "Série / N° de châssis",
+    colMileage: "Kilométrage",
+    colPurchasePrice: "Prix d'achat",
+    colBoughtOn: "Acheté le",
+    total: "Total",
+    remark: "Remarque",
+    sigAgency: "Signature et cachet de l'Agence",
+    sigSupplierPrint: "Empreinte et signature du Fournisseur",
+    owner: "Propriétaire",
+    // Engagement
+    engagementTitle: "Contrat de Dépôt de Véhicule",
+    engagementExtra: "Dépôt pour exposition et commercialisation",
+    engagementBody:
+      "Je soussigné(e), Monsieur / Madame {name}, titulaire de la carte nationale d'identité n° {doc}, délivrée le {docDate} à {docPlace},\n\natteste avoir déposé le véhicule de type {car}, portant le numéro de châssis {vin} et le numéro d'immatriculation {plate},\n\nà l'effet de son exposition et de sa commercialisation pour le compte du propriétaire, au siège du showroom {showroom}.",
+    engagementPrice: "Prix de vente convenu",
+    engagementNote:
+      "Le véhicule reste la propriété du déposant jusqu'à sa vente. Le showroom en assure la garde, l'exposition et la commercialisation. Le produit de la vente est reversé au propriétaire après déduction de la part du showroom et des frais engagés sur le véhicule.",
+    sigOwner: "Signature du propriétaire du véhicule",
+    sigShowroomOwner: "Signature du propriétaire du showroom",
+    madeAt: "Fait à",
+    on: "le",
+    // Réception
+    receptionTitle: "Formulaire Réception Véhicule",
+    receptionExtra: "État du véhicule et accessoires remis",
+    supplierLabel: "Fournisseur",
+    brandLabel: "Marque du véhicule",
+    chassisLabel: "Numéro de châssis",
+    mileageLabel: "Kilométrage",
+    dateTimeLabel: "Date et heure",
+    accessories: "Accessoires & documents remis",
+    exitDate: "Date de sortie",
+    handedTo: "À (M. / Mme)",
+    phoneNo: "N° de téléphone",
+    // Fiche technique
+    ficheTitle: "Fiche Technique",
+    specification: "Spécification",
+    engine: "Moteur",
+    power: "Puissance",
+    gearboxSpec: "Boîte",
+    fuel: "Carburant",
+    transmission: "Transmission",
+    consumption: "Consommation",
+    wheelbase: "Empattement",
+    trunk: "Volume coffre",
+    weight: "Poids à vide",
+    tank: "Capacité réservoir",
+    dimensions: "Dimensions (L x l x H)",
+    seatsSpec: "Nombre de places",
+    mileageSpec: "Kilométrage",
+    priceLabel: "Prix",
+    // Bon de versement
+    versementTitle: "Bon de Versement",
+    versementExtra: "Encaissement sur vente de véhicule",
+    saleRef: "Vente n°",
+    saleTotal: "Total de la vente",
+    alreadyPaid: "Déjà versé",
+    thisPayment: "Versement de ce jour",
+    remainingAfter: "Reste à payer",
+    paymentMode: "Mode de paiement",
+    // Bon d'entrée / sortie
+    inOutTitle: "Bon d'Entrée / Sortie",
+    inOutExtra: "Sortie du véhicule du parc showroom",
+    outDateTime: "Date et heure de sortie",
+    deliveredDocs: "Documents et accessoires remis au client",
+    vehicleState: "État du véhicule à la sortie",
+    sigDriver: "Signature du client (réception du véhicule)",
+    // Factures
+    proformaTitle: "Facture Proforma",
+    finalTitle: "Facture",
+    invoiceNo: "Facture N°",
+    madeAtCity: "Faite à",
+    clientBlock: "Client",
+    ref: "Réf",
+    designation: "Désignation",
+    qty: "Quantité",
+    unitPrice: "P.U.",
+    lineTotal: "Total",
+    totalHT: "Total HT",
+    tvaLine: "TVA",
+    stampLine: "Timbre",
+    totalTTC: "Total TTC",
+    reductionLine: "Réduction",
+    stopSum: "Arrêter la présente facture à la somme de :",
+    paymentModeLine: "Mode de paiement :",
+    proformaNote:
+      "Facture proforma — document non comptable, valable 15 jours. Elle ne constitue pas une facture de vente.",
+    sigStamp: "Signature & cachet",
+    chassis: "N° châssis",
+    // Règlement propriétaire
+    settlementTitle: "Règlement Propriétaire",
+    settlementExtra: "Vente d'un véhicule déposé par un client",
+    settlementDetail: "Décompte du règlement",
+    salePrice: "Prix de vente du véhicule",
+    showroomShare: "Part du showroom",
+    expensesTotal: "Total des dépenses",
+    ownerAmount: "Net à verser au propriétaire",
+    expensesList: "Détail des dépenses engagées",
+    noExpense: "Aucune dépense engagée sur ce véhicule.",
+    sigOwnerReceipt: "Signature du propriétaire (pour acquit)",
+    settledOn: "Réglé le",
+    note: "Observation",
+    yes: "Oui",
+    no: "Non",
+  },
+  ar: {
+    entryTitle: "وصل دخول",
+    entryExtra: "استلام مركبة في المخزون",
+    entryNo: "رقم وصل الدخول",
+    supplierCode: "رمز المورّد",
+    clientCode: "رمز العميل",
+    showroomCode: "الرمز الداخلي",
+    vehicleDescription: "وصف المركبة",
+    stopSumVoucher: "أوقف هذا الوصل على مبلغ :",
+    bonDate: "تاريخ الوصل",
+    colCarCode: "رمز المركبة",
+    colBrand: "الماركة",
+    colVehicle: "المركبة",
+    colPlate: "رقم التسجيل",
+    colSerial: "رقم الهيكل",
+    colMileage: "المسافة المقطوعة",
+    colPurchasePrice: "سعر الشراء",
+    colBoughtOn: "تاريخ الشراء",
+    total: "المجموع",
+    remark: "ملاحظة",
+    sigAgency: "توقيع وختم الوكالة",
+    sigSupplierPrint: "بصمة وتوقيع المورّد",
+    owner: "المالك",
+    engagementTitle: "عقد إيداع السيارات",
+    engagementExtra: "إيداع لغرض العرض و التسويق",
+    engagementBody:
+      "أنا الممضي أسفله السيد(ة) {name}، الحامل لبطاقة التعريف الوطني رقم {doc}، الصادرة بتاريخ {docDate} في {docPlace}،\n\nأشهد أنني أودعت السيارة من نوع {car}، ذات رقم الهيكل {vin} ورقم لوحة الترقيم {plate}،\n\nلغرض العرض و التسويق لحساب المالك في مقر المعرض {showroom}.",
+    engagementPrice: "سعر البيع المتفق عليه",
+    engagementNote:
+      "تبقى المركبة ملكاً للمودع إلى غاية بيعها. يتكفل المعرض بحراستها وعرضها وتسويقها. يُسلَّم ناتج البيع للمالك بعد خصم حصة المعرض والمصاريف المنفقة على المركبة.",
+    sigOwner: "إمضاء صاحب السيارة",
+    sigShowroomOwner: "إمضاء صاحب المعرض",
+    madeAt: "حرر ب",
+    on: "في",
+    receptionTitle: "استمارة استلام المركبة",
+    receptionExtra: "حالة المركبة و الملحقات المسلّمة",
+    supplierLabel: "المورّد",
+    brandLabel: "ماركة المركبة",
+    chassisLabel: "رقم الهيكل",
+    mileageLabel: "المسافة المقطوعة",
+    dateTimeLabel: "التاريخ و الساعة",
+    accessories: "الملحقات و الوثائق المسلّمة",
+    exitDate: "تاريخ الخروج",
+    handedTo: "إلى السيد(ة)",
+    phoneNo: "رقم الهاتف",
+    ficheTitle: "البطاقة التقنية",
+    specification: "المواصفات",
+    engine: "المحرك",
+    power: "القوة",
+    gearboxSpec: "علبة السرعة",
+    fuel: "الوقود",
+    transmission: "ناقل الحركة",
+    consumption: "الاستهلاك",
+    wheelbase: "قاعدة العجلات",
+    trunk: "حجم الصندوق",
+    weight: "الوزن الفارغ",
+    tank: "سعة الخزان",
+    dimensions: "الأبعاد (ط × ع × ا)",
+    seatsSpec: "عدد المقاعد",
+    mileageSpec: "المسافة المقطوعة",
+    priceLabel: "السعر",
+    versementTitle: "وصل دفع",
+    versementExtra: "تحصيل على بيع مركبة",
+    saleRef: "البيع رقم",
+    saleTotal: "إجمالي البيع",
+    alreadyPaid: "المدفوع سابقاً",
+    thisPayment: "دفعة اليوم",
+    remainingAfter: "المبلغ المتبقي",
+    paymentMode: "طريقة الدفع",
+    inOutTitle: "وصل دخول / خروج",
+    inOutExtra: "خروج المركبة من حظيرة المعرض",
+    outDateTime: "تاريخ و ساعة الخروج",
+    deliveredDocs: "الوثائق و الملحقات المسلّمة للعميل",
+    vehicleState: "حالة المركبة عند الخروج",
+    sigDriver: "توقيع العميل (استلام المركبة)",
+    proformaTitle: "فاتورة أولية",
+    finalTitle: "فاتورة",
+    invoiceNo: "فاتورة رقم",
+    madeAtCity: "حررت ب",
+    clientBlock: "العميل",
+    ref: "الرقم",
+    designation: "التعيين",
+    qty: "الكمية",
+    unitPrice: "السعر الوحدوي",
+    lineTotal: "المجموع",
+    totalHT: "المجموع دون الرسم",
+    tvaLine: "الرسم على القيمة المضافة",
+    stampLine: "الطابع",
+    totalTTC: "المجموع مع الرسم",
+    reductionLine: "تخفيض",
+    stopSum: "أوقفت هذه الفاتورة على مبلغ :",
+    paymentModeLine: "طريقة الدفع :",
+    proformaNote: "فاتورة أولية — وثيقة غير محاسبية، صالحة لمدة 15 يوماً. لا تُعتبر فاتورة بيع.",
+    sigStamp: "التوقيع و الختم",
+    chassis: "رقم الهيكل",
+    settlementTitle: "تسوية المالك",
+    settlementExtra: "بيع مركبة مودعة من طرف عميل",
+    settlementDetail: "كشف التسوية",
+    salePrice: "سعر بيع المركبة",
+    showroomShare: "حصة المعرض",
+    expensesTotal: "إجمالي المصاريف",
+    ownerAmount: "الصافي المستحق للمالك",
+    expensesList: "تفصيل المصاريف المنفقة",
+    noExpense: "لا توجد مصاريف على هذه المركبة.",
+    sigOwnerReceipt: "توقيع المالك (بالاستلام)",
+    settledOn: "سُوِّيت في",
+    note: "ملاحظة",
+    yes: "نعم",
+    no: "لا",
+  },
+};
+
+// merged dictionary: shared labels + the ones above
+const x2 = (lang) => ({ ...tr(lang), ...(D[lang] || D.fr) });
+
+const dash = (v) => (v === null || v === undefined || v === "" ? "—" : v);
+const carName = (c) => [c?.brand, c?.model].filter(Boolean).join(" ") || "—";
+
+// ── Small shared pieces ────────────────────────────────────────────────────
+function tableStyles(lang) {
+  const ar = isAr(lang);
+  const start = ar ? "right" : "left";
+  const end = ar ? "left" : "right";
+  return {
+    start,
+    end,
+    th: {
+      background: ACCENT, color: "#fff", padding: "5px 7px", fontSize: 9,
+      fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em",
+      border: `1px solid ${ACCENT}`, textAlign: start, ...exact,
+    },
+    td: {
+      padding: "5px 7px", border: `1px solid ${LINE}`, fontSize: 10,
+      verticalAlign: "middle", textAlign: start,
+    },
+    tf: {
+      padding: "6px 7px", border: `1px solid ${LINE}`, background: SOFT,
+      fontWeight: 900, fontSize: 11, ...exact,
+    },
+  };
+}
+
+// Filled blank inside a contract sentence, e.g. "Monsieur __Ali Ben__"
+function Blank({ children }) {
+  return (
+    <span
+      style={{
+        fontWeight: 800, color: ACCENT, borderBottom: `1px dotted ${ACCENT}`,
+        padding: "0 4px", ...ltr,
+      }}
+    >
+      {children || "..............................."}
+    </span>
+  );
+}
+
+// A labelled box on the reception form
+function FormLine({ label, value, lang, width = "100%" }) {
+  return (
+    <div style={{ width, marginBottom: 6 }}>
+      <div style={{ fontSize: 8.5, fontWeight: 800, textTransform: "uppercase", color: MUTE, letterSpacing: "0.05em" }}>
+        {label}
+      </div>
+      <div
+        style={{
+          borderBottom: `1px solid ${LINE}`, minHeight: 16, paddingBottom: 2,
+          fontWeight: 700, fontSize: 11, textAlign: isAr(lang) ? "right" : "left", ...ltr,
+        }}
+      >
+        {dash(value)}
+      </div>
+    </div>
+  );
+}
+
+// Printed tick box
+function CheckBox({ checked, label }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "2px 0" }}>
+      <span
+        style={{
+          width: 12, height: 12, border: `1.5px solid ${checked ? ACCENT : MUTE}`,
+          borderRadius: 2, display: "inline-flex", alignItems: "center", justifyContent: "center",
+          background: checked ? ACCENT : "#fff", color: "#fff", fontSize: 9,
+          fontWeight: 900, lineHeight: 1, ...exact,
+        }}
+      >
+        {checked ? "✓" : ""}
+      </span>
+      <span style={{ fontSize: 10, fontWeight: checked ? 700 : 500, color: checked ? INK : MUTE }}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
+// ============================================================================
+// 1. BON D'ENTRÉE  (+ rapport d'inspection intégré)
+// ============================================================================
+export function BonEntree({ purchase, showroom, lang = "fr", dateTime }) {
+  const x = x2(lang);
+  const s = tableStyles(lang);
+  const car = purchase?.car || {};
+  const when = dateTime || purchase?.date;
+  const isSupplier = purchase?.sourceType === "SUPPLIER";
+  const isClient = purchase?.sourceType === "CLIENT";
+  const sourceName = isSupplier
+    ? purchase?.supplier?.fullName
+    : isClient
+    ? `${purchase?.client?.firstName || ""} ${purchase?.client?.lastName || ""}`.trim()
+    : showroom?.name;
+  const sourceLabel = isSupplier ? x.supplierLabel : isClient ? x.owner : x.showroomCat;
+  const codeLabel = isSupplier ? x.supplierCode : isClient ? x.clientCode : x.showroomCode;
+  const code = isSupplier
+    ? purchase?.supplier?.code || purchase?.supplierId
+    : isClient
+    ? purchase?.clientId
+    : purchase?.reference;
+
+  return (
+    <div style={sheetStyle(lang)}>
+      <Header showroom={showroom} lang={lang} />
+      <TitleBar
+        lang={lang}
+        title={x.entryTitle}
+        reference={purchase?.entryNumber || purchase?.reference}
+        date={formatDateTime(when)}
+        extra={x.entryExtra}
+      />
+
+      {/* Source strip */}
+      <div
+        style={{
+          display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 9,
+          border: `1px solid ${LINE}`, borderRadius: 6, padding: "7px 10px",
+          background: SOFT, marginBottom: 10, ...exact,
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 8.5, fontWeight: 800, color: MUTE, textTransform: "uppercase" }}>{sourceLabel}</div>
+          <div style={{ fontWeight: 900, fontSize: 12 }}>{dash(sourceName)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 8.5, fontWeight: 800, color: MUTE, textTransform: "uppercase" }}>{codeLabel}</div>
+          <div style={{ fontWeight: 900, fontSize: 12, ...ltr }}>{dash(code)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 8.5, fontWeight: 800, color: MUTE, textTransform: "uppercase" }}>{x.bonDate}</div>
+          <div style={{ fontWeight: 900, fontSize: 12, ...ltr }}>{formatDateTime(when)}</div>
+        </div>
+      </div>
+
+      {/* Vehicle line */}
+      <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", marginBottom: 10 }}>
+        <colgroup>
+          <col style={{ width: "7%" }} />
+          <col style={{ width: "11%" }} />
+          <col style={{ width: "13%" }} />
+          <col style={{ width: "11%" }} />
+          <col style={{ width: "20%" }} />
+          <col style={{ width: "9%" }} />
+          <col style={{ width: "16%" }} />
+          <col style={{ width: "13%" }} />
+        </colgroup>
+        <thead>
+          <tr>
+            {[x.colCarCode, x.colBrand, x.colVehicle, x.colPlate, x.colSerial, x.colMileage].map((h, i) => (
+              <th key={i} style={{ ...s.th, fontSize: 8, padding: "5px 5px", lineHeight: 1.25, overflowWrap: "anywhere" }}>{h}</th>
+            ))}
+            <th style={{ ...s.th, fontSize: 8, padding: "5px 5px", lineHeight: 1.25, overflowWrap: "anywhere", textAlign: s.end }}>{x.colPurchasePrice}</th>
+            <th style={{ ...s.th, fontSize: 8, padding: "5px 5px", lineHeight: 1.25, overflowWrap: "anywhere" }}>{x.colBoughtOn}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style={{ ...s.td, ...ltr, textAlign: s.start }}>{dash(car.id)}</td>
+            <td style={{ ...s.td, fontWeight: 800 }}>{dash(car.brand)}</td>
+            <td style={{ ...s.td }}>{dash(car.model)}</td>
+            <td style={{ ...s.td, ...ltr, textAlign: s.start }}>{car.plate || "SANS"}</td>
+            <td style={{ ...s.td, ...ltr, textAlign: s.start, wordBreak: "break-all" }}>{dash(car.vin)}</td>
+            <td style={{ ...s.td, ...ltr, textAlign: s.start }}>{car.mileage != null ? car.mileage : 0}</td>
+            <td style={{ ...s.td, textAlign: s.end, fontWeight: 800, whiteSpace: "nowrap", ...ltr }}>{formatAmount(purchase?.purchasePrice)}</td>
+            <td style={{ ...s.td, ...ltr, textAlign: s.start, whiteSpace: "nowrap" }}>{formatDate(purchase?.date)}</td>
+          </tr>
+          <tr>
+            <td style={{ ...s.tf, textTransform: "uppercase", textAlign: s.start }} colSpan={6}>{x.total}</td>
+            <td style={{ ...s.tf, textAlign: s.end, color: ACCENT, whiteSpace: "nowrap", ...ltr }}>{formatAmount(purchase?.purchasePrice)}</td>
+            <td style={s.tf} />
+          </tr>
+        </tbody>
+      </table>
+
+      {/* Inspection integrated into the bon d'entrée */}
+      <InspectionBlock inspection={purchase?.inspection || purchase?.car?.inspection} lang={lang} />
+
+      {/* Keys + documents recap */}
+      <Frame title={x.accessories} style={{ marginTop: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 12px" }}>
+          <Row lang={lang} label={x.keys} value={car.keysCount != null ? car.keysCount : "—"} last />
+          {(car.documents || []).map((d, i) => (
+            <div key={i}><CheckBox checked={!!d.type} label={d.type} /></div>
+          ))}
+        </div>
+      </Frame>
+
+      {/* Remark */}
+      <Frame title={x.remark} style={{ marginTop: 10 }}>
+        <div style={{ minHeight: 34, fontSize: 10 }}>{purchase?.remark || ""}</div>
+      </Frame>
+
+      <Signatures left={x.sigAgency} right={isSupplier ? x.sigSupplierPrint : x.sigOwner} />
+      <Footer showroom={showroom} lang={lang} />
+    </div>
+  );
+}
+
+// ============================================================================
+// 2. ENGAGEMENT — contrat de dépôt de véhicule
+// ============================================================================
+export function EngagementDepot({ purchase, showroom, lang = "fr" }) {
+  const x = x2(lang);
+  const car = purchase?.car || {};
+  const c = purchase?.client || {};
+  const ownerName = `${c.firstName || ""} ${c.lastName || ""}`.trim();
+
+  // The contract sentence is one template string with highlighted blanks.
+  const parts = x.engagementBody.split(/(\{name\}|\{doc\}|\{docDate\}|\{docPlace\}|\{car\}|\{vin\}|\{plate\}|\{showroom\})/g);
+  const fill = {
+    "{name}": ownerName,
+    "{doc}": c.docNumber,
+    "{docDate}": c.docDeliveryDate ? formatDate(c.docDeliveryDate) : "",
+    "{docPlace}": c.docDeliveryAddress,
+    "{car}": carName(car),
+    "{vin}": car.vin,
+    "{plate}": car.plate,
+    "{showroom}": showroom?.name,
+  };
+
+  return (
+    <div style={sheetStyle(lang)}>
+      <Header showroom={showroom} lang={lang} />
+      <TitleBar
+        lang={lang}
+        title={x.engagementTitle}
+        reference={purchase?.reference}
+        date={formatDate(purchase?.date)}
+        extra={x.engagementExtra}
+      />
+
+      <div
+        style={{
+          border: `1px solid ${LINE}`, borderRadius: 6, padding: "16px 18px",
+          fontSize: 12, lineHeight: 2.1, whiteSpace: "pre-line", marginBottom: 12,
+        }}
+      >
+        {parts.map((p, i) =>
+          fill[p] !== undefined ? <Blank key={i}>{fill[p]}</Blank> : <span key={i}>{p}</span>
+        )}
+      </div>
+
+      <div style={grid2}>
+        <ClientBlock client={purchase?.client} title={x.owner} lang={lang} />
+        <CarBlock car={car} lang={lang} />
+      </div>
+
+      {purchase?.sellingPrice > 0 && (
+        <div
+          style={{
+            marginTop: 10, display: "flex", justifyContent: "space-between", alignItems: "center",
+            border: `1px solid ${ACCENT}`, borderRadius: 6, padding: "8px 12px", background: SOFT, ...exact,
+          }}
+        >
+          <span style={{ fontWeight: 800, textTransform: "uppercase", fontSize: 10 }}>{x.engagementPrice}</span>
+          <span style={{ fontWeight: 900, fontSize: 16, color: ACCENT, ...ltr }}>{formatAmount(purchase.sellingPrice)}</span>
+        </div>
+      )}
+
+      <div style={{ marginTop: 10, fontSize: 9.5, color: MUTE, lineHeight: 1.5, border: `1px dashed ${LINE}`, borderRadius: 6, padding: "7px 9px" }}>
+        {x.engagementNote}
+      </div>
+
+      <div style={{ marginTop: 10, fontSize: 10, color: MUTE }}>
+        {x.madeAt} <b style={{ color: INK }}>{showroom?.address ? String(showroom.address).split(",").pop().trim() : "—"}</b>{" "}
+        {x.on} <b style={{ color: INK, ...ltr }}>{formatDate(purchase?.date || new Date())}</b>
+      </div>
+
+      <Signatures left={x.sigOwner} right={x.sigShowroomOwner} />
+      <Footer showroom={showroom} lang={lang} />
+    </div>
+  );
+}
+
+// ============================================================================
+// 3. FORMULAIRE RÉCEPTION VÉHICULE
+// ============================================================================
+export function ReceptionForm({ purchase, showroom, lang = "fr", dateTime, docTypes = [] }) {
+  const x = x2(lang);
+  const car = purchase?.car || {};
+  const attached = new Set((car.documents || []).map((d) => d.type));
+  // every known document type is printed; the ones held for this car are ticked
+  const list = docTypes.length ? docTypes : Array.from(attached);
+  const isSupplier = purchase?.sourceType === "SUPPLIER";
+  const sourceName = isSupplier
+    ? purchase?.supplier?.fullName
+    : purchase?.client
+    ? `${purchase.client.firstName || ""} ${purchase.client.lastName || ""}`.trim()
+    : showroom?.name;
+
+  return (
+    <div style={sheetStyle(lang)}>
+      <Header showroom={showroom} lang={lang} />
+      <TitleBar
+        lang={lang}
+        title={x.receptionTitle}
+        reference={purchase?.reference}
+        date={formatDateTime(dateTime || purchase?.receivedAt || purchase?.date)}
+        extra={x.receptionExtra}
+      />
+
+      <Frame title={x.vehicle}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 18px" }}>
+          <FormLine lang={lang} label={x.supplierLabel} value={sourceName} />
+          <FormLine lang={lang} label={x.brandLabel} value={carName(car)} />
+          <FormLine lang={lang} label={x.chassisLabel} value={car.vin} />
+          <FormLine lang={lang} label={x.plate} value={car.plate} />
+          <FormLine lang={lang} label={x.mileageLabel} value={car.mileage != null ? formatAmount(car.mileage, x.kmUnit) : "00"} />
+          <FormLine lang={lang} label={x.dateTimeLabel} value={formatDateTime(dateTime || purchase?.receivedAt || purchase?.date)} />
+        </div>
+      </Frame>
+
+      <Frame title={x.accessories} style={{ marginTop: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 14px" }}>
+          {list.map((name, i) => (
+            <CheckBox key={i} checked={attached.has(name)} label={name} />
+          ))}
+          <CheckBox checked={(car.keysCount || 0) > 0} label={`${x.keys} : ${car.keysCount != null ? car.keysCount : "—"}`} />
+        </div>
+      </Frame>
+
+      <Frame title={x.remark} style={{ marginTop: 10 }}>
+        <div style={{ minHeight: 40, fontSize: 11, fontWeight: 700 }}>{purchase?.remark || ""}</div>
+      </Frame>
+
+      <div style={{ ...grid2, marginTop: 10 }}>
+        <Frame title={x.exitDate}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
+            <FormLine lang={lang} label={x.exitDate} value="" />
+            <FormLine lang={lang} label={x.dateTimeLabel} value="" />
+          </div>
+        </Frame>
+        <Frame title={x.handedTo}>
+          <FormLine lang={lang} label={x.handedTo} value={purchase?.receivedBy} />
+          <FormLine lang={lang} label={x.phoneNo} value={purchase?.receivedPhone || purchase?.supplier?.phone || purchase?.client?.phonePrimary} />
+        </Frame>
+      </div>
+
+      <Signatures left={x.sigAgency} right={isSupplier ? x.sigSupplierPrint : x.sigOwner} />
+      <Footer showroom={showroom} lang={lang} />
+    </div>
+  );
+}
+
+// ============================================================================
+// 4. FICHE TECHNIQUE — branded spec sheet with an editable price
+// ============================================================================
+export function FicheTechnique({ car, showroom, lang = "fr", price }) {
+  const x = x2(lang);
+  const ar = isAr(lang);
+  const sp = car?.specs || {};
+  const shownPrice = price !== undefined && price !== null && price !== "" ? Number(price) : Number(car?.price || 0);
+
+  const specs = [
+    [x.engine, sp.engine],
+    [x.power, sp.power],
+    [x.gearboxSpec, sp.gearbox || x.gearboxLabels[car?.gearbox]],
+    [x.fuel, sp.fuel || x.energyLabels[car?.energy]],
+    [x.transmission, sp.transmission],
+    [x.consumption, sp.consumption],
+    [x.wheelbase, sp.wheelbase],
+    [x.trunk, sp.trunk],
+    [x.weight, sp.weight],
+    [x.tank, sp.tank],
+    [x.dimensions, sp.dimensions],
+    [x.seatsSpec, car?.seats],
+    [x.mileageSpec, car?.mileage != null ? formatAmount(car.mileage, x.kmUnit) : null],
+    [x.color, car?.color],
+    [x.vin, car?.vin],
+    [x.plate, car?.plate],
+  ].filter(([, v]) => v !== undefined);
+
+  return (
+    <div style={sheetStyle(lang)}>
+      {/* Brand band */}
+      <div
+        style={{
+          background: `linear-gradient(120deg, ${INK} 0%, #1f2937 55%, ${ACCENT} 100%)`,
+          color: "#fff", borderRadius: 10, padding: "14px 18px",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: 14, marginBottom: 12, ...exact,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
+          <div style={{ background: "#fff", borderRadius: 8, padding: 5, ...exact }}>
+            <PrintLogo src={showroom?.logo} size={46} />
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 900, fontSize: 19, textTransform: "uppercase", letterSpacing: "0.04em", ...ltr }}>
+              {showroom?.name || "Showroom"}
+            </div>
+            <div style={{ fontSize: 9.5, opacity: 0.85, ...ltr }}>
+              {[showroom?.phone, showroom?.address].filter(Boolean).join("  ·  ")}
+            </div>
+          </div>
+        </div>
+        <div style={{ textAlign: ar ? "left" : "right" }}>
+          <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.14em", opacity: 0.8 }}>{x.ficheTitle}</div>
+          {car?.year && (
+            <div style={{ fontWeight: 900, fontSize: 24, lineHeight: 1.1, ...ltr }}>{car.year}</div>
+          )}
+        </div>
+      </div>
+
+      {/* Model name */}
+      <div style={{ textAlign: "center", marginBottom: 12 }}>
+        <div style={{ fontWeight: 900, fontSize: 30, textTransform: "uppercase", letterSpacing: "0.02em", color: INK, ...ltr }}>
+          {carName(car)}
+        </div>
+        <div style={{ height: 3, width: 90, background: ACCENT, margin: "6px auto 0", borderRadius: 2, ...exact }} />
+      </div>
+
+      {/* Photo */}
+      {Array.isArray(car?.images) && car.images[0] && (
+        <div style={{ textAlign: "center", marginBottom: 12 }}>
+          <img
+            src={car.images[0]}
+            alt=""
+            style={{ maxHeight: 190, maxWidth: "100%", objectFit: "contain", borderRadius: 8, ...exact }}
+          />
+        </div>
+      )}
+
+      {/* Spec grid */}
+      <div
+        style={{
+          textAlign: "center", fontWeight: 900, fontSize: 12, textTransform: "uppercase",
+          letterSpacing: "0.16em", color: INK, marginBottom: 8,
+        }}
+      >
+        {x.specification}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+        {specs.map(([label, value], i) => (
+          <div
+            key={i}
+            style={{
+              border: `1px solid ${LINE}`, borderRadius: 7, padding: "7px 9px",
+              background: i % 2 ? "#fff" : SOFT, ...exact,
+              [ar ? "borderRight" : "borderLeft"]: `3px solid ${ACCENT}`,
+            }}
+          >
+            <div style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", color: MUTE, letterSpacing: "0.04em" }}>
+              {label}
+            </div>
+            <div style={{ fontWeight: 800, fontSize: 11.5, marginTop: 1, ...ltr, textAlign: ar ? "right" : "left", wordBreak: "break-word" }}>
+              {dash(value)}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {car?.fiche && (
+        <Frame title={x.vehicleDescription} style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 10.5, whiteSpace: "pre-line" }}>{car.fiche}</div>
+        </Frame>
+      )}
+
+      {/* Price banner */}
+      <div
+        style={{
+          background: `linear-gradient(100deg, ${ACCENT} 0%, #7f1d1d 100%)`,
+          color: "#fff", borderRadius: 999, padding: "12px 26px", textAlign: "center",
+          fontWeight: 900, fontSize: 24, letterSpacing: "0.04em", ...exact,
+        }}
+      >
+        <span style={{ fontSize: 14, textTransform: "uppercase", letterSpacing: "0.16em", opacity: 0.9 }}>
+          {x.priceLabel} :{" "}
+        </span>
+        <span style={ltr}>{formatAmount(shownPrice)}</span>
+      </div>
+
+      <Footer showroom={showroom} lang={lang} />
+    </div>
+  );
+}
+
+// ============================================================================
+// 5. BON DE VERSEMENT
+// ============================================================================
+export function BonVersement({ sale, showroom, lang = "fr", payment, amount }) {
+  const x = x2(lang);
+  const total = Number(sale?.totalAfterReduction) || 0;
+  const thisPayment =
+    amount !== undefined && amount !== null && amount !== ""
+      ? Number(amount)
+      : Number(payment?.amount ?? sale?.amountPaid ?? 0);
+  // `amountPaid` is the running total of the sale, this voucher covers only the
+  // payment being printed, so what came before is the difference.
+  const previous = Math.max(0, Number(sale?.amountPaid || 0) - thisPayment);
+  const rest = Math.max(0, total - previous - thisPayment);
+
+  const lines = [
+    [x.saleTotal, formatAmount(total), false],
+    [x.alreadyPaid, formatAmount(previous), false],
+    [x.thisPayment, formatAmount(thisPayment), true],
+  ];
+
+  return (
+    <div style={sheetStyle(lang)}>
+      <Header showroom={showroom} lang={lang} />
+      <TitleBar
+        lang={lang}
+        title={x.versementTitle}
+        reference={payment?.reference || sale?.reference}
+        date={formatDateTime(payment?.date || sale?.date)}
+        extra={x.versementExtra}
+      />
+
+      <div style={grid2}>
+        <ClientBlock client={sale?.client} lang={lang} />
+        <CarBlock car={sale?.car} lang={lang} />
+      </div>
+
+      <Frame title={x.paymentDetail} style={{ marginTop: 10 }}>
+        <Row lang={lang} label={x.saleRef} value={sale?.reference} />
+        {lines.map(([label, value, strong], i) => (
+          <Row key={i} lang={lang} label={label} value={value} strong={strong} />
+        ))}
+        {(payment?.description || sale?.paymentMethod) && (
+          <Row lang={lang} label={x.paymentMode} value={payment?.description || sale?.paymentMethod} />
+        )}
+        <div
+          style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            marginTop: 8, padding: "8px 11px", borderRadius: 6,
+            background: ACCENT, color: "#fff", ...exact,
+          }}
+        >
+          <span style={{ fontWeight: 800, textTransform: "uppercase", fontSize: 10.5 }}>{x.thisPayment}</span>
+          <span style={{ fontWeight: 900, fontSize: 17, ...ltr }}>{formatAmount(thisPayment)}</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, padding: "0 2px" }}>
+          <span style={{ fontWeight: 700, color: MUTE }}>{x.remainingAfter}</span>
+          <span style={{ fontWeight: 900, color: rest > 0 ? ACCENT : "#047857", ...ltr }}>{formatAmount(rest)}</span>
+        </div>
+      </Frame>
+
+      <div style={{ marginTop: 10, fontSize: 10, color: MUTE, border: `1px dashed ${LINE}`, borderRadius: 6, padding: "7px 9px" }}>
+        <span style={{ fontWeight: 800, color: INK }}>{x.stopSumVoucher} </span>
+        <span style={{ fontWeight: 700 }}>{numberToWords(thisPayment, lang)}</span>
+      </div>
+
+      <Signatures left={x.sigClient} right={x.sigShowroom} />
+      <Footer showroom={showroom} lang={lang} />
+    </div>
+  );
+}
+
+// ============================================================================
+// 6. BON D'ENTRÉE / SORTIE DU VÉHICULE
+// ============================================================================
+export function BonEntreeSortie({ sale, showroom, lang = "fr", dateTime, docTypes = [] }) {
+  const x = x2(lang);
+  const car = sale?.car || {};
+  const attached = new Set((car.documents || []).map((d) => d.type));
+  const list = docTypes.length ? docTypes : Array.from(attached);
+
+  return (
+    <div style={sheetStyle(lang)}>
+      <Header showroom={showroom} lang={lang} />
+      <TitleBar
+        lang={lang}
+        title={x.inOutTitle}
+        reference={sale?.reference}
+        date={formatDateTime(dateTime || sale?.date)}
+        extra={x.inOutExtra}
+      />
+
+      <div style={grid2}>
+        <ClientBlock client={sale?.client} lang={lang} />
+        <CarBlock car={car} lang={lang} />
+      </div>
+
+      <Frame title={x.outDateTime} style={{ marginTop: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 18px" }}>
+          <FormLine lang={lang} label={x.outDateTime} value={formatDateTime(dateTime || sale?.date)} />
+          <FormLine lang={lang} label={x.mileageLabel} value={car.mileage != null ? formatAmount(car.mileage, x.kmUnit) : "—"} />
+        </div>
+      </Frame>
+
+      <Frame title={x.deliveredDocs} style={{ marginTop: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 14px" }}>
+          {list.map((name, i) => (
+            <CheckBox key={i} checked={attached.has(name)} label={name} />
+          ))}
+          <CheckBox checked={(car.keysCount || 0) > 0} label={`${x.keys} : ${car.keysCount != null ? car.keysCount : "—"}`} />
+        </div>
+      </Frame>
+
+      <InspectionBlock inspection={sale?.inspection} lang={lang} />
+
+      <Frame title={x.remark} style={{ marginTop: 10 }}>
+        <div style={{ minHeight: 34, fontSize: 10 }} />
+      </Frame>
+
+      <Signatures left={x.sigDriver} right={x.sigAgency} />
+      <Footer showroom={showroom} lang={lang} />
+    </div>
+  );
+}
+
+// ============================================================================
+// 7. FACTURE PROFORMA / FACTURE FINALE
+//    Built on the paper model: legal header, client block, item table,
+//    HT / TVA / Timbre / TTC recap, amount in words, payment mode, stamp.
+// ============================================================================
+export function FactureDocument({ sale, showroom, lang = "fr", proforma = false, invoiceNumber }) {
+  const x = x2(lang);
+  const s = tableStyles(lang);
+  const ar = isAr(lang);
+  const car = sale?.car || {};
+  const c = sale?.client || {};
+
+  const base = Number(sale?.totalBeforeTax) || 0;
+  const tvaRate = sale?.tvaEnabled ? Number(sale.tvaRate) || 0 : 0;
+  const tva = Math.round((base * tvaRate) / 100);
+  const afterTax = base + tva;
+  const totalAfterReduction = Number(sale?.totalAfterReduction) || afterTax;
+  const reduction = Math.max(0, afterTax - totalAfterReduction);
+  const stampRate = sale?.stampEnabled ? Number(sale.stampRate) || 0 : 0;
+  const stamp = Math.round((totalAfterReduction * stampRate) / 100);
+  const grandTotal = totalAfterReduction + stamp;
+
+  const year = new Date(sale?.date || Date.now()).getFullYear();
+  const num = invoiceNumber || `${String(sale?.id ?? "").padStart(2, "0")}/${year}`;
+  const city = showroom?.address ? String(showroom.address).split(",").pop().trim() : "";
+
+  const designation = [
+    carName(car),
+    car.color,
+    car.year,
+    car.energy ? x.energyLabels[car.energy] : null,
+  ].filter(Boolean).join(" ");
+
+  return (
+    <div style={sheetStyle(lang)}>
+      <Header showroom={showroom} lang={lang} />
+
+      {/* Invoice number + place/date, like the paper model */}
+      <div
+        style={{
+          display: "flex", justifyContent: "space-between", alignItems: "flex-end",
+          marginBottom: 10, gap: 14,
+        }}
+      >
+        <div
+          style={{
+            background: SOFT, border: `1px solid ${LINE}`,
+            [ar ? "borderRight" : "borderLeft"]: `4px solid ${ACCENT}`,
+            borderRadius: 6, padding: "7px 14px", ...exact,
+          }}
+        >
+          <div style={{ fontWeight: 900, fontSize: 15, textTransform: "uppercase", color: ACCENT, letterSpacing: "0.04em" }}>
+            {proforma ? x.proformaTitle : x.finalTitle}
+          </div>
+          <div style={{ fontSize: 11.5, marginTop: 1 }}>
+            {x.invoiceNo} <b style={ltr}>{num}</b>
+          </div>
+        </div>
+        <div style={{ fontSize: 10.5, textAlign: ar ? "left" : "right", color: MUTE }}>
+          {x.madeAtCity} <b style={{ color: INK, ...ltr }}>{city || "—"}</b> {x.on}{" "}
+          <b style={{ color: INK, ...ltr }}>{formatDate(sale?.date)}</b>
+        </div>
+      </div>
+
+      {/* Client */}
+      <Frame title={x.clientBlock}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 18px" }}>
+          <Row lang={lang} label={x.fullName} value={`${c.firstName || ""} ${c.lastName || ""}`.trim()} strong />
+          <Row lang={lang} label={x.phone} value={c.phonePrimary} />
+          <Row lang={lang} label={x.address} value={c.address} />
+          <Row lang={lang} label={x.idDoc} value={[c.docType, c.docNumber].filter(Boolean).join(" ")} />
+          {c.rc && <Row lang={lang} label="RC" value={c.rc} />}
+          {c.nif && <Row lang={lang} label="NIF" value={c.nif} />}
+        </div>
+      </Frame>
+
+      {/* Items */}
+      <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", marginTop: 10 }}>
+        <colgroup>
+          <col style={{ width: "8%" }} />
+          <col style={{ width: "44%" }} />
+          <col style={{ width: "12%" }} />
+          <col style={{ width: "18%" }} />
+          <col style={{ width: "18%" }} />
+        </colgroup>
+        <thead>
+          <tr>
+            <th style={s.th}>{x.ref}</th>
+            <th style={s.th}>{x.designation}</th>
+            <th style={{ ...s.th, textAlign: "center" }}>{x.qty}</th>
+            <th style={{ ...s.th, textAlign: s.end }}>{x.unitPrice}</th>
+            <th style={{ ...s.th, textAlign: s.end }}>{x.lineTotal}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style={{ ...s.td, ...ltr, textAlign: s.start }}>01</td>
+            <td style={{ ...s.td }}>
+              <div style={{ fontWeight: 800 }}>{designation}</div>
+              {car.vin && (
+                <div style={{ color: MUTE, fontSize: 9.5, ...ltr }}>
+                  {x.chassis} : {car.vin}
+                </div>
+              )}
+              {car.plate && (
+                <div style={{ color: MUTE, fontSize: 9.5, ...ltr }}>
+                  {x.plate} : {car.plate}
+                </div>
+              )}
+            </td>
+            <td style={{ ...s.td, textAlign: "center", ...ltr }}>1</td>
+            <td style={{ ...s.td, textAlign: s.end, ...ltr }}>{formatAmount(base)}</td>
+            <td style={{ ...s.td, textAlign: s.end, fontWeight: 800, ...ltr }}>{formatAmount(base)}</td>
+          </tr>
+          {/* keep the sheet visually close to the paper model */}
+          {[0, 1, 2].map((i) => (
+            <tr key={i}>
+              <td style={{ ...s.td, height: 16 }} />
+              <td style={s.td} />
+              <td style={s.td} />
+              <td style={s.td} />
+              <td style={s.td} />
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Totals */}
+      <div style={{ display: "flex", justifyContent: ar ? "flex-start" : "flex-end", marginTop: 10 }}>
+        <table style={{ borderCollapse: "collapse", width: "62%" }}>
+          <tbody>
+            <tr>
+              <td style={{ ...s.td, fontWeight: 700 }}>{x.totalHT}</td>
+              <td style={{ ...s.td, textAlign: s.end, fontWeight: 800, ...ltr }}>{formatAmount(base)}</td>
+            </tr>
+            {tvaRate > 0 && (
+              <tr>
+                <td style={{ ...s.td, fontWeight: 700 }}>{`${x.tvaLine} ${tvaRate}%`}</td>
+                <td style={{ ...s.td, textAlign: s.end, fontWeight: 800, ...ltr }}>{formatAmount(tva)}</td>
+              </tr>
+            )}
+            {reduction > 0 && (
+              <tr>
+                <td style={{ ...s.td, fontWeight: 700 }}>{x.reductionLine}</td>
+                <td style={{ ...s.td, textAlign: s.end, fontWeight: 800, ...ltr }}>- {formatAmount(reduction)}</td>
+              </tr>
+            )}
+            {stampRate > 0 && (
+              <tr>
+                <td style={{ ...s.td, fontWeight: 700 }}>{`${x.stampLine} ${stampRate}%`}</td>
+                <td style={{ ...s.td, textAlign: s.end, fontWeight: 800, ...ltr }}>{formatAmount(stamp)}</td>
+              </tr>
+            )}
+            <tr>
+              <td style={{ ...s.tf, textTransform: "uppercase", background: ACCENT, color: "#fff", border: `1px solid ${ACCENT}` }}>
+                {x.totalTTC}
+              </td>
+              <td
+                style={{
+                  ...s.tf, textAlign: s.end, background: ACCENT, color: "#fff",
+                  border: `1px solid ${ACCENT}`, fontSize: 14, ...ltr,
+                }}
+              >
+                {formatAmount(grandTotal)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* Amount in words */}
+      <div
+        style={{
+          marginTop: 10, border: `1px solid ${LINE}`, borderRadius: 6,
+          padding: "8px 11px", fontSize: 11, background: SOFT, ...exact,
+        }}
+      >
+        <span style={{ fontWeight: 800 }}>{x.stopSum} </span>
+        <span style={{ fontWeight: 700, textTransform: "uppercase" }}>{numberToWords(grandTotal, lang)}</span>
+      </div>
+
+      {/* Payment + deposit */}
+      <div style={{ ...grid2, marginTop: 10 }}>
+        <div style={{ fontSize: 10.5 }}>
+          <div style={{ marginBottom: 3 }}>
+            <b>{x.paymentModeLine}</b> {dash(sale?.paymentMethod)}
+          </div>
+          {!proforma && (
+            <>
+              <div style={{ color: MUTE }}>
+                {x.deposit} : <b style={{ color: INK, ...ltr }}>{formatAmount(sale?.amountPaid)}</b>
+              </div>
+              <div style={{ color: MUTE }}>
+                {x.rest} :{" "}
+                <b style={{ color: (sale?.amountRest || 0) > 0 ? ACCENT : "#047857", ...ltr }}>
+                  {formatAmount(sale?.amountRest)}
+                </b>
+              </div>
+            </>
+          )}
+          {proforma && (
+            <div style={{ marginTop: 6, color: MUTE, fontSize: 9.5, fontStyle: "italic" }}>{x.proformaNote}</div>
+          )}
+        </div>
+        <div
+          style={{
+            border: `1px solid ${LINE}`, borderRadius: 6, height: 82,
+            display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: "6px 9px",
+          }}
+        >
+          <div
+            style={{
+              borderTop: `1px solid ${MUTE}`, paddingTop: 3, textAlign: "center",
+              fontSize: 9.5, color: MUTE, textTransform: "uppercase", fontWeight: 700,
+            }}
+          >
+            {x.sigStamp}
+          </div>
+        </div>
+      </div>
+
+      <Footer showroom={showroom} lang={lang} />
+    </div>
+  );
+}
+
+// ============================================================================
+// 8. RÈGLEMENT PROPRIÉTAIRE (vente d'un véhicule déposé par un client)
+// ============================================================================
+export function SettlementReceipt({ settlement, showroom, lang = "fr" }) {
+  const x = x2(lang);
+  const s = tableStyles(lang);
+  const expenses = Array.isArray(settlement?.expenses) ? settlement.expenses : [];
+
+  return (
+    <div style={sheetStyle(lang)}>
+      <Header showroom={showroom} lang={lang} />
+      <TitleBar
+        lang={lang}
+        title={x.settlementTitle}
+        reference={settlement?.reference}
+        date={formatDateTime(settlement?.date)}
+        extra={x.settlementExtra}
+      />
+
+      <div style={grid2}>
+        <ClientBlock client={settlement?.client} title={x.owner} lang={lang} />
+        <CarBlock car={settlement?.car} lang={lang} />
+      </div>
+
+      <Frame title={x.settlementDetail} style={{ marginTop: 10 }}>
+        <Row lang={lang} label={x.saleRef} value={settlement?.sale?.reference} />
+        <Row lang={lang} label={x.salePrice} value={formatAmount(settlement?.salePrice)} strong />
+        <Row lang={lang} label={x.showroomShare} value={`- ${formatAmount(settlement?.showroomShare)}`} />
+        <Row lang={lang} label={x.expensesTotal} value={`- ${formatAmount(settlement?.expensesTotal)}`} />
+        {settlement?.paymentMethod && <Row lang={lang} label={x.paymentMode} value={settlement.paymentMethod} />}
+        <div
+          style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            marginTop: 8, padding: "9px 12px", borderRadius: 6,
+            background: ACCENT, color: "#fff", ...exact,
+          }}
+        >
+          <span style={{ fontWeight: 800, textTransform: "uppercase", fontSize: 10.5 }}>{x.ownerAmount}</span>
+          <span style={{ fontWeight: 900, fontSize: 18, ...ltr }}>{formatAmount(settlement?.ownerAmount)}</span>
+        </div>
+      </Frame>
+
+      <div style={{ fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: ACCENT, margin: "10px 0 4px" }}>
+        {x.expensesList}
+      </div>
+      {expenses.length === 0 ? (
+        <div style={{ border: `1px solid ${LINE}`, borderRadius: 6, padding: "12px 10px", textAlign: "center", color: MUTE }}>
+          {x.noExpense}
+        </div>
+      ) : (
+        <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+          <colgroup>
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "32%" }} />
+            <col style={{ width: "24%" }} />
+            <col style={{ width: "18%" }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th style={s.th}>{x.colNo}</th>
+              <th style={s.th}>{x.colDate}</th>
+              <th style={s.th}>{x.colName}</th>
+              <th style={s.th}>{x.colDesc}</th>
+              <th style={{ ...s.th, textAlign: s.end }}>{x.colAmount}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {expenses.map((e, i) => (
+              <tr key={i} style={{ background: i % 2 ? SOFT : "#fff", ...exact }}>
+                <td style={{ ...s.td, color: MUTE, ...ltr, textAlign: s.start }}>{i + 1}</td>
+                <td style={{ ...s.td, whiteSpace: "nowrap", ...ltr, textAlign: s.start }}>{formatDate(e.date)}</td>
+                <td style={{ ...s.td, fontWeight: 700 }}>{dash(e.name)}</td>
+                <td style={{ ...s.td, color: MUTE }}>{dash(e.description)}</td>
+                <td style={{ ...s.td, textAlign: s.end, fontWeight: 800, ...ltr }}>{formatAmount(e.amount)}</td>
+              </tr>
+            ))}
+            <tr>
+              <td style={{ ...s.tf, textTransform: "uppercase", textAlign: s.start }} colSpan={4}>{x.expensesTotal}</td>
+              <td style={{ ...s.tf, textAlign: s.end, color: ACCENT, ...ltr }}>{formatAmount(settlement?.expensesTotal)}</td>
+            </tr>
+          </tbody>
+        </table>
+      )}
+
+      <div
+        style={{
+          marginTop: 10, border: `1px solid ${LINE}`, borderRadius: 6,
+          padding: "8px 11px", fontSize: 11, background: SOFT, ...exact,
+        }}
+      >
+        <span style={{ fontWeight: 800 }}>{x.stopSumVoucher} </span>
+        <span style={{ fontWeight: 700 }}>{numberToWords(settlement?.ownerAmount, lang)}</span>
+      </div>
+
+      {settlement?.note && (
+        <Frame title={x.note} style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 10.5 }}>{settlement.note}</div>
+        </Frame>
+      )}
+
+      <Signatures left={x.sigOwnerReceipt} right={x.sigShowroom} />
+      <Footer showroom={showroom} lang={lang} />
+    </div>
+  );
+}

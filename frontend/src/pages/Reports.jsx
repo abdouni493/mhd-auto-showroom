@@ -155,7 +155,7 @@ export default function Reports() {
   ];
   const purchaseCols = [
     { key: "ref", label: "Véhicule", render: (p) => `${p.car?.brand} ${p.car?.model}` },
-    { key: "src", label: "Source", render: (p) => (p.sourceType === "SUPPLIER" ? "Fournisseur" : "Client"), cls: "text-text-muted" },
+    { key: "src", label: "Source", render: (p) => (p.sourceType === "SUPPLIER" ? "Fournisseur" : p.sourceType === "CLIENT" ? "Dépôt client" : "Showroom"), cls: "text-text-muted" },
     { key: "price", label: "Prix", render: (p) => money(p.purchasePrice), cls: "text-text-primary font-bold" },
     { key: "rest", label: "Reste", render: (p) => money(p.amountRest), cls: "text-rose-400" },
     { key: "date", label: "Date", render: (p) => formatDate(p.date), cls: "text-text-muted" },
@@ -194,7 +194,7 @@ export default function Reports() {
 
   // row → detail object
   const saleDetail = (s) => ({ car: s.car, rows: [["Client", `${s.client?.firstName} ${s.client?.lastName}`], ["Téléphone", s.client?.phonePrimary], ["Véhicule", `${s.car?.brand} ${s.car?.model}`], ["Plaque", s.car?.plate], ["Prix de vente", money(s.totalAfterReduction)], ["Achat initial", money(s.purchasePrice || 0)], ["Profit", money(s.totalAfterReduction - (s.purchasePrice || 0))], ["Payé", money(s.amountPaid)], ["Date", formatDate(s.date)]] });
-  const purchaseDetail = (p) => ({ car: p.car, rows: [["Référence", p.reference], ["Véhicule", `${p.car?.brand} ${p.car?.model}`], ["Plaque", p.car?.plate], ["Source", p.sourceType === "SUPPLIER" ? p.supplier?.fullName : p.client ? `${p.client.firstName} ${p.client.lastName}` : "—"], ["Prix", money(p.purchasePrice)], ["Payé", money(p.amountPaid)], ["Reste", money(p.amountRest)], ["Date", formatDate(p.date)]] });
+  const purchaseDetail = (p) => ({ car: p.car, rows: [["Référence", p.reference], ["Véhicule", `${p.car?.brand} ${p.car?.model}`], ["Plaque", p.car?.plate], ["Source", p.sourceType === "SUPPLIER" ? p.supplier?.fullName : p.sourceType === "CLIENT" ? (p.client ? `${p.client.firstName} ${p.client.lastName}` : "—") : "Showroom"], ["Prix", money(p.purchasePrice)], ["Payé", money(p.amountPaid)], ["Reste", money(p.amountRest)], ["Date", formatDate(p.date)]] });
   const carDetail = (c) => ({ car: c.car, expenseList: c.expenseList, rows: [["Véhicule", `${c.car?.brand} ${c.car?.model}`], ["Plaque", c.car?.plate], ["Prix d'achat", money(c.purchasePrice)], ["Dépenses", money(c.expenses)], ["Coût total", money(c.totalCost)], ["Prix de vente", money(c.salePrice)], ["Profit brut", money(c.grossMargin)], ["Profit net", money(c.netMargin)], ["Marge %", `${c.netMarginPct}%`]] });
   const debtClientDetail = (d) => ({ car: d.car, rows: [["Client", `${d.client?.firstName} ${d.client?.lastName}`], ["Véhicule", `${d.car?.brand} ${d.car?.model}`], ["Total", money(d.total)], ["Payé", money(d.paid)], ["Reste", money(d.rest)], ["Date", formatDate(d.date)]] });
   const debtSupplierDetail = (d) => ({ car: d.car, rows: [["Source", d.source], ["Véhicule", `${d.car?.brand} ${d.car?.model}`], ["Total", money(d.total)], ["Payé", money(d.paid)], ["Reste", money(d.rest)], ["Date", formatDate(d.date)]] });

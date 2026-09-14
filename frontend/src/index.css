@@ -358,3 +358,180 @@ html { scroll-behavior: smooth; }
   .print-report p,
   .print-report span { color: #000 !important; }
 }
+
+/* ==========================================================================
+   LIGHT MODE
+   Toggled from the top bar (html[data-theme="light"]). The identity stays the
+   same: RED for every button / accent, near-BLACK for the text, on a soft
+   off-white paper background.
+   ========================================================================== */
+html[data-theme="light"] {
+  --black: #f4f5f7;
+  --surface: #ffffff;
+  --glass: #ffffff;
+  --border-red: rgba(220, 38, 38, 0.22);
+  --glow: rgba(220, 38, 38, 0.10);
+  --accent: #dc2626;
+  --accent-dark: #991b1b;
+  --text: #0b0f19;
+  --text-muted: #64748b;
+  color-scheme: light;
+}
+
+html[data-theme="light"] body {
+  background: var(--black);
+  color: var(--text);
+}
+
+html[data-theme="light"] ::-webkit-scrollbar-track { background: #e9eaee; }
+html[data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(220, 38, 38, 0.35); }
+html[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: rgba(220, 38, 38, 0.6); }
+html[data-theme="light"] ::selection { background: rgba(220, 38, 38, 0.18); color: #0b0f19; }
+
+/* ---- surfaces ---------------------------------------------------------- */
+html[data-theme="light"] .glass-card,
+html[data-theme="light"] .glass-panel {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.08);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 8px 24px rgba(15, 23, 42, 0.06);
+  backdrop-filter: none;
+}
+html[data-theme="light"] .glass-card::before {
+  background: linear-gradient(90deg, transparent, rgba(220, 38, 38, 0.35), transparent);
+}
+
+/* ---- form controls ----------------------------------------------------- */
+html[data-theme="light"] .input {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.16);
+  color: #0b0f19;
+}
+html[data-theme="light"] .input::placeholder { color: #94a3b8; }
+html[data-theme="light"] .input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14);
+}
+html[data-theme="light"] select.input,
+html[data-theme="light"] select.input option,
+html[data-theme="light"] select option {
+  background: #ffffff;
+  color: #0b0f19;
+}
+html[data-theme="light"] select.input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23dc2626' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+}
+
+/* ---- buttons stay red -------------------------------------------------- */
+html[data-theme="light"] .btn-primary {
+  box-shadow: 0 2px 10px rgba(220, 38, 38, 0.28);
+}
+html[data-theme="light"] .btn-primary:hover {
+  box-shadow: 0 6px 20px rgba(220, 38, 38, 0.38);
+}
+html[data-theme="light"] .btn-ghost {
+  border-color: rgba(220, 38, 38, 0.45);
+  color: #b91c1c;
+  background: #ffffff;
+}
+html[data-theme="light"] .btn-ghost:hover {
+  background: rgba(220, 38, 38, 0.07);
+  color: #7f1d1d;
+}
+html[data-theme="light"] .chip {
+  border-color: rgba(220, 38, 38, 0.35);
+  color: #b91c1c;
+  background: #ffffff;
+}
+html[data-theme="light"] .chip:hover { color: #7f1d1d; }
+/* the themed .chip rule above also overrides the base background, so the active
+   state has to restore its red gradient explicitly */
+html[data-theme="light"] .chip-active {
+  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+  border-color: transparent;
+  color: #fff;
+}
+
+html[data-theme="light"] .label-caps { color: #64748b; }
+html[data-theme="light"] .gradient-text {
+  background: linear-gradient(135deg, #b91c1c, #dc2626, #ef4444, #dc2626, #b91c1c);
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ---- utility classes written for the dark theme ------------------------ */
+html[data-theme="light"] .bg-black { background-color: #f4f5f7; }
+html[data-theme="light"] .bg-surface { background-color: #ffffff; }
+html[data-theme="light"] .bg-glass { background-color: #ffffff; }
+html[data-theme="light"] .bg-black\/90,
+html[data-theme="light"] .bg-black\/80,
+html[data-theme="light"] .bg-black\/70,
+html[data-theme="light"] .bg-black\/60 { background-color: rgba(15, 23, 42, 0.45); }
+html[data-theme="light"] .bg-black\/20 { background-color: rgba(15, 23, 42, 0.06); }
+
+html[data-theme="light"] .bg-white\/5,
+html[data-theme="light"] .bg-white\/\[0\.015\] { background-color: rgba(15, 23, 42, 0.04); }
+html[data-theme="light"] .bg-white\/40 { background-color: rgba(255, 255, 255, 0.85); }
+html[data-theme="light"] .border-white\/5 { border-color: rgba(15, 23, 42, 0.06); }
+html[data-theme="light"] .border-white\/10 { border-color: rgba(15, 23, 42, 0.10); }
+html[data-theme="light"] .border-white\/20 { border-color: rgba(15, 23, 42, 0.18); }
+
+/* text tones: dark ink for content, deep red for accents */
+html[data-theme="light"] .text-text-primary { color: #0b0f19; }
+html[data-theme="light"] .text-text-muted { color: #64748b; }
+html[data-theme="light"] .text-red-300,
+html[data-theme="light"] .text-red-300\/80 { color: #b91c1c; }
+html[data-theme="light"] .text-red-400,
+html[data-theme="light"] .text-red-400\/80,
+html[data-theme="light"] .text-red-500,
+html[data-theme="light"] .text-red-500\/70,
+html[data-theme="light"] .text-red-500\/60 { color: #dc2626; }
+html[data-theme="light"] .\!text-red-300\/80 { color: #b91c1c !important; }
+html[data-theme="light"] .text-rose-300,
+html[data-theme="light"] .text-rose-400 { color: #be123c; }
+html[data-theme="light"] .text-emerald-400 { color: #047857; }
+html[data-theme="light"] .text-amber-400 { color: #b45309; }
+html[data-theme="light"] .text-blue-400 { color: #1d4ed8; }
+html[data-theme="light"] .text-violet-400 { color: #6d28d9; }
+
+/* soft tinted panels keep their hue but stay legible on white */
+html[data-theme="light"] .bg-red-600\/5,
+html[data-theme="light"] .bg-red-600\/8 { background-color: rgba(220, 38, 38, 0.06); }
+html[data-theme="light"] .bg-emerald-500\/12,
+html[data-theme="light"] .bg-emerald-500\/15,
+html[data-theme="light"] .bg-emerald-500\/10 { background-color: rgba(16, 185, 129, 0.12); }
+html[data-theme="light"] .bg-rose-500\/15,
+html[data-theme="light"] .bg-rose-500\/10,
+html[data-theme="light"] .bg-rose-400\/12 { background-color: rgba(244, 63, 94, 0.10); }
+html[data-theme="light"] .bg-amber-500\/12 { background-color: rgba(245, 158, 11, 0.14); }
+html[data-theme="light"] .bg-blue-500\/15,
+html[data-theme="light"] .bg-blue-600\/20 { background-color: rgba(59, 130, 246, 0.12); }
+html[data-theme="light"] .bg-violet-600\/12,
+html[data-theme="light"] .bg-violet-600\/15 { background-color: rgba(124, 58, 237, 0.12); }
+
+/* dividers */
+html[data-theme="light"] .border-red-600\/10 { border-color: rgba(15, 23, 42, 0.08); }
+html[data-theme="light"] .border-red-600\/15 { border-color: rgba(15, 23, 42, 0.10); }
+html[data-theme="light"] .border-red-600\/20 { border-color: rgba(15, 23, 42, 0.10); }
+html[data-theme="light"] .border-red-600\/25 { border-color: rgba(220, 38, 38, 0.25); }
+html[data-theme="light"] .border-red-600\/30 { border-color: rgba(220, 38, 38, 0.30); }
+
+/* sidebar / topbar */
+html[data-theme="light"] .sidebar {
+  background: #ffffff;
+  border-right-color: rgba(15, 23, 42, 0.08);
+}
+html[data-theme="light"] [dir="rtl"] .sidebar {
+  border-left-color: rgba(15, 23, 42, 0.08);
+}
+html[data-theme="light"] .app-topbar {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+html[data-theme="light"] .skeleton { background: rgba(15, 23, 42, 0.05); }
+
+/* the login screen keeps its dramatic dark hero even in light mode, so its
+   own glow background is left untouched */

@@ -1,19 +1,17 @@
 import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import { X, Printer, Search } from "lucide-react";
+import { X, Search, HandCoins, Store, User } from "lucide-react";
 import { salesApi, carsApi, clientsApi, inspectionApi } from "../lib/api.js";
 import { useFetch } from "../hooks/useApi.js";
 import { useCan } from "../lib/permissions.js";
 import { useStore } from "../store/useStore.js";
-import { Card, Badge, Modal, Field, EmptyState, SkeletonGrid, Stepper, Toggle, useToast } from "../components/ui.jsx";
+import { Card, Badge, Field, EmptyState, SkeletonGrid, Stepper, Toggle, useToast } from "../components/ui.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import SearchSelect from "../components/SearchSelect.jsx";
 import ClientForm, { validateClient } from "../components/ClientForm.jsx";
 import InspectionChecklist, { DEFAULT_INSPECTION } from "../components/InspectionChecklist.jsx";
 import { CarImage } from "../components/CarCard.jsx";
-import { SaleInvoice } from "../components/PrintTemplates.jsx";
-import { printInLang } from "../components/PrintChooser.jsx";
 import { formatAmount, toDateTimeLocal, ENERGY_LABELS, GEARBOX_LABELS } from "../utils/format.js";
 
 const ENERGY_FILTERS = [["", "pos.energyAll"], ["ESSENCE", "energy.ESSENCE"], ["DIESEL", "energy.DIESEL"], ["HYBRID", "energy.HYBRID"], ["ELECTRIC", "energy.ELECTRIC"]];
@@ -34,6 +32,15 @@ function SaleFlow({ car, onClose, onCreated }) {
   const persistInspection = (next) => { inspectionApi.saveTemplate(next).catch(() => {}); };
 
   const basePriceDefault = car.purchase?.sellingPrice || 0;
+  // "Prestation (Dépôt client)": the vehicle belongs to a client, so the sale is
+  // split between the showroom (its share) and the owner (the rest, minus the
+  // expenses engaged on the vehicle).
+  const isClientCar = car.purchase?.sourceType === "CLIENT";
+  const owner = car.purchase?.client || null;
+  const carExpenses = (car.expenses || [])
+    .filter((e) => e.type === "CAR" || !e.type)
+    .reduce((a, e) => a + (Number(e.amount) || 0), 0);
+  const [showroomShare, setShowroomShare] = useState("");
   const [saleType, setSaleType] = useState("NORMAL");
   const [basePrice, setBasePrice] = useState(String(basePriceDefault));
   const [tvaEnabled, setTvaEnabled] = useState(false);
@@ -55,6 +62,8 @@ function SaleFlow({ car, onClose, onCreated }) {
   total = Math.round(total);
   const paid = paidTouched ? Number(amountPaid) || 0 : total;
   const rest = Math.max(0, total - paid);
+  const share = Number(showroomShare) || 0;
+  const ownerAmount = Math.max(0, total - share - carExpenses);
 
   const step1Valid = useExisting ? !!client : Object.keys(validateClient(newClient)).length === 0;
 
@@ -75,6 +84,7 @@ function SaleFlow({ car, onClose, onCreated }) {
         client: useExisting ? null : newClient,
         saleType, basePrice: base, tvaEnabled, tvaRate, reductionType, reductionValue,
         amountPaid: paid, clientTakeCar, inspection, date,
+        showroomShare: isClientCar ? share : 0,
       };
       const data = await salesApi.create(payload);
       onCreated(data);
@@ -196,6 +206,35 @@ function SaleFlow({ car, onClose, onCreated }) {
               <Field label={t("pos.amountPaid")}><input className="input" type="number" value={paidTouched ? amountPaid : total} onChange={(e) => { setPaidTouched(true); setAmountPaid(e.target.value); }} /></Field>
               <p className="text-sm">{t("common.rest")} : <span className={rest > 0 ? "text-rose-400 font-black" : "text-emerald-400 font-black"}>{formatAmount(rest)}</span></p>
 
+              {/* Vehicle owned by a client: split the sale */}
+              {isClientCar && (
+                <div className="pt-3 mt-1 border-t border-amber-500/25 space-y-2.5">
+                  <div className="flex items-center gap-2 text-amber-400">
+                    <HandCoins size={15} />
+                    <span className="label-caps !mb-0 !text-amber-400">{t("pos.clientCarTitle")}</span>
+                  </div>
+                  {owner && (
+                    <p className="text-xs text-text-muted">
+                      {t("pos.owner")} : <span className="text-text-primary font-bold">{owner.firstName} {owner.lastName}</span>
+                    </p>
+                  )}
+                  <Field label={t("pos.showroomShare")}>
+                    <input
+                      className="input"
+                      type="number"
+                      value={showroomShare}
+                      onChange={(e) => setShowroomShare(e.target.value)}
+                      placeholder="0"
+                    />
+                  </Field>
+                  <div className="text-xs space-y-1">
+                    <div className="flex justify-between"><span className="text-text-muted">{t("sales.carExpenses")}</span><span className="text-amber-400 font-bold">- {formatAmount(carExpenses)}</span></div>
+                    <div className="flex justify-between"><span className="text-text-muted">{t("pos.ownerAmount")}</span><span className="text-emerald-400 font-black">{formatAmount(ownerAmount)}</span></div>
+                  </div>
+                  <p className="text-[0.65rem] text-text-muted italic">{t("pos.settlementHint")}</p>
+                </div>
+              )}
+
               <div className="flex items-center justify-between"><span className="label-caps !mb-0">{t("pos.clientTakesCar")}</span><Toggle checked={clientTakeCar} onChange={setClientTakeCar} /></div>
               <Field label={t("common.datetime")}><input type="datetime-local" className="input" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
             </Card>
@@ -214,13 +253,12 @@ function SaleFlow({ car, onClose, onCreated }) {
 export default function POS() {
   const { t } = useTranslation();
   const can = useCan();
-  const { settings } = useStore();
+  const { refreshSettlements } = useStore();
   const toast = useToast();
   const [search, setSearch] = useState("");
   const [energy, setEnergy] = useState("");
   const { data: cars, loading, refetch } = useFetch(() => carsApi.listAvailable(), []);
   const [selling, setSelling] = useState(null);
-  const [createdPrompt, setCreatedPrompt] = useState(null);
 
   // Clean up orphaned car records left by previous purchase deletions
   useEffect(() => {
@@ -231,8 +269,6 @@ export default function POS() {
     (!energy || c.energy === energy) &&
     (`${c.brand} ${c.model} ${c.plate || ""}`.toLowerCase().includes(search.toLowerCase()))
   );
-
-  const renderInvoice = (s) => (lang) => <SaleInvoice sale={s} showroom={settings} lang={lang} />;
 
   return (
     <div>
@@ -263,6 +299,11 @@ export default function POS() {
                   {car.year && <Badge color="muted">{car.year}</Badge>}
                   {car.color && <Badge color="muted">{car.color}</Badge>}
                   <Badge color="muted">{ENERGY_LABELS[car.energy]}</Badge>
+                  {car.purchase?.sourceType === "CLIENT" ? (
+                    <Badge color="warning"><User size={10} /> {t("pos.depositCar")}</Badge>
+                  ) : car.purchase?.sourceType === "SHOWROOM" ? (
+                    <Badge color="accent"><Store size={10} /> {t("purchase.sourceShowroom")}</Badge>
+                  ) : null}
                 </div>
                 {car.plate && <p className="text-xs text-text-muted">{car.plate}</p>}
                 {car.mileage != null && <p className="text-xs text-text-muted mb-2">{formatAmount(car.mileage, "km")}</p>}
@@ -277,17 +318,20 @@ export default function POS() {
       )}
 
       <AnimatePresence>
-        {selling && <SaleFlow car={selling} onClose={() => setSelling(null)} onCreated={(s) => { setSelling(null); refetch(); setCreatedPrompt(s); toast(t("pos.finalizedToast")); }} />}
+        {selling && (
+          <SaleFlow
+            car={selling}
+            onClose={() => setSelling(null)}
+            onCreated={() => {
+              setSelling(null);
+              refetch();
+              // A sale of a client vehicle raises the owner-settlement alert.
+              refreshSettlements();
+              toast(t("pos.finalizedToast"));
+            }}
+          />
+        )}
       </AnimatePresence>
-
-      <Modal open={!!createdPrompt} onClose={() => setCreatedPrompt(null)} title={t("pos.finalized")} size="sm"
-        footer={<>
-          <button className="btn-ghost" onClick={() => setCreatedPrompt(null)}>{t("common.skip")}</button>
-          <button className="btn-ghost" onClick={() => { printInLang(renderInvoice(createdPrompt), "ar"); setCreatedPrompt(null); }}><Printer size={14} /> {t("common.printAr")}</button>
-          <button className="btn-primary" onClick={() => { printInLang(renderInvoice(createdPrompt), "fr"); setCreatedPrompt(null); }}><Printer size={14} /> {t("common.printFr")}</button>
-        </>}>
-        <p className="text-text-muted">{t("pos.printPrompt")}</p>
-      </Modal>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import { Eye, Pencil, Trash2, Printer, Wallet, Plus, Factory, User, Check, X, KeyRound, FileText, Upload, LayoutGrid, Table as TableIcon } from "lucide-react";
+import { Eye, Pencil, Trash2, Printer, Wallet, Plus, Factory, User, Check, X, KeyRound, FileText, Upload, LayoutGrid, Table as TableIcon, Store, ClipboardList, FileSignature, ClipboardCheck, Gauge, Receipt, ChevronDown } from "lucide-react";
 import { carsApi, purchasesApi, suppliersApi, clientsApi, inspectionApi } from "../lib/api.js";
 import { useFetch } from "../hooks/useApi.js";
 import { useCan } from "../lib/permissions.js";
@@ -15,15 +15,24 @@ import { MultiImageUpload } from "../components/ImageUpload.jsx";
 import InspectionChecklist, { DEFAULT_INSPECTION, hasInspectionItems } from "../components/InspectionChecklist.jsx";
 import { CarImage } from "../components/CarCard.jsx";
 import { PurchaseInvoice } from "../components/PrintTemplates.jsx";
-import { usePrintDialog, printInLang } from "../components/PrintChooser.jsx";
+import { BonEntree, EngagementDepot, ReceptionForm, FicheTechnique } from "../components/PrintDocs.jsx";
+import PrintHub from "../components/PrintHub.jsx";
 import { formatAmount, formatDate, toDateTimeLocal } from "../utils/format.js";
 
 const FILTERS = [
   { key: "", tkey: "common.all" },
   { key: "sourceType=SUPPLIER", tkey: "purchase.filterSupplier" },
   { key: "sourceType=CLIENT", tkey: "purchase.filterClient" },
+  { key: "sourceType=SHOWROOM", tkey: "purchase.filterShowroom" },
   { key: "paid=PAID", tkey: "purchase.filterPaid" },
   { key: "paid=DEBT", tkey: "purchase.filterDebt" },
+];
+
+// Fields of the printable "Fiche technique" (cars.specs)
+const SPEC_FIELDS = [
+  ["engine", "car.specEngine"], ["power", "car.specPower"], ["transmission", "car.specTransmission"],
+  ["consumption", "car.specConsumption"], ["wheelbase", "car.specWheelbase"], ["trunk", "car.specTrunk"],
+  ["weight", "car.specWeight"], ["tank", "car.specTank"], ["dimensions", "car.specDimensions"],
 ];
 
 const ENERGIES = [["ESSENCE", "energy.ESSENCE"], ["DIESEL", "energy.DIESEL"], ["HYBRID", "energy.HYBRID"], ["ELECTRIC", "energy.ELECTRIC"]];
@@ -31,6 +40,7 @@ const GEARBOXES = [["MANUAL", "gearbox.MANUAL"], ["AUTO", "gearbox.AUTO"]];
 
 function PurchaseForm({ onClose, onSaved, editTarget }) {
   const { t } = useTranslation();
+  const { settings } = useStore();
   const isEdit = !!editTarget;
   const [step, setStep] = useState(0);
   const [sourceType, setSourceType] = useState(editTarget?.sourceType || "SUPPLIER");
@@ -40,8 +50,11 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
   const [newClient, setNewClient] = useState(null);
   const [clientErrors, setClientErrors] = useState({});
   const [car, setCar] = useState(() => editTarget?.car
-    ? { ...editTarget.car, keysCount: editTarget.car.keysCount ?? "", documents: editTarget.car.documents || [] }
-    : { images: [], energy: "ESSENCE", gearbox: "MANUAL", keysCount: "", documents: [] });
+    ? { ...editTarget.car, keysCount: editTarget.car.keysCount ?? "", documents: editTarget.car.documents || [], specs: editTarget.car.specs || {} }
+    : { images: [], energy: "ESSENCE", gearbox: "MANUAL", keysCount: "", documents: [], specs: {} });
+  const [showSpecs, setShowSpecs] = useState(false);
+  // Reception form (printed as "Formulaire réception véhicule")
+  const [remark, setRemark] = useState(editTarget?.remark || "");
   const [pricing, setPricing] = useState(() => isEdit
     ? { purchasePrice: String(editTarget.purchasePrice ?? ""), sellingPrice: String(editTarget.sellingPrice ?? ""), amountPaid: String(editTarget.amountPaid ?? "") }
     : { purchasePrice: "", sellingPrice: "", amountPaid: "" });
@@ -77,6 +90,7 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
   const [uploadingType, setUploadingType] = useState("");
 
   const setCarField = (f) => (e) => setCar({ ...car, [f]: e.target.value });
+  const setSpec = (f) => (e) => setCar((c) => ({ ...c, specs: { ...(c.specs || {}), [f]: e.target.value } }));
   // purchase price drives the editable "montant versé" default, until the user
   // (or an existing record) gives the amount paid a value of its own
   const setPurchasePrice = (v) =>
@@ -135,11 +149,14 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
     } catch (e) { alert(e.message || "Erreur"); }
   };
 
-  const canNext1 = sourceType === "SUPPLIER" ? !!supplier : !!client;
+  // A vehicle the showroom owner bought himself has no supplier and no client.
+  const isShowroom = sourceType === "SHOWROOM";
+  const hasCounterparty = isShowroom || (sourceType === "SUPPLIER" ? !!supplier : !!client);
+  const canNext1 = hasCounterparty;
 
   // Everything the wizard needs before a record can be written. In edit mode the
   // save button is available on every step, so it is checked here too.
-  const complete = (sourceType === "SUPPLIER" ? !!supplier : !!client) && !!car.brand && !!car.model && !!pricing.purchasePrice;
+  const complete = hasCounterparty && !!car.brand && !!car.model && !!pricing.purchasePrice;
 
   const save = async () => {
     if (!complete) return;
@@ -152,9 +169,16 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
         car: { ...car, year: car.year ? Number(car.year) : null, seats: car.seats ? Number(car.seats) : null, mileage: car.mileage ? Number(car.mileage) : null },
         purchasePrice: Number(pricing.purchasePrice) || 0,
         sellingPrice: Number(pricing.sellingPrice) || 0,
-        amountPaid: pricing.amountPaid === "" ? Number(pricing.purchasePrice) || 0 : Number(pricing.amountPaid),
+        // A showroom purchase carries no debt: the API forces amountPaid = price.
+        amountPaid: isShowroom
+          ? Number(pricing.purchasePrice) || 0
+          : pricing.amountPaid === ""
+          ? Number(pricing.purchasePrice) || 0
+          : Number(pricing.amountPaid),
         inspection,
         date,
+        receivedAt: date,
+        remark,
       };
       const data = isEdit ? await purchasesApi.update(editTarget.id, payload) : await purchasesApi.create(payload);
       onSaved(data);
@@ -204,12 +228,29 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
         {/* STEP 1 */}
         {step === 0 && (
           <div className="space-y-4">
-            <div className="flex gap-3">
-              <button onClick={() => setSourceType("SUPPLIER")} className={`flex-1 p-4 rounded-xl border flex items-center justify-center gap-2 font-bold uppercase text-sm transition ${sourceType === "SUPPLIER" ? "border-violet-500 bg-violet-600/15 text-violet-300" : "border-red-600/30 text-text-muted"}`}><Factory size={18} /> {t("common.supplier")}</button>
-              <button onClick={() => setSourceType("CLIENT")} className={`flex-1 p-4 rounded-xl border flex items-center justify-center gap-2 font-bold uppercase text-sm transition ${sourceType === "CLIENT" ? "border-blue-500 bg-blue-600/15 text-blue-300" : "border-red-600/30 text-text-muted"}`}><User size={18} /> {t("common.client")}</button>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <button onClick={() => setSourceType("SUPPLIER")} className={`p-4 rounded-xl border flex flex-col items-center justify-center gap-1.5 font-bold uppercase text-xs transition ${sourceType === "SUPPLIER" ? "border-violet-500 bg-violet-600/15 text-violet-300" : "border-red-600/30 text-text-muted"}`}>
+                <Factory size={20} /> {t("common.supplier")}
+              </button>
+              <button onClick={() => setSourceType("CLIENT")} className={`p-4 rounded-xl border flex flex-col items-center justify-center gap-1.5 font-bold uppercase text-xs text-center transition ${sourceType === "CLIENT" ? "border-blue-500 bg-blue-600/15 text-blue-300" : "border-red-600/30 text-text-muted"}`}>
+                <User size={20} /> {t("purchase.sourcePrestation")}
+              </button>
+              <button onClick={() => setSourceType("SHOWROOM")} className={`p-4 rounded-xl border flex flex-col items-center justify-center gap-1.5 font-bold uppercase text-xs transition ${isShowroom ? "border-red-500 bg-red-600/15 text-red-300" : "border-red-600/30 text-text-muted"}`}>
+                <Store size={20} /> {t("purchase.sourceShowroom")}
+              </button>
             </div>
 
-            {sourceType === "SUPPLIER" ? (
+            {isShowroom ? (
+              <Card className="p-4 border border-red-500/40">
+                <div className="flex items-start gap-3">
+                  <span className="p-2 rounded-lg bg-red-600/15 text-red-400 shrink-0"><Store size={18} /></span>
+                  <div>
+                    <p className="heading text-sm text-text-primary">{settings?.name || t("purchase.sourceShowroom")}</p>
+                    <p className="text-xs text-text-muted mt-0.5">{t("purchase.showroomHelp")}</p>
+                  </div>
+                </div>
+              </Card>
+            ) : sourceType === "SUPPLIER" ? (
               <div>
                 {supplier ? (
                   <Card className="p-4 border border-violet-500/40">
@@ -356,13 +397,51 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
               {(!docTypes || docTypes.length === 0) && <p className="text-xs text-text-muted italic col-span-full">{t("car.noDocTypes")}</p>}
             </div>
 
+            {/* Fiche technique — printed on the "Fiche technique" document */}
+            <div className="flex items-center gap-3 my-2">
+              <button type="button" onClick={() => setShowSpecs((v) => !v)} className="label-caps !mb-0 flex items-center gap-1 hover:text-text-primary transition">
+                <Gauge size={13} /> {t("car.specsTitle")}
+                <motion.span animate={{ rotate: showSpecs ? 180 : 0 }} className="inline-flex"><ChevronDown size={13} /></motion.span>
+              </button>
+              <div className="flex-1 h-px bg-red-600/20" />
+            </div>
+            <AnimatePresence initial={false}>
+              {showSpecs && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }} className="overflow-hidden"
+                >
+                  <p className="text-xs text-text-muted italic mb-3">{t("car.specsHelp")}</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {SPEC_FIELDS.map(([key, label]) => (
+                      <Field key={key} label={t(label)}>
+                        <input className="input" value={car.specs?.[key] || ""} onChange={setSpec(key)} />
+                      </Field>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <Field label={t("purchase.remark")}>
+              <textarea className="input" rows={2} value={remark} onChange={(e) => setRemark(e.target.value)} placeholder={t("purchase.remarkHint")} />
+            </Field>
+
             <div className="flex items-center gap-3 my-2"><span className="label-caps !mb-0">{t("purchase.pricing")}</span><div className="flex-1 h-px bg-red-600/20" /></div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className={`grid grid-cols-1 gap-4 ${isShowroom ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
               <Field label={sourceType === "CLIENT" ? t("purchase.clientProposedPrice") : t("showroom.purchasePrice")} required><input className="input" type="number" value={pricing.purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} /></Field>
               <Field label={t("showroom.sellingPrice")}><input className="input" type="number" value={pricing.sellingPrice} onChange={(e) => setPricing({ ...pricing, sellingPrice: e.target.value })} /></Field>
-              <Field label={t("purchase.amountPaid")}><input className="input" type="number" value={pricing.amountPaid} onChange={(e) => setAmountPaid(e.target.value)} /></Field>
+              {/* The owner bought the vehicle himself: there is nothing left to pay,
+                  so the "montant versé" field is not shown at all. */}
+              {!isShowroom && (
+                <Field label={t("purchase.amountPaid")}><input className="input" type="number" value={pricing.amountPaid} onChange={(e) => setAmountPaid(e.target.value)} /></Field>
+              )}
             </div>
-            <p className="text-sm">{t("purchase.remaining")} : <span className={rest > 0 ? "text-rose-400 font-black" : "text-emerald-400 font-black"}>{formatAmount(rest)}</span></p>
+            {isShowroom ? (
+              <p className="text-sm text-text-muted italic">{t("purchase.showroomNoDebt")}</p>
+            ) : (
+              <p className="text-sm">{t("purchase.remaining")} : <span className={rest > 0 ? "text-rose-400 font-black" : "text-emerald-400 font-black"}>{formatAmount(rest)}</span></p>
+            )}
 
             <div className="flex justify-between gap-2 pt-4">
               <button className="btn-ghost" onClick={() => setStep(0)}>← {t("common.back")}</button>
@@ -392,6 +471,14 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
   );
 }
 
+// Supplier / Prestation (depot client) / Showroom
+function SourceBadge({ sourceType }) {
+  const { t } = useTranslation();
+  if (sourceType === "SUPPLIER") return <Badge color="supplier">{t("common.supplier")}</Badge>;
+  if (sourceType === "CLIENT") return <Badge color="info">{t("purchase.sourcePrestation")}</Badge>;
+  return <Badge color="accent">{t("purchase.sourceShowroom")}</Badge>;
+}
+
 export default function Purchase() {
   const { t } = useTranslation();
   const can = useCan();
@@ -405,24 +492,73 @@ export default function Purchase() {
     if (filter.startsWith("paid=")) params.paid = filter.split("=")[1];
     return purchasesApi.list(params);
   }, [filter, search]);
+  const { data: docTypeRows } = useFetch(() => carsApi.getDocumentTypes(), []);
+  const docTypeNames = (docTypeRows || []).map((d) => d.name);
   const [showNew, setShowNew] = useState(false);
   const [editItem, setEditItem] = useState(null);
-  const [createdPrompt, setCreatedPrompt] = useState(null);
+  const [printTarget, setPrintTarget] = useState(null);
   const [payTarget, setPayTarget] = useState(null);
   const [payAmount, setPayAmount] = useState("");
   const [viewItem, setViewItem] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [view, setView] = useState("cards");
 
-  const openPrint = usePrintDialog();
-  const renderInvoice = (p) => (lang) => <PurchaseInvoice purchase={p} showroom={settings} lang={lang} />;
-  // Print buttons open a French / Arabic chooser first.
-  const doPrint = (p) => openPrint(renderInvoice(p));
+  // Every printable document of a purchase. The hub asks for the options a
+  // document needs (date & heure, prix de vente) and then the language.
+  const purchaseDocs = (p) => {
+    if (!p) return [];
+    const docs = [
+      {
+        key: "bon-entree",
+        label: t("print.bonEntree"),
+        desc: t("print.bonEntreeDesc"),
+        icon: ClipboardList,
+        options: [{ name: "dateTime", label: t("print.dateTime"), type: "datetime", default: toDateTimeLocal(p.date) }],
+        render: (lang, o) => <BonEntree purchase={p} showroom={settings} lang={lang} dateTime={o.dateTime} />,
+      },
+      {
+        key: "reception",
+        label: t("print.reception"),
+        desc: t("print.receptionDesc"),
+        icon: ClipboardCheck,
+        options: [{ name: "dateTime", label: t("print.dateTime"), type: "datetime", default: toDateTimeLocal(p.receivedAt || p.date) }],
+        render: (lang, o) => (
+          <ReceptionForm purchase={p} showroom={settings} lang={lang} dateTime={o.dateTime} docTypes={docTypeNames} />
+        ),
+      },
+      {
+        key: "fiche",
+        label: t("print.fiche"),
+        desc: t("print.ficheDesc"),
+        icon: Gauge,
+        options: [{ name: "price", label: t("showroom.sellingPrice"), type: "number", default: String(p.sellingPrice ?? "") }],
+        render: (lang, o) => <FicheTechnique car={p.car} showroom={settings} lang={lang} price={o.price} />,
+      },
+      {
+        key: "bon-achat",
+        label: t("print.purchaseInvoice"),
+        desc: t("print.purchaseInvoiceDesc"),
+        icon: Receipt,
+        render: (lang) => <PurchaseInvoice purchase={p} showroom={settings} lang={lang} />,
+      },
+    ];
+    // The deposit contract only makes sense for a vehicle left by its owner.
+    if (p.sourceType === "CLIENT") {
+      docs.splice(2, 0, {
+        key: "engagement",
+        label: t("print.engagement"),
+        desc: t("print.engagementDesc"),
+        icon: FileSignature,
+        render: (lang) => <EngagementDepot purchase={p} showroom={settings} lang={lang} />,
+      });
+    }
+    return docs;
+  };
 
   const menuItems = (p) => [
     { label: t("common.view"), icon: Eye, onClick: () => setViewItem(p) },
     can("purchase", "edit") && { label: t("common.edit"), icon: Pencil, onClick: () => setEditItem(p) },
-    can("purchase", "print") && { label: t("common.print"), icon: Printer, onClick: () => doPrint(p) },
+    can("purchase", "print") && { label: t("print.printings"), icon: Printer, onClick: () => setPrintTarget(p) },
     can("purchase", "edit") && p.amountRest > 0 && { label: t("common.payDebt"), icon: Wallet, onClick: () => { setPayTarget(p); setPayAmount(String(p.amountRest)); } },
     can("purchase", "delete") && { label: t("common.delete"), icon: Trash2, danger: true, onClick: () => setDeleteId(p.id) },
   ];
@@ -467,7 +603,7 @@ export default function Purchase() {
                 <tr key={p.id} className="border-b border-red-600/10 hover:bg-red-600/5">
                   <td className="p-3 text-text-muted">{p.reference}</td>
                   <td className="p-3 text-text-primary">{p.car?.brand} {p.car?.model} <span className="text-text-muted">{p.car?.plate}</span></td>
-                  <td className="p-3"><Badge color={p.sourceType === "SUPPLIER" ? "supplier" : "info"}>{p.sourceType === "SUPPLIER" ? t("common.supplier") : t("common.client")}</Badge></td>
+                  <td className="p-3"><SourceBadge sourceType={p.sourceType} /></td>
                   <td className="p-3 text-text-primary">{formatAmount(p.purchasePrice)}</td>
                   <td className="p-3 text-emerald-400">{formatAmount(p.amountPaid)}</td>
                   <td className="p-3 text-rose-400">{formatAmount(p.amountRest)}</td>
@@ -492,7 +628,7 @@ export default function Purchase() {
                   <ActionMenu items={menuItems(p)} />
                 </div>
                 <div className="flex gap-1.5 my-2">
-                  <Badge color={p.sourceType === "SUPPLIER" ? "supplier" : "info"}>{p.sourceType === "SUPPLIER" ? t("common.supplier") : t("common.client")}</Badge>
+                  <SourceBadge sourceType={p.sourceType} />
                   {p.amountRest > 0 ? <Badge color="debt">{t("purchase.filterDebt")}</Badge> : <Badge color="success">{t("purchase.filterPaid")}</Badge>}
                 </div>
                 <div className="flex justify-between text-sm">
@@ -511,25 +647,22 @@ export default function Purchase() {
             key={editItem ? `edit-${editItem.id}` : "new"}
             editTarget={editItem}
             onClose={() => { setShowNew(false); setEditItem(null); }}
-            onSaved={(p) => {
+            onSaved={() => {
               const wasEdit = !!editItem;
               setShowNew(false); setEditItem(null); refetch();
-              if (wasEdit) toast(t("purchase.updatedToast"));
-              else { setCreatedPrompt(p); toast(t("purchase.createdToast")); }
+              toast(wasEdit ? t("purchase.updatedToast") : t("purchase.createdToast"));
             }}
           />
         )}
       </AnimatePresence>
 
-      {/* Print prompt */}
-      <Modal open={!!createdPrompt} onClose={() => setCreatedPrompt(null)} title={t("purchase.created")} size="sm"
-        footer={<>
-          <button className="btn-ghost" onClick={() => setCreatedPrompt(null)}>{t("common.skip")}</button>
-          <button className="btn-ghost" onClick={() => { printInLang(renderInvoice(createdPrompt), "ar"); setCreatedPrompt(null); }}><Printer size={14} /> {t("common.printAr")}</button>
-          <button className="btn-primary" onClick={() => { printInLang(renderInvoice(createdPrompt), "fr"); setCreatedPrompt(null); }}><Printer size={14} /> {t("common.printFr")}</button>
-        </>}>
-        <p className="text-text-muted">{t("purchase.printPrompt")}</p>
-      </Modal>
+      {/* Impressions - every document of this purchase */}
+      <PrintHub
+        open={!!printTarget}
+        onClose={() => setPrintTarget(null)}
+        title={t("print.printings")}
+        docs={purchaseDocs(printTarget)}
+      />
 
       {/* Pay debt */}
       <Modal open={!!payTarget} onClose={() => setPayTarget(null)} title={t("common.payDebt")} size="sm"
@@ -553,7 +686,11 @@ export default function Purchase() {
               {Object.entries({
                 [t("purchase.reference")]: viewItem.reference, [t("common.date")]: formatDate(viewItem.date),
                 [t("common.vehicle")]: `${viewItem.car?.brand} ${viewItem.car?.model}`, [t("car.plate")]: viewItem.car?.plate,
-                [t("purchase.source")]: viewItem.sourceType === "SUPPLIER" ? viewItem.supplier?.fullName : `${viewItem.client?.firstName} ${viewItem.client?.lastName}`,
+                [t("purchase.source")]: viewItem.sourceType === "SUPPLIER"
+                  ? viewItem.supplier?.fullName
+                  : viewItem.sourceType === "CLIENT"
+                  ? `${viewItem.client?.firstName} ${viewItem.client?.lastName}`
+                  : settings?.name || t("purchase.sourceShowroom"),
                 [t("showroom.purchasePrice")]: formatAmount(viewItem.purchasePrice), [t("showroom.sellingPrice")]: formatAmount(viewItem.sellingPrice),
                 [t("common.paid")]: formatAmount(viewItem.amountPaid), [t("common.rest")]: formatAmount(viewItem.amountRest),
                 [t("car.keys")]: viewItem.car?.keysCount != null ? viewItem.car.keysCount : "—",
@@ -577,7 +714,7 @@ export default function Purchase() {
                 </div>
               </div>
             )}
-            <button className="btn-ghost w-full" onClick={() => doPrint(viewItem)}><Printer size={14} /> {t("purchase.printInvoice")}</button>
+            <button className="btn-ghost w-full" onClick={() => { setPrintTarget(viewItem); setViewItem(null); }}><Printer size={14} /> {t("print.printings")}</button>
           </div>
         )}
       </Modal>

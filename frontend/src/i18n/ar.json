@@ -1,5 +1,7 @@
 {
-  "app": { "title": "إدارة المعرض" },
+  "app": {
+    "title": "إدارة المعرض"
+  },
   "nav": {
     "dashboard": "لوحة التحكم",
     "showroom": "المعرض",
@@ -17,7 +19,10 @@
     "reports": "التقارير",
     "settings": "الإعدادات",
     "logout": "تسجيل الخروج",
-    "management": "الإدارة"
+    "management": "الإدارة",
+    "language": "اللغة",
+    "lightMode": "الوضع الفاتح",
+    "darkMode": "الوضع الداكن"
   },
   "caisse": {
     "lockTitle": "الصندوق محمي",
@@ -103,8 +108,16 @@
     "error": "خطأ",
     "saved": "تم الحفظ ✓"
   },
-  "energy": { "ESSENCE": "بنزين", "DIESEL": "ديزل", "HYBRID": "هجين", "ELECTRIC": "كهربائي" },
-  "gearbox": { "MANUAL": "يدوي", "AUTO": "أوتوماتيك" },
+  "energy": {
+    "ESSENCE": "بنزين",
+    "DIESEL": "ديزل",
+    "HYBRID": "هجين",
+    "ELECTRIC": "كهربائي"
+  },
+  "gearbox": {
+    "MANUAL": "يدوي",
+    "AUTO": "أوتوماتيك"
+  },
   "status": {
     "AVAILABLE": "متوفر",
     "SOLD": "مباع",
@@ -129,7 +142,9 @@
     "loginFailed": "فشل تسجيل الدخول",
     "demoFailed": "فشل الدخول التجريبي",
     "registerFailed": "فشل إنشاء الحساب",
-    "passwordMismatch": "كلمتا المرور غير متطابقتين"
+    "passwordMismatch": "كلمتا المرور غير متطابقتين",
+    "createAdminHelp": "لا يوجد حساب مسؤول بعد. أنشئ الحساب الرئيسي للمعرض.",
+    "passwordTooShort": "يجب أن تحتوي كلمة المرور على 6 أحرف على الأقل."
   },
   "dashboard": {
     "title": "لوحة التحكم",
@@ -195,7 +210,18 @@
     "noFileYet": "لا يوجد ملف",
     "noDocTypes": "لا يوجد نوع وثيقة. قم بإنشاء واحد.",
     "scanOptional": "مسح الوثائق اختياري",
-    "dropImages": "اسحب الصور هنا أو انقر للتصفح"
+    "dropImages": "اسحب الصور هنا أو انقر للتصفح",
+    "specsTitle": "البطاقة التقنية (المواصفات)",
+    "specsHelp": "تظهر هذه المعلومات على البطاقة التقنية المطبوعة.",
+    "specEngine": "المحرك",
+    "specPower": "القوة",
+    "specTransmission": "ناقل الحركة",
+    "specConsumption": "الاستهلاك",
+    "specWheelbase": "قاعدة العجلات",
+    "specTrunk": "حجم الصندوق",
+    "specWeight": "الوزن الفارغ",
+    "specTank": "سعة الخزان",
+    "specDimensions": "الأبعاد (ط × ع × ا)"
   },
   "client": {
     "firstName": "الاسم",
@@ -282,7 +308,14 @@
     "reference": "المرجع",
     "source": "المصدر",
     "alreadyPaid": "المدفوع مسبقاً",
-    "amountToPay": "المبلغ المراد دفعه"
+    "amountToPay": "المبلغ المراد دفعه",
+    "filterShowroom": "المعرض",
+    "sourcePrestation": "خدمة (إيداع عميل)",
+    "sourceShowroom": "المعرض",
+    "showroomHelp": "اشترى صاحب المعرض المركبة بنفسه، دون مورّد.",
+    "showroomNoDebt": "شراء المعرض : لا يوجد مبلغ متبقٍ.",
+    "remark": "ملاحظة (استمارة الاستلام)",
+    "remarkHint": "لا شيء يُذكر"
   },
   "pos": {
     "title": "نقطة البيع — المركبات المتوفرة",
@@ -311,7 +344,13 @@
     "finalize": "إتمام البيع",
     "finalized": "تم إتمام البيع ✓",
     "finalizedToast": "تم إتمام البيع بنجاح",
-    "printPrompt": "هل تريد طباعة الفاتورة؟"
+    "printPrompt": "هل تريد طباعة الفاتورة؟",
+    "clientCarTitle": "مركبة عميل",
+    "owner": "المالك",
+    "showroomShare": "حصة المعرض",
+    "ownerAmount": "الصافي للمالك",
+    "settlementHint": "سيتعيّن إنشاء تسوية المالك من بطاقة العميل بعد البيع.",
+    "depositCar": "إيداع عميل"
   },
   "sales": {
     "title": "المبيعات",
@@ -561,5 +600,85 @@
     "contactUs": "اتصل بنا",
     "followUs": "تابعنا",
     "carNotFound": "المركبة غير موجودة."
+  },
+  "navGroup": {
+    "pilotage": "القيادة",
+    "stock": "المخزون و المشتريات",
+    "commerce": "المبيعات",
+    "people": "الأطراف",
+    "finance": "المالية",
+    "web": "الموقع الإلكتروني",
+    "system": "النظام"
+  },
+  "settlements": {
+    "title": "التسويات",
+    "action": "إنشاء تسوية",
+    "newTitle": "تسوية المالك",
+    "create": "إنشاء التسوية",
+    "createdToast": "تم إنشاء التسوية بنجاح",
+    "alertTitle": "تسويات المالكين في الانتظار",
+    "alertShort": "التسويات",
+    "alertDesc": "{{count}} مركبة عميل مباعة لم تتم تسوية مالكها بعد.",
+    "pendingFor": "{{count}} تسوية للإنشاء",
+    "pendingLabel": "تسويات في الانتظار",
+    "depositBadge": "{{count}} مركبة في الإيداع",
+    "salePrice": "سعر البيع",
+    "expensesTotal": "إجمالي المصاريف",
+    "ownerAmount": "الصافي للمالك",
+    "expensesList": "المصاريف المنفقة على المركبة",
+    "noExpense": "لا توجد مصاريف على هذه المركبة.",
+    "saleRef": "البيع",
+    "paymentMethod": "طريقة الدفع",
+    "paymentMethodHint": "نقداً، شيك، تحويل...",
+    "note": "ملاحظة",
+    "historyTitle": "تسويات المالك",
+    "none": "لا توجد تسوية",
+    "nonePending": "لا توجد تسوية في الانتظار لهذا العميل."
+  },
+  "print": {
+    "printings": "المطبوعات",
+    "hubTitle": "المطبوعات",
+    "hubHelp": "اختر المستند، اضبط خياراته، ثم لغة الطباعة.",
+    "chooseLang": "لغة المستند",
+    "noDocs": "لا يوجد مستند متاح",
+    "dateTime": "التاريخ و الساعة",
+    "amountReceived": "المبلغ المدفوع",
+    "bonEntree": "وصل دخول + فحص",
+    "bonEntreeDesc": "دخول المركبة إلى المخزون مع تقرير الفحص",
+    "reception": "استمارة استلام المركبة",
+    "receptionDesc": "حالة المركبة و الملحقات المسلّمة",
+    "engagement": "التزام (عقد إيداع)",
+    "engagementDesc": "إيداع المركبة لغرض العرض و التسويق",
+    "fiche": "البطاقة التقنية",
+    "ficheDesc": "مواصفات المركبة و سعر البيع",
+    "purchaseInvoice": "وصل شراء",
+    "purchaseInvoiceDesc": "إثبات شراء المركبة",
+    "factureFinale": "الفاتورة النهائية",
+    "factureFinaleDesc": "فاتورة بيع نهائية (دون الرسم، الرسم، الطابع، الإجمالي)",
+    "factureProforma": "فاتورة أولية",
+    "factureProformaDesc": "عرض سعر للعميل، وثيقة غير محاسبية",
+    "bonVersement": "وصل دفع",
+    "bonVersementDesc": "إيصال تحصيل على البيع",
+    "bonEntreeSortie": "وصل دخول / خروج",
+    "bonEntreeSortieDesc": "خروج المركبة مع الوثائق المسلّمة",
+    "saleInvoice": "فاتورة البيع",
+    "saleInvoiceDesc": "ملخص كامل للبيع و الفحص",
+    "settlement": "وصل تسوية المالك",
+    "settlementDesc": "كشف يُسلَّم لمالك المركبة"
+  },
+  "email": {
+    "action": "إرسال بالبريد الإلكتروني",
+    "title": "إرسال المستندات بالبريد الإلكتروني",
+    "help": "اختر المستندات المراد إرسالها للعميل. تُرسل في رسالة واحدة.",
+    "documents": "المستندات المراد إرسالها",
+    "to": "البريد الإلكتروني للعميل",
+    "subject": "الموضوع",
+    "send": "إرسال",
+    "sender": "المرسل",
+    "sentToast": "تم إرسال البريد للعميل ✓",
+    "failed": "فشل الإرسال",
+    "missingEmail": "أدخل البريد الإلكتروني للعميل.",
+    "missingDocs": "اختر مستنداً واحداً على الأقل.",
+    "subjectFor": "مستندات البيع"
   }
 }
