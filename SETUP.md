@@ -267,6 +267,10 @@ Depuis, `vercel.json` contient un garde-fou : si le build ne démarre pas à la
 racine, l'installation s'interrompt avec un message explicite au lieu d'une
 erreur npm.
 
+> Vercel refuse un `installCommand` de plus de **256 caractères**
+> (« Invalid request: `installCommand` should NOT be longer than 256
+> characters »). Le garde-fou tient dans cette limite — ne pas le rallonger.
+
 ### ⚠️ Panne n°2 : commandes recopiées dans le tableau de bord
 
 Si Install / Build / Output Command sont **surchargées** dans Settings, elles
