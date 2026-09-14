@@ -1,12 +1,8 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Ce dépôt se déploie depuis SA RACINE : Vercel → Root Directory = ./
+# Ce dépôt se déploie depuis SA RACINE : Vercel → Root Directory = VIDE.
 # vercel.json construit frontend/ et publie frontend/dist ; api/ devient les
-# fonctions serverless. Il n'y a AUCUN autre dossier déployable.
+# fonctions serverless. Aucun sous-dossier n'est déployable.
 # ─────────────────────────────────────────────────────────────────────────────
-
-# Ancien serveur Express — remplacé par Supabase, jamais déployé
-# (voir legacy-backend/README.md)
-legacy-backend/
 
 # Scripts SQL : exécutés à la main dans Supabase, inutiles au build
 *.sql

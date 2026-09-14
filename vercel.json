@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "installCommand": "npm --prefix frontend install",
+  "installCommand": "if [ ! -f frontend/package.json ]; then echo ''; echo '======================================================================'; echo ' ERREUR DE CONFIGURATION VERCEL -- Root Directory incorrect'; echo ''; echo ' Ce depot se deploie depuis SA RACINE.'; echo ' Settings > Build and Deployment > Root Directory : doit etre VIDE,'; echo ' et aucun Override sur Install / Build / Output Command.'; echo ''; echo ' Repertoire de build actuel : '$(pwd); echo '======================================================================'; echo ''; exit 1; fi; npm --prefix frontend install",
   "buildCommand": "npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
   "functions": {

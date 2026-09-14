@@ -10,9 +10,10 @@ management web application.
 - **Serverless:** a single function, [`api/send-email.js`](api/send-email.js), proxying Brevo for document emails
 - **Design:** dark luxury crimson glassmorphism, with a light mode
 
-> **There is no server to deploy.** The `legacy-backend/` folder is an obsolete
-> Express + Prisma API kept only for reference — see
-> [`legacy-backend/README.md`](legacy-backend/README.md). Nothing in the app calls it.
+> **There is no server to deploy.** An obsolete Express + Prisma API used to live
+> in `backend/`; it was deleted because it repeatedly got mistaken for a
+> deployable target. It is still in git history if you ever need it:
+> `git checkout f104309 -- legacy-backend`.
 
 ---
 
@@ -45,9 +46,10 @@ all app documentation are in **[SETUP.md](SETUP.md)**.
 `api/` as serverless functions; a rewrite sends every other path to `index.html`
 for client-side routing.
 
-> ⚠️ **Do not** set Root Directory to `legacy-backend` (or the old `backend`)
-> and do not pick the **Express** preset. That folder is excluded by
-> `.vercelignore` and holds dead code — a project rooted there always fails.
+> ⚠️ **Root Directory must be empty.** Pointing it at any subfolder, and picking
+> the **Express** preset, is the single most common way to break this deploy.
+> The install command in `vercel.json` now aborts with an explicit message if
+> the build starts anywhere but the repo root.
 
 Environment variables (Settings → Environment Variables):
 
@@ -113,7 +115,6 @@ Full walkthrough, including recovery from a misconfigured project:
 ├── frontend/         React app (pages, components, store, hooks, i18n, utils)
 │   └── src/lib/      supabase.js (client) + api.js (all data access)
 ├── sql/              Supabase schema, security/RLS, storage buckets
-├── legacy-backend/   ⚠️ obsolete Express + Prisma API — not deployed, reference only
 ├── vercel.json       root deployment config
 └── SETUP.md          full documentation (FR)
 ```

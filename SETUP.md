@@ -208,23 +208,20 @@ Le dépôt se déploie en **un seul projet, depuis la racine**. Il n'y a **aucun
 serveur à héberger** : le navigateur parle directement à Supabase, et la seule
 fonction serveur est `api/send-email.js`.
 
-### Réglages du projet Vercel
+### Les deux règles
 
-| Réglage               | Valeur                              |
-|-----------------------|-------------------------------------|
-| **Framework Preset**  | **Other**                           |
-| **Root Directory**    | **`./`** (la racine — ne pas changer) |
-| Build Command         | *(laisser vide)*                    |
-| Output Directory      | *(laisser vide)*                    |
-| Install Command       | *(laisser vide)*                    |
+1. **Root Directory : VIDE.** Ne jamais le pointer sur un sous-dossier.
+2. **Aucun Override** sur Install / Build / Output Command : ces trois commandes
+   sont déjà dans `vercel.json`, il ne faut **jamais** les recopier dans le
+   tableau de bord.
 
-Les trois commandes viennent de `vercel.json`, il ne faut **rien** surcharger :
-
-```
-installCommand    npm --prefix frontend install
-buildCommand      npm --prefix frontend run build
-outputDirectory   frontend/dist
-```
+| Réglage               | Valeur                          |
+|-----------------------|---------------------------------|
+| Framework Preset      | **Other**                       |
+| **Root Directory**    | **vide**                        |
+| Build Command         | *laisser vide, Override décoché* |
+| Output Directory      | *laisser vide, Override décoché* |
+| Install Command       | *laisser vide, Override décoché* |
 
 `api/send-email.js` est détecté automatiquement comme fonction serverless, et la
 règle `rewrites` renvoie toutes les autres URL vers `index.html` (routage React).
@@ -242,55 +239,59 @@ BREVO_SENDER_NAME    mhd showroom
 Les clés Supabase sont publiques (anon key) et déjà dans le code : rien à
 ajouter pour la base de données.
 
-### ⚠️ Erreur fréquente : « Root Directory » pointé sur le backend
+### ⚠️ Panne n°1 : Root Directory pointé sur un sous-dossier
 
-Créer un projet avec le préréglage **Express** et **Root Directory `backend`**
-échoue systématiquement. Les logs s'arrêtent en 1 seconde, avant même
-l'installation des dépendances :
+Symptôme — le build s'arrête en quelques secondes :
 
 ```
-Cloning github.com/abdouni493/mhd-auto-showroom (Branch: main, Commit: …)
+Running "install" command: `npm --prefix frontend install`...
+npm error path /vercel/path0/<un-sous-dossier>/frontend/package.json
+npm error enoent Could not read package.json
+Error: Command "npm --prefix frontend install" exited with 254
+```
+
+Le chemin `/vercel/path0/<quelque chose>/…` indique que le build ne démarre
+**pas** à la racine. Si le sous-dossier est en plus listé dans `.vercelignore`,
+le build échoue encore plus tôt, sans le moindre message d'installation :
+
+```
 Found .vercelignore (repository root)
 Removed 34 ignored files defined in .vercelignore
-  /backend/package.json
-  /backend/lib/prisma.js
-  ...
 Deployment failed with error.
 ```
 
-Deux raisons :
+**Correction :** Settings → Build and Deployment → **Root Directory** → effacer
+complètement le champ → Save → Redeploy.
 
-1. Ce dossier est listé dans `.vercelignore` — ses fichiers sont retirés **avant**
-   que Vercel n'entre dans le Root Directory. Le dossier arrive donc **vide** sur
-   la machine de build, et il n'y a rien à construire.
-2. Il est de toute façon **obsolète** : l'ancienne API Express + Prisma a été
-   remplacée par Supabase. Aucune page de l'application ne l'appelle.
+Depuis, `vercel.json` contient un garde-fou : si le build ne démarre pas à la
+racine, l'installation s'interrompt avec un message explicite au lieu d'une
+erreur npm.
 
-Le dossier a été renommé `backend/` → `legacy-backend/` précisément pour que ce
-choix ne soit plus proposé à l'import (voir `legacy-backend/README.md`).
+### ⚠️ Panne n°2 : commandes recopiées dans le tableau de bord
 
-> **Important :** le Root Directory est un **réglage du projet Vercel**, pas un
-> fichier du dépôt. Aucun commit, aucun `vercel.json` ne peut le corriger — il
-> faut le changer dans le tableau de bord (ou recréer le projet).
+Si Install / Build / Output Command sont **surchargées** dans Settings, elles
+prennent le pas sur `vercel.json` — et corriger le dépôt ne change alors plus
+rien. Dans **Settings → Build and Deployment → Build & Development Settings**,
+décocher les trois *Override* et laisser les champs vides.
 
 ### Corriger un projet déjà cassé
 
-**Option A — corriger le réglage (30 secondes)**
-
-1. Vercel → le projet → **Settings** → **Build and Deployment**.
-2. Section **Root Directory** : effacer `backend`, laisser **vide** (= `./`).
-3. Section **Framework Settings** : Framework Preset = **Other**, et
-   désactiver les éventuels *Override* sur Build / Output / Install Command.
-4. **Save**, puis **Deployments → le dernier → ⋯ → Redeploy**
-   (décocher « Use existing Build Cache »).
-
-**Option B — repartir d'un projet neuf**
+**Option A — repartir d'un projet neuf (le plus sûr)**
 
 1. Supprimer le projet fautif : **Settings → Advanced → Delete Project**.
 2. **Add New → Project → Import** `mhd-auto-showroom`.
-3. Sur l'écran d'import : **ne pas** cliquer « Edit » à côté de Root Directory —
-   le laisser sur `./`. Framework Preset = **Other**.
+3. Sur l'écran d'import : **ne toucher à rien**. Ne pas cliquer « Edit » à côté
+   de Root Directory, ne rien saisir dans Build and Output Settings.
+   Framework Preset = **Other**.
 4. Ajouter les variables `BREVO_*`, puis **Deploy**.
+
+**Option B — corriger les réglages existants**
+
+1. Settings → Build and Deployment → **Root Directory** → vider le champ.
+2. Même page → **Build & Development Settings** → décocher les trois *Override*.
+3. Settings → General → Framework Preset → **Other**.
+4. Save, puis **Deployments → le dernier → ⋯ → Redeploy**, en décochant
+   « Use existing Build Cache ».
 
 **Option C — en ligne de commande, sans passer par le tableau de bord**
 
@@ -304,11 +305,31 @@ npx vercel --prod
 
 ### Vérifier après déploiement
 
-Les logs d'un déploiement correct contiennent `npm --prefix frontend install`
-puis `vite build` et durent ~1 minute. Ensuite :
+Les logs d'un déploiement correct durent ~1 minute et contiennent :
+
+```
+Running "install" command: `npm --prefix frontend install`...
+added N packages
+Running "build" command: `npm --prefix frontend run build`...
+vite v5.4.21 building for production...
+✓ built in 20s
+```
+
+Ensuite, dans l'application :
 
 1. La page de connexion s'affiche et le login Supabase fonctionne.
 2. Recharger directement une URL interne (`/app/sales`, `/app/showroom`) : pas de
    404 — c'est la règle `rewrites` qui fait son travail.
 3. **Ventes → Envoyer par email** : un envoi réussi confirme que
    `api/send-email.js` et `BREVO_API_KEY` sont bien en place.
+
+### L'ancien serveur Express
+
+Le dossier `backend/` (renommé un temps `legacy-backend/`) contenait une API
+Express + Prisma, remplacée par Supabase. Il a été **supprimé du dépôt** : il
+n'était appelé par aucune page et se faisait régulièrement prendre pour une
+cible de déploiement. Il reste récupérable dans l'historique git :
+
+```bash
+git checkout f104309 -- legacy-backend
+```
