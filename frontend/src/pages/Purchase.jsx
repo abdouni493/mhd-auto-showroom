@@ -634,10 +634,14 @@ export default function Purchase() {
             <Card key={p.id} className="p-4 flex gap-4">
               <div className="w-28 h-20 rounded-lg overflow-hidden shrink-0"><CarImage images={p.car?.images} heightClass="h-20" /></div>
               <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="heading text-sm text-text-primary">{p.car?.brand} {p.car?.model}</p>
-                    <p className="text-xs text-text-muted">{p.car?.plate} · {p.car?.year} · {p.reference}</p>
+                <div className="flex justify-between items-start gap-2">
+                  <div className="min-w-0">
+                    <p className="heading text-sm text-text-primary truncate">
+                      {p.car?.brand} {p.car?.model}{p.car?.color ? ` (${p.car.color})` : ""}
+                    </p>
+                    <p className="text-xs text-text-muted truncate">
+                      {[p.car?.vin, p.car?.year, p.reference].filter(Boolean).join(" · ")}
+                    </p>
                   </div>
                   <ActionMenu items={menuItems(p)} />
                 </div>

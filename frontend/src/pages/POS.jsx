@@ -294,10 +294,11 @@ export default function POS() {
             <Card key={car.id} className="overflow-hidden flex flex-col">
               <CarImage images={car.images} heightClass="h-40" />
               <div className="p-4 flex-1 flex flex-col">
-                <h3 className="heading text-sm text-text-primary truncate">{car.brand} {car.model}</h3>
+                <h3 className="heading text-sm text-text-primary truncate">
+                  {car.brand} {car.model}{car.color ? ` (${car.color})` : ""}
+                </h3>
                 <div className="flex flex-wrap gap-1 my-2">
                   {car.year && <Badge color="muted">{car.year}</Badge>}
-                  {car.color && <Badge color="muted">{car.color}</Badge>}
                   <Badge color="muted">{ENERGY_LABELS[car.energy]}</Badge>
                   {car.purchase?.sourceType === "CLIENT" ? (
                     <Badge color="warning"><User size={10} /> {t("pos.depositCar")}</Badge>
@@ -305,7 +306,7 @@ export default function POS() {
                     <Badge color="accent"><Store size={10} /> {t("purchase.sourceShowroom")}</Badge>
                   ) : null}
                 </div>
-                {car.plate && <p className="text-xs text-text-muted">{car.plate}</p>}
+                {car.vin && <p className="text-xs text-text-muted truncate">{car.vin}</p>}
                 {car.mileage != null && <p className="text-xs text-text-muted mb-2">{formatAmount(car.mileage, "km")}</p>}
                 <div className="mt-auto pt-3">
                   <p className="text-xl font-black text-emerald-400 mb-2">{formatAmount(car.purchase?.sellingPrice)}</p>

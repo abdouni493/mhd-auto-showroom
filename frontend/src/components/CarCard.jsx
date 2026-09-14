@@ -78,14 +78,16 @@ export default function CarCard({ car, onClick, action, actionLabel, price, oldP
         </motion.div>
       </div>
       <div className="p-4 flex-1 flex flex-col">
-        <h3 className="heading text-base text-text-primary truncate">{car.brand} {car.model}</h3>
+        <h3 className="heading text-base text-text-primary truncate">
+          {car.brand} {car.model}{car.color ? ` (${car.color})` : ""}
+        </h3>
         <div className="flex flex-wrap gap-1.5 my-3">
           {car.year && <Badge color="muted"><Calendar size={11} /> {car.year}</Badge>}
           {car.energy && <Badge color="muted"><Fuel size={11} /> {ENERGY_LABELS[car.energy]}</Badge>}
           {car.gearbox && <Badge color="muted"><Cog size={11} /> {GEARBOX_LABELS[car.gearbox]}</Badge>}
           {car.mileage != null && <Badge color="muted"><Gauge size={11} /> {formatAmount(car.mileage, "km")}</Badge>}
         </div>
-        {car.color && <p className="text-xs text-text-muted mb-2">{t("car.color")} : {car.color}</p>}
+        {car.vin && <p className="text-xs text-text-muted mb-2 truncate">{t("car.vin")} : {car.vin}</p>}
 
         <div className="mt-auto pt-3 border-t border-red-600/15">
           {price != null && (
