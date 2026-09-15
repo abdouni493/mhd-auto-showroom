@@ -98,7 +98,7 @@ function DetailView({ detail }) {
   const { car, client, rows } = detail;
   return (
     <div className="space-y-3">
-      {car && <div className="rounded-xl overflow-hidden"><CarImage images={car.images} heightClass="h-40" /></div>}
+      {car && <div className="rounded-xl overflow-hidden"><CarImage images={car.images} heightClass="h-40" zoomable /></div>}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
         {rows.map(([k, v]) => (
           <div key={k} className="flex justify-between text-sm border-b border-red-600/10 py-1.5">

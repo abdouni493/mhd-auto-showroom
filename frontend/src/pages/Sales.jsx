@@ -216,7 +216,7 @@ function SaleEditForm({ sale, onClose, onSaved }) {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
             <Card className="p-4">
               <h4 className="heading text-xs text-text-primary mb-3">{t("common.vehicle")}</h4>
-              <div className="rounded-lg overflow-hidden mb-3"><CarImage images={car.images} heightClass="h-32" /></div>
+              <div className="rounded-lg overflow-hidden mb-3"><CarImage images={car.images} heightClass="h-32" zoomable /></div>
               {[[t("car.brand"), car.brand], [t("car.model"), car.model], [t("car.year"), car.year], [t("car.plate"), car.plate], [t("car.color"), car.color], [t("car.energy"), ENERGY_LABELS[car.energy]], [t("car.gearbox"), GEARBOX_LABELS[car.gearbox]], [t("car.mileage"), car.mileage]].map(([k, v]) => (
                 <div key={k} className="flex justify-between text-xs py-0.5"><span className="text-text-muted">{k}</span><span className="text-text-primary">{v ?? "—"}</span></div>
               ))}
@@ -496,7 +496,7 @@ export default function Sales() {
       <Modal open={!!viewItem} onClose={() => setViewItem(null)} title={t("sales.detail")} size="lg">
         {viewItem && (
           <div className="space-y-3">
-            <div className="rounded-xl overflow-hidden"><CarImage images={viewItem.car?.images} heightClass="h-44" /></div>
+            <div className="rounded-xl overflow-hidden"><CarImage images={viewItem.car?.images} heightClass="h-44" zoomable /></div>
 
             {/* Financial Summary & Gain Card */}
             <div className="glass-card p-3.5 rounded-xl border border-red-600/20 bg-gradient-to-r from-red-950/30 via-black/40 to-red-950/20 space-y-2">

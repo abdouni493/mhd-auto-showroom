@@ -56,7 +56,7 @@ export default function CarDetail() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="glass-card overflow-hidden">
-            <CarImage images={car.images} heightClass="h-72" />
+            <CarImage images={car.images} heightClass="h-72" zoomable />
           </div>
           <div>
             <h1 className="heading text-3xl text-text-primary">{car.brand} {car.model}</h1>

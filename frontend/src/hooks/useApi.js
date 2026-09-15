@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase, getPublicUrl, guessContentType, requireSession, BUCKETS } from "../lib/supabase.js";
+import { compressForBucket, extForType } from "../lib/imageCompression.js";
 
 // Generic data hook. Takes an async fetch function (was a URL string before).
 export function useFetch(fetchFn, deps = []) {
@@ -35,12 +36,16 @@ export function useFetch(fetchFn, deps = []) {
 export async function uploadImages(files, bucket = BUCKETS.carImages) {
   await requireSession();
   const urls = [];
-  for (const file of files) {
-    const ext = (file.name.split(".").pop() || "bin").toLowerCase();
+  for (const original of files) {
+    // Optimise in the browser first (10 MB → ~1 MB), then upload the small one.
+    const file = await compressForBucket(original, bucket);
+    const contentType = file.type || guessContentType(file);
+    const fallbackExt = (original.name.split(".").pop() || "bin").toLowerCase();
+    const ext = extForType(contentType, fallbackExt);
     const path = `uploads/${crypto.randomUUID()}.${ext}`;
     const { data, error } = await supabase.storage
       .from(bucket)
-      .upload(path, file, { upsert: true, contentType: guessContentType(file) });
+      .upload(path, file, { upsert: true, contentType });
     if (error) throw error;
     urls.push(getPublicUrl(bucket, data.path));
   }

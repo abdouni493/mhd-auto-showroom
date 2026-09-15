@@ -1,10 +1,14 @@
 import { useState, useRef } from "react";
-import { UploadCloud, X, ImageIcon } from "lucide-react";
+import { UploadCloud, X, ImageIcon, Maximize2 } from "lucide-react";
 import { uploadImages } from "../hooks/useApi.js";
+import Lightbox from "./Lightbox.jsx";
 
-// Multiple image upload with previews. value = array of urls
+// Multiple image upload with previews. value = array of urls.
+// Each picked file is optimised in the browser (see lib/imageCompression.js)
+// before it reaches Supabase, so a heavy phone photo lands as a light WebP.
 export function MultiImageUpload({ value = [], onChange, bucket }) {
   const [uploading, setUploading] = useState(false);
+  const [preview, setPreview] = useState(null); // lightbox index
   const inputRef = useRef();
 
   const handleFiles = async (files) => {
@@ -33,8 +37,9 @@ export function MultiImageUpload({ value = [], onChange, bucket }) {
       >
         <UploadCloud className="mx-auto text-red-500 mb-2" size={32} />
         <p className="text-sm text-text-muted">
-          {uploading ? "Téléchargement..." : "Glissez des images ici ou cliquez pour parcourir"}
+          {uploading ? "Optimisation et téléchargement..." : "Glissez des images ici ou cliquez pour parcourir"}
         </p>
+        <p className="text-[0.7rem] text-text-muted/70 mt-1">Les images sont automatiquement optimisées avant l'envoi.</p>
         <input
           ref={inputRef}
           type="file"
@@ -48,11 +53,18 @@ export function MultiImageUpload({ value = [], onChange, bucket }) {
       {value.length > 0 && (
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mt-3">
           {value.map((url, i) => (
-            <div key={i} className="relative group aspect-[4/3] rounded-lg overflow-hidden border border-red-600/30">
-              <img src={url} alt="" className="w-full h-full object-cover" />
+            <div
+              key={i}
+              onClick={() => setPreview(i)}
+              className="relative group aspect-[4/3] rounded-lg overflow-hidden border border-red-600/30 bg-gradient-to-br from-red-950/40 to-black cursor-zoom-in"
+            >
+              <img src={url} alt="" className="w-full h-full object-contain" />
+              <div className="absolute bottom-1 left-1 bg-black/55 rounded p-1 text-white/90 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                <Maximize2 size={12} />
+              </div>
               <button
                 type="button"
-                onClick={() => onChange(value.filter((_, idx) => idx !== i))}
+                onClick={(e) => { e.stopPropagation(); onChange(value.filter((_, idx) => idx !== i)); }}
                 className="absolute top-1 right-1 bg-black/70 rounded-full p-1 text-white opacity-0 group-hover:opacity-100 transition"
               >
                 <X size={14} />
@@ -61,6 +73,8 @@ export function MultiImageUpload({ value = [], onChange, bucket }) {
           ))}
         </div>
       )}
+
+      {preview != null && <Lightbox images={value} index={preview} onClose={() => setPreview(null)} />}
     </div>
   );
 }

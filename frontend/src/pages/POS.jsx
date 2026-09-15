@@ -162,7 +162,7 @@ function SaleFlow({ car, onClose, onCreated }) {
             {/* Vehicle summary */}
             <Card className="p-4">
               <h4 className="heading text-xs text-text-primary mb-3">{t("common.vehicle")}</h4>
-              <div className="rounded-lg overflow-hidden mb-3"><CarImage images={car.images} heightClass="h-32" /></div>
+              <div className="rounded-lg overflow-hidden mb-3"><CarImage images={car.images} heightClass="h-32" zoomable /></div>
               {[[t("car.brand"), car.brand], [t("car.model"), car.model], [t("car.year"), car.year], [t("car.plate"), car.plate], [t("car.color"), car.color], [t("car.energy"), ENERGY_LABELS[car.energy]], [t("car.gearbox"), GEARBOX_LABELS[car.gearbox]], [t("car.mileage"), car.mileage]].map(([k, v]) => (
                 <div key={k} className="flex justify-between text-xs py-0.5"><span className="text-text-muted">{k}</span><span className="text-text-primary">{v ?? "—"}</span></div>
               ))}
@@ -293,7 +293,7 @@ export default function POS() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
           {filtered.map((car) => (
             <Card key={car.id} className="overflow-hidden flex flex-col">
-              <CarImage images={car.images} heightClass="h-40" />
+              <CarImage images={car.images} heightClass="h-40" zoomable />
               <div className="p-4 flex-1 flex flex-col">
                 <h3 className="heading text-sm text-text-primary truncate">
                   {car.brand} {car.model}{car.color ? ` (${car.color})` : ""}

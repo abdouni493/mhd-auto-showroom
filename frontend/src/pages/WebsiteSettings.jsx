@@ -24,7 +24,7 @@ function Offers() {
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
       {offers.map((c) => (
         <Card key={c.id} className="overflow-hidden">
-          <CarImage images={c.images} heightClass="h-40" />
+          <CarImage images={c.images} heightClass="h-40" zoomable />
           <div className="p-4">
             <div className="flex justify-between items-start mb-2">
               <div><p className="heading text-sm text-text-primary">{c.brand} {c.model}</p><p className="text-xs text-text-muted">{c.year}</p></div>
@@ -69,7 +69,7 @@ function SpecialOffers() {
             const cd = countdown(o.endDate);
             return (
               <Card key={o.id} className="overflow-hidden">
-                <CarImage images={o.car?.images} heightClass="h-40" />
+                <CarImage images={o.car?.images} heightClass="h-40" zoomable />
                 <div className="p-4">
                   <p className="heading text-sm text-text-primary">{o.car?.brand} {o.car?.model}</p>
                   <div className="my-2">

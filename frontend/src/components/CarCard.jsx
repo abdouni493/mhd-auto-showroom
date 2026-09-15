@@ -1,14 +1,27 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import { Car, ChevronLeft, ChevronRight, Gauge, Fuel, Cog, Calendar } from "lucide-react";
+import { Car, ChevronLeft, ChevronRight, Gauge, Fuel, Cog, Calendar, Maximize2 } from "lucide-react";
 import { Badge } from "./ui.jsx";
+import Lightbox from "./Lightbox.jsx";
 import { formatAmount, ENERGY_LABELS, GEARBOX_LABELS, STATUS_LABELS, STATUS_COLORS } from "../utils/format.js";
 
-export function CarImage({ images = [], className = "", heightClass = "h-44" }) {
+// Displays a car photo (with left/right navigation when there are several).
+//
+//  • fit="contain" (default) shows the WHOLE picture at its real proportions —
+//    never cropped or "zoomed in" — with the branded backdrop filling any gap,
+//    so a card looks the same regardless of the photo's aspect ratio. Pass
+//    fit="cover" only where a tightly-cropped fill is deliberately wanted.
+//  • zoomable=true lets the visitor click the photo to open it full-screen at
+//    its true dimensions (with click-to-zoom). Enable it on detail views, not
+//    on cards whose own click already navigates somewhere.
+export function CarImage({ images = [], className = "", heightClass = "h-44", fit = "contain", zoomable = false }) {
   const [[idx, dir], setState] = useState([0, 0]);
+  const [lightbox, setLightbox] = useState(false);
   const hasImages = images && images.length > 0;
   const go = (delta) => setState(([i]) => [(i + delta + images.length) % images.length, delta]);
+  const objectFit = fit === "cover" ? "object-cover" : "object-contain";
+  const canZoom = zoomable && hasImages;
 
   return (
     <div className={`relative ${heightClass} bg-gradient-to-br from-red-950/40 to-black overflow-hidden group ${className}`}>
@@ -23,7 +36,8 @@ export function CarImage({ images = [], className = "", heightClass = "h-44" }) 
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: dir > 0 ? -40 : 40 }}
             transition={{ duration: 0.25, ease: "easeInOut" }}
-            className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            onClick={canZoom ? (e) => { e.stopPropagation(); setLightbox(true); } : undefined}
+            className={`absolute inset-0 w-full h-full ${objectFit} transition-transform duration-500 group-hover:scale-105 ${canZoom ? "cursor-zoom-in" : ""}`}
           />
         </AnimatePresence>
       ) : (
@@ -34,6 +48,11 @@ export function CarImage({ images = [], className = "", heightClass = "h-44" }) 
           <motion.div animate={{ opacity: [0.3, 0.5, 0.3] }} transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}>
             <Car size={48} className="text-red-600/40" />
           </motion.div>
+        </div>
+      )}
+      {canZoom && (
+        <div className="absolute top-2 right-2 z-10 bg-black/55 rounded-lg p-1.5 text-white/90 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          <Maximize2 size={14} />
         </div>
       )}
       {hasImages && images.length > 1 && (
@@ -51,6 +70,7 @@ export function CarImage({ images = [], className = "", heightClass = "h-44" }) 
           </div>
         </>
       )}
+      {lightbox && <Lightbox images={images} index={idx} onClose={() => setLightbox(false)} />}
     </div>
   );
 }

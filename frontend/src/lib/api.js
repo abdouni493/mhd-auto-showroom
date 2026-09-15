@@ -1,4 +1,5 @@
 import { supabase, uploadFile, toCamel, BUCKETS, createIsolatedClient } from "./supabase.js";
+import { compressForBucket, extForType } from "./imageCompression.js";
 
 // ── Reads come back snake_case from PostgREST; the whole app expects camelCase.
 //    `toCamel` converts globally; the small `shape*` helpers below fix the few
@@ -301,8 +302,9 @@ export const settingsApi = {
     return shapeSettings(data);
   },
   async uploadLogo(file) {
-    const ext = file.name.split(".").pop();
-    return uploadFile(BUCKETS.showroomLogo, `logo-${Date.now()}.${ext}`, file);
+    const small = await compressForBucket(file, BUCKETS.showroomLogo);
+    const ext = extForType(small.type, (file.name.split(".").pop() || "png").toLowerCase());
+    return uploadFile(BUCKETS.showroomLogo, `logo-${Date.now()}.${ext}`, small);
   },
   // Export the main tables as a JSON object (Database tab → Backup).
   async backup() {
@@ -461,17 +463,19 @@ export const carsApi = {
   },
   async uploadImages(carId, files) {
     const urls = [];
-    for (const file of files) {
-      const ext = file.name.split(".").pop();
+    for (const original of files) {
+      const file = await compressForBucket(original, BUCKETS.carImages);
+      const ext = extForType(file.type, (original.name.split(".").pop() || "jpg").toLowerCase());
       const path = `${carId}/${crypto.randomUUID()}.${ext}`;
       urls.push(await uploadFile(BUCKETS.carImages, path, file));
     }
     return urls;
   },
   async uploadDocument(carId, file) {
-    const ext = file.name.split(".").pop();
+    const small = await compressForBucket(file, BUCKETS.carDocuments);
+    const ext = extForType(small.type, (file.name.split(".").pop() || "jpg").toLowerCase());
     const path = `${carId || "new"}/${crypto.randomUUID()}.${ext}`;
-    return uploadFile(BUCKETS.carDocuments, path, file);
+    return uploadFile(BUCKETS.carDocuments, path, small);
   },
   async getDocumentTypes() {
     const { data } = await supabase.from("car_document_types").select("*").order("name");
@@ -1011,9 +1015,10 @@ export const clientsApi = {
     };
   },
   async uploadPhoto(clientId, file) {
-    const ext = file.name.split(".").pop();
+    const small = await compressForBucket(file, BUCKETS.clientPhotos);
+    const ext = extForType(small.type, (file.name.split(".").pop() || "jpg").toLowerCase());
     const path = `${clientId || "new"}/${crypto.randomUUID()}.${ext}`;
-    return uploadFile(BUCKETS.clientPhotos, path, file);
+    return uploadFile(BUCKETS.clientPhotos, path, small);
   },
 };
 

@@ -50,7 +50,7 @@ function CarDetail({ car }) {
   return (
     <div>
       <div className="rounded-xl overflow-hidden mb-5">
-        <CarImage images={car.images} heightClass="h-56" />
+        <CarImage images={car.images} heightClass="h-56" zoomable />
       </div>
 
       <Section title={t("showroom.sectionVehicle")}>

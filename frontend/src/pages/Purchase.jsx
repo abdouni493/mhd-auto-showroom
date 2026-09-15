@@ -700,7 +700,7 @@ export default function Purchase() {
       <Modal open={!!viewItem} onClose={() => setViewItem(null)} title={t("purchase.detail")} size="lg">
         {viewItem && (
           <div className="space-y-3">
-            <div className="rounded-xl overflow-hidden"><CarImage images={viewItem.car?.images} heightClass="h-48" /></div>
+            <div className="rounded-xl overflow-hidden"><CarImage images={viewItem.car?.images} heightClass="h-48" zoomable /></div>
             <div className="grid grid-cols-2 gap-x-6">
               {Object.entries({
                 [t("purchase.reference")]: viewItem.reference, [t("common.date")]: formatDate(viewItem.date),

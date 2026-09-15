@@ -142,7 +142,7 @@ function CarDetailContent({ data, onReserve }) {
   ].filter(([, v]) => v != null && v !== "");
   return (
     <div className="space-y-4">
-      <div className="rounded-xl overflow-hidden"><CarImage images={car.images} heightClass="h-64" /></div>
+      <div className="rounded-xl overflow-hidden"><CarImage images={car.images} heightClass="h-64" zoomable /></div>
       <div className="flex items-end justify-between">
         <h3 className="heading text-xl text-text-primary">{car.brand} {car.model}</h3>
         <div className="text-right">

@@ -150,7 +150,7 @@ export default function Payments() {
       <Modal open={!!viewItem} onClose={() => setViewItem(null)} title={t("payments.detail")} size="sm">
         {viewItem && (
           <div className="space-y-2">
-            <div className="rounded-xl overflow-hidden mb-2"><CarImage images={viewItem.car?.images} heightClass="h-36" /></div>
+            <div className="rounded-xl overflow-hidden mb-2"><CarImage images={viewItem.car?.images} heightClass="h-36" zoomable /></div>
             {Object.entries({ [t("common.vehicle")]: `${viewItem.car?.brand} ${viewItem.car?.model}`, [t("car.plate")]: viewItem.car?.plate, [t("common.client")]: `${viewItem.client?.firstName} ${viewItem.client?.lastName}`, [t("common.amount")]: formatAmount(viewItem.amount), [t("common.date")]: formatDate(viewItem.date), [t("common.description")]: viewItem.description }).map(([k, v]) => <div key={k} className="flex justify-between text-sm border-b border-red-600/10 py-1.5"><span className="text-text-muted">{k}</span><span className="text-text-primary">{v || "—"}</span></div>)}
             <button className="btn-ghost w-full mt-2" onClick={() => doPrint(viewItem)}><Printer size={14} /> {t("common.print")}</button>
           </div>
