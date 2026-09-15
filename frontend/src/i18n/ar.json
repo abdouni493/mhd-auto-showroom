@@ -21,7 +21,8 @@
     "management": "الإدارة",
     "language": "اللغة",
     "lightMode": "الوضع الفاتح",
-    "darkMode": "الوضع الداكن"
+    "darkMode": "الوضع الداكن",
+    "viewWebsite": "زيارة الموقع"
   },
   "caisse": {
     "lockTitle": "الصندوق محمي",

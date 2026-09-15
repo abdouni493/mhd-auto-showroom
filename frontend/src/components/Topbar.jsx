@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "framer-motion";
-import { Menu, Sun, Moon, Languages, HandCoins } from "lucide-react";
+import { Menu, Sun, Moon, Languages, HandCoins, Globe } from "lucide-react";
 import { useStore } from "../store/useStore.js";
 import { useCan } from "../lib/permissions.js";
 
@@ -61,6 +61,20 @@ export default function Topbar({ onMenu }) {
           </motion.button>
         )}
       </AnimatePresence>
+
+      {/* Open the public showroom website in a new browser tab */}
+      <motion.a
+        href="/website"
+        target="_blank"
+        rel="noopener noreferrer"
+        whileHover={{ scale: 1.06 }}
+        whileTap={{ scale: 0.94 }}
+        title={t("nav.viewWebsite")}
+        aria-label={t("nav.viewWebsite")}
+        className="w-9 h-9 rounded-xl border border-red-600/30 flex items-center justify-center text-text-muted hover:text-text-primary hover:border-red-600 transition-colors"
+      >
+        <Globe size={17} />
+      </motion.a>
 
       <motion.button
         onClick={toggleLang}

@@ -21,7 +21,8 @@
     "management": "Management",
     "language": "Langue",
     "lightMode": "Mode clair",
-    "darkMode": "Mode sombre"
+    "darkMode": "Mode sombre",
+    "viewWebsite": "Voir le site web"
   },
   "caisse": {
     "lockTitle": "Caisse protégée",
