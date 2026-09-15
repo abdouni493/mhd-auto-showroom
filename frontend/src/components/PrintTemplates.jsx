@@ -208,7 +208,15 @@ Le client reconnaît avoir été informé de cette condition avant le versement 
 export const tr = (lang) => L[lang] || L.fr;
 export const isAr = (lang) => lang === "ar";
 
-export function sheetStyle(lang) {
+// A4 portrait printable height = 297mm − 10mm top − 10mm bottom margin.
+// A hair under 277mm so rounding never spills a blank second page.
+export const SHEET_FILL_HEIGHT = "276mm";
+
+// `fill` turns the sheet into a full-page flex column whose blocks spread out
+// to occupy the whole sheet — big, evenly spaced, with no empty band left at the
+// bottom. Used by every single-page document; the multi-page table reports keep
+// the default flow so they paginate normally.
+export function sheetStyle(lang, fill = false) {
   return {
     fontFamily: isAr(lang)
       ? "'Segoe UI', Tahoma, Arial, sans-serif"
@@ -218,10 +226,18 @@ export function sheetStyle(lang) {
     width: "190mm",
     margin: "0 auto",
     padding: "0",
-    fontSize: "11px",
-    lineHeight: 1.4,
+    fontSize: "13px",
+    lineHeight: 1.5,
     direction: isAr(lang) ? "rtl" : "ltr",
     textAlign: isAr(lang) ? "right" : "left",
+    ...(fill
+      ? {
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          minHeight: SHEET_FILL_HEIGHT,
+        }
+      : {}),
     ...exact,
   };
 }
@@ -234,9 +250,9 @@ export function Frame({ title, children, style }) {
         style={{
           background: ACCENT,
           color: "#fff",
-          padding: "4px 9px",
+          padding: "6px 12px",
           fontWeight: 800,
-          fontSize: "9.5px",
+          fontSize: "11.5px",
           textTransform: "uppercase",
           letterSpacing: "0.05em",
           ...exact,
@@ -244,7 +260,7 @@ export function Frame({ title, children, style }) {
       >
         {title}
       </div>
-      <div style={{ padding: "7px 9px" }}>{children}</div>
+      <div style={{ padding: "10px 12px" }}>{children}</div>
     </div>
   );
 }
@@ -257,17 +273,17 @@ export function Row({ label, value, strong, last, lang }) {
         display: "flex",
         justifyContent: "space-between",
         gap: 10,
-        padding: "2.5px 0",
+        padding: "4px 0",
         borderBottom: last ? "none" : `1px dotted ${LINE}`,
       }}
     >
-      <span style={{ color: MUTE, whiteSpace: "nowrap" }}>{label}</span>
-      <span style={{ fontWeight: strong ? 800 : 600, textAlign: isAr(lang) ? "left" : "right", ...ltr }}>{v}</span>
+      <span style={{ color: MUTE, whiteSpace: "nowrap", fontSize: "12.5px" }}>{label}</span>
+      <span style={{ fontWeight: strong ? 800 : 600, fontSize: "12.5px", textAlign: isAr(lang) ? "left" : "right", ...ltr }}>{v}</span>
     </div>
   );
 }
 
-export const grid2 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "9px" };
+export const grid2 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" };
 
 // ── Header (full logo, no frame) + showroom legal block ───────────────────
 export function Header({ showroom, lang }) {
@@ -291,20 +307,20 @@ export function Header({ showroom, lang }) {
         justifyContent: "space-between",
         alignItems: "center",
         borderBottom: `2.5px solid ${ACCENT}`,
-        paddingBottom: 9,
-        marginBottom: 10,
+        paddingBottom: 10,
+        marginBottom: 12,
         ...exact,
       }}
     >
-      <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
-        <PrintLogo src={showroom?.logo} size={58} />
+      <div style={{ display: "flex", gap: 14, alignItems: "center", minWidth: 0 }}>
+        <PrintLogo src={showroom?.logo} size={66} />
         <div style={{ minWidth: 0, textAlign: isAr(lang) ? "right" : "left" }}>
-          <div style={{ fontWeight: 900, fontSize: 17, textTransform: "uppercase", color: ACCENT, letterSpacing: "0.02em", ...ltr }}>
+          <div style={{ fontWeight: 900, fontSize: 21, textTransform: "uppercase", color: ACCENT, letterSpacing: "0.02em", ...ltr }}>
             {showroom?.name || "Showroom"}
           </div>
-          {showroom?.description && <div style={{ color: MUTE, fontSize: 9.5, ...ltr }}>{showroom.description}</div>}
+          {showroom?.description && <div style={{ color: MUTE, fontSize: 11, ...ltr }}>{showroom.description}</div>}
           {contactItems.length > 0 && (
-            <div style={{ color: MUTE, fontSize: 9.5, marginTop: 2 }}>
+            <div style={{ color: MUTE, fontSize: 11, marginTop: 3 }}>
               {contactItems.map((el, i) => (
                 <span key={i}>{i > 0 ? "   ·   " : ""}{el}</span>
               ))}
@@ -313,7 +329,7 @@ export function Header({ showroom, lang }) {
         </div>
       </div>
       {legal.length > 0 && (
-        <div style={{ textAlign: isAr(lang) ? "left" : "right", fontSize: 9, color: MUTE, lineHeight: 1.5, whiteSpace: "nowrap", ...ltr }}>
+        <div style={{ textAlign: isAr(lang) ? "left" : "right", fontSize: 10.5, color: MUTE, lineHeight: 1.55, whiteSpace: "nowrap", ...ltr }}>
           {legal.map(([k, v]) => (
             <div key={k}>
               {k} : <b style={{ color: INK }}>{v}</b>
@@ -339,19 +355,19 @@ export function TitleBar({ title, reference, date, extra, lang }) {
         border: `1px solid ${LINE}`,
         ...accentSide,
         borderRadius: 6,
-        padding: "7px 12px",
-        marginBottom: 10,
+        padding: "10px 15px",
+        marginBottom: 12,
         ...exact,
       }}
     >
       <div>
-        <div style={{ fontWeight: 900, fontSize: 14, textTransform: "uppercase", color: ACCENT, letterSpacing: "0.03em" }}>
+        <div style={{ fontWeight: 900, fontSize: 18, textTransform: "uppercase", color: ACCENT, letterSpacing: "0.03em" }}>
           {title}
         </div>
-        {extra && <div style={{ fontSize: 9.5, color: MUTE, marginTop: 1 }}>{extra}</div>}
+        {extra && <div style={{ fontSize: 11, color: MUTE, marginTop: 2 }}>{extra}</div>}
       </div>
-      <div style={{ textAlign: isAr(lang) ? "left" : "right", fontSize: 10 }}>
-        <div style={{ fontSize: 12 }}>
+      <div style={{ textAlign: isAr(lang) ? "left" : "right", fontSize: 12 }}>
+        <div style={{ fontSize: 14 }}>
           {x.docNo} <b style={ltr}>{reference}</b>
         </div>
         <div style={{ color: MUTE, ...ltr, textAlign: isAr(lang) ? "left" : "right" }}>{date}</div>
@@ -434,21 +450,21 @@ export function MoneyFrame({ title, lines, total, rest, lang }) {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginTop: 6,
-          padding: "6px 9px",
+          marginTop: 8,
+          padding: "9px 12px",
           background: SOFT,
           borderRadius: 5,
           border: `1px solid ${LINE}`,
           ...exact,
         }}
       >
-        <span style={{ fontWeight: 800, textTransform: "uppercase", fontSize: 10 }}>{total.label}</span>
-        <span style={{ fontWeight: 900, fontSize: 15, color: ACCENT, ...ltr }}>{total.value}</span>
+        <span style={{ fontWeight: 800, textTransform: "uppercase", fontSize: 12.5 }}>{total.label}</span>
+        <span style={{ fontWeight: 900, fontSize: 20, color: ACCENT, ...ltr }}>{total.value}</span>
       </div>
       {rest && (
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5, padding: "0 2px" }}>
-          <span style={{ fontWeight: 700, color: MUTE }}>{rest.label}</span>
-          <span style={{ fontWeight: 900, color: rest.danger ? ACCENT : "#047857", ...ltr }}>{rest.value}</span>
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 7, padding: "0 2px" }}>
+          <span style={{ fontWeight: 700, color: MUTE, fontSize: 12.5 }}>{rest.label}</span>
+          <span style={{ fontWeight: 900, fontSize: 13.5, color: rest.danger ? ACCENT : "#047857", ...ltr }}>{rest.value}</span>
         </div>
       )}
     </Frame>
@@ -471,18 +487,18 @@ export function InspectionBlock({ inspection, lang }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 14px" }}>
         {cats.map(([label, arr]) => (
           <div key={label}>
-            <div style={{ fontWeight: 800, textTransform: "uppercase", fontSize: 9, color: ACCENT, borderBottom: `1px solid ${LINE}`, paddingBottom: 2, marginBottom: 3 }}>
+            <div style={{ fontWeight: 800, textTransform: "uppercase", fontSize: 11, color: ACCENT, borderBottom: `1px solid ${LINE}`, paddingBottom: 3, marginBottom: 4 }}>
               {label}
             </div>
             {!arr || arr.length === 0 ? (
               <div style={{ color: MUTE }}>—</div>
             ) : (
               arr.map((it, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, padding: "1px 0" }}>
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 5, padding: "2px 0" }}>
                   <span style={{ fontWeight: 900, fontFamily: "monospace", color: it.active ? "#047857" : ACCENT, ...exact }}>
                     {it.active ? "✓" : "✗"}
                   </span>
-                  <span style={{ textDecoration: it.active ? "none" : "line-through", color: it.active ? INK : MUTE, fontSize: 10 }}>
+                  <span style={{ textDecoration: it.active ? "none" : "line-through", color: it.active ? INK : MUTE, fontSize: 11.5 }}>
                     {it.label}
                   </span>
                 </div>
@@ -506,7 +522,7 @@ export function ConditionsBlock({ lang, showroom }) {
   return (
     <div style={{ marginTop: 8, breakInside: "avoid" }}>
       <Frame title={x.depositConditionsTitle} style={{ padding: 0 }}>
-        <div style={{ fontSize: 10, color: INK, whiteSpace: "pre-line", lineHeight: 1.25 }}>
+        <div style={{ fontSize: 11, color: INK, whiteSpace: "pre-line", lineHeight: 1.35 }}>
           <div style={{ marginBottom: 6 }}>{text}</div>
           <div style={{ fontWeight: 800 }}>{x.depositManualMention}</div>
         </div>
@@ -520,15 +536,15 @@ export function Signatures({ left, right }) {
   const box = {
     border: `1px solid ${LINE}`,
     borderRadius: 6,
-    height: 64,
+    height: 92,
     display: "flex",
     flexDirection: "column",
     justifyContent: "flex-end",
-    padding: "6px 9px",
+    padding: "8px 11px",
   };
-  const cap = { borderTop: `1px solid ${MUTE}`, paddingTop: 3, textAlign: "center", fontSize: 9.5, color: MUTE, textTransform: "uppercase", fontWeight: 700 };
+  const cap = { borderTop: `1px solid ${MUTE}`, paddingTop: 5, textAlign: "center", fontSize: 11.5, color: MUTE, textTransform: "uppercase", fontWeight: 700 };
   return (
-    <div style={{ ...grid2, marginTop: 12, breakInside: "avoid" }}>
+    <div style={{ ...grid2, marginTop: 14, breakInside: "avoid" }}>
       <div style={box}><div style={cap}>{left}</div></div>
       <div style={box}><div style={cap}>{right}</div></div>
     </div>
@@ -538,7 +554,7 @@ export function Signatures({ left, right }) {
 export function Footer({ showroom, lang }) {
   const x = tr(lang);
   return (
-    <div style={{ marginTop: 10, paddingTop: 6, borderTop: `1px solid ${LINE}`, display: "flex", justifyContent: "space-between", fontSize: 8.5, color: MUTE }}>
+    <div style={{ marginTop: 12, paddingTop: 8, borderTop: `1px solid ${LINE}`, display: "flex", justifyContent: "space-between", fontSize: 10.5, color: MUTE }}>
       <span><span style={ltr}>{showroom?.name || "Showroom"}</span> — {x.thanks}</span>
       <span>{x.generatedOn} <span style={ltr}>{formatDate(new Date())}</span></span>
     </div>
@@ -552,7 +568,7 @@ export function PurchaseInvoice({ purchase, showroom, lang = "fr" }) {
   const x = tr(lang);
   const isClient = purchase.sourceType === "CLIENT";
   return (
-    <div style={sheetStyle(lang)}>
+    <div style={sheetStyle(lang, true)}>
       <Header showroom={showroom} lang={lang} />
       <TitleBar
         lang={lang}
@@ -605,7 +621,7 @@ export function SaleInvoice({ sale, showroom, lang = "fr" }) {
   lines.push({ label: x.deposit, value: formatAmount(sale.amountPaid) });
 
   return (
-    <div style={sheetStyle(lang)}>
+    <div style={sheetStyle(lang, true)}>
       <Header showroom={showroom} lang={lang} />
       <TitleBar
         lang={lang}
@@ -646,7 +662,7 @@ export function SaleInvoice({ sale, showroom, lang = "fr" }) {
 export function PaymentReceipt({ payment, showroom, history = [], lang = "fr" }) {
   const x = tr(lang);
   return (
-    <div style={sheetStyle(lang)}>
+    <div style={sheetStyle(lang, true)}>
       <Header showroom={showroom} lang={lang} />
       <TitleBar lang={lang} title={x.receiptTitle} reference={payment.id} date={formatDateTime(payment.date)} />
       <div style={grid2}>
@@ -695,10 +711,10 @@ export function StatBox({ label, value, accent }) {
         ...exact,
       }}
     >
-      <div style={{ fontSize: 8.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: accent ? "rgba(255,255,255,0.85)" : MUTE }}>
+      <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: accent ? "rgba(255,255,255,0.85)" : MUTE }}>
         {label}
       </div>
-      <div style={{ fontWeight: 900, fontSize: 13, marginTop: 1, ...ltr, textAlign: "inherit" }}>{value}</div>
+      <div style={{ fontWeight: 900, fontSize: 15, marginTop: 2, ...ltr, textAlign: "inherit" }}>{value}</div>
     </div>
   );
 }
@@ -742,8 +758,8 @@ export function ExpensesReport({ expenses = [], showroom, from, to, scope = "ALL
   const th = {
     background: ACCENT,
     color: "#fff",
-    padding: "5px 7px",
-    fontSize: 9,
+    padding: "7px 9px",
+    fontSize: 10.5,
     fontWeight: 800,
     textTransform: "uppercase",
     letterSpacing: "0.04em",
@@ -752,13 +768,13 @@ export function ExpensesReport({ expenses = [], showroom, from, to, scope = "ALL
     ...exact,
   };
   const td = {
-    padding: "4px 7px",
+    padding: "6px 9px",
     border: `1px solid ${LINE}`,
-    fontSize: 10,
+    fontSize: 11.5,
     verticalAlign: "top",
     textAlign: alignStart,
   };
-  const tf = { ...td, background: SOFT, fontWeight: 900, fontSize: 11, border: `1px solid ${LINE}`, ...exact };
+  const tf = { ...td, background: SOFT, fontWeight: 900, fontSize: 12.5, border: `1px solid ${LINE}`, ...exact };
 
   return (
     <div style={sheetStyle(lang)}>
@@ -781,13 +797,13 @@ export function ExpensesReport({ expenses = [], showroom, from, to, scope = "ALL
         }}
       >
         <div>
-          <div style={{ fontWeight: 900, fontSize: 14, textTransform: "uppercase", color: ACCENT, letterSpacing: "0.03em" }}>
+          <div style={{ fontWeight: 900, fontSize: 18, textTransform: "uppercase", color: ACCENT, letterSpacing: "0.03em" }}>
             {x.expensesTitle}
           </div>
-          <div style={{ fontSize: 9.5, color: MUTE, marginTop: 1 }}>{scopeLabel}</div>
+          <div style={{ fontSize: 11, color: MUTE, marginTop: 2 }}>{scopeLabel}</div>
         </div>
-        <div style={{ textAlign: alignEnd, fontSize: 10 }}>
-          <div style={{ fontSize: 11, fontWeight: 800 }}>
+        <div style={{ textAlign: alignEnd, fontSize: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 800 }}>
             {x.period} :{" "}
             <span style={ltr}>
               {formatDate(from)} — {formatDate(to)}
@@ -808,7 +824,7 @@ export function ExpensesReport({ expenses = [], showroom, from, to, scope = "ALL
       </div>
 
       {/* Detail table */}
-      <div style={{ fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: ACCENT, marginBottom: 4 }}>
+      <div style={{ fontWeight: 900, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.05em", color: ACCENT, marginBottom: 5 }}>
         {x.detailTitle}
       </div>
 
@@ -914,7 +930,7 @@ export function CashTransactionInvoice({ transaction, showroom, lang = "fr" }) {
   const partyName = `${c.firstName || ""} ${c.lastName || ""}`.trim() || t.clientName;
 
   return (
-    <div style={sheetStyle(lang)}>
+    <div style={sheetStyle(lang, true)}>
       <Header showroom={showroom} lang={lang} />
       <TitleBar
         lang={lang}

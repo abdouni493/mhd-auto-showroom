@@ -276,17 +276,17 @@ function tableStyles(lang) {
     start,
     end,
     th: {
-      background: ACCENT, color: "#fff", padding: "5px 7px", fontSize: 9,
+      background: ACCENT, color: "#fff", padding: "7px 9px", fontSize: 10.5,
       fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em",
       border: `1px solid ${ACCENT}`, textAlign: start, ...exact,
     },
     td: {
-      padding: "5px 7px", border: `1px solid ${LINE}`, fontSize: 10,
+      padding: "7px 9px", border: `1px solid ${LINE}`, fontSize: 11.5,
       verticalAlign: "middle", textAlign: start,
     },
     tf: {
-      padding: "6px 7px", border: `1px solid ${LINE}`, background: SOFT,
-      fontWeight: 900, fontSize: 11, ...exact,
+      padding: "8px 9px", border: `1px solid ${LINE}`, background: SOFT,
+      fontWeight: 900, fontSize: 12.5, ...exact,
     },
   };
 }
@@ -308,14 +308,14 @@ function Blank({ children }) {
 // A labelled box on the reception form
 function FormLine({ label, value, lang, width = "100%" }) {
   return (
-    <div style={{ width, marginBottom: 6 }}>
-      <div style={{ fontSize: 8.5, fontWeight: 800, textTransform: "uppercase", color: MUTE, letterSpacing: "0.05em" }}>
+    <div style={{ width, marginBottom: 8 }}>
+      <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", color: MUTE, letterSpacing: "0.05em" }}>
         {label}
       </div>
       <div
         style={{
-          borderBottom: `1px solid ${LINE}`, minHeight: 16, paddingBottom: 2,
-          fontWeight: 700, fontSize: 11, textAlign: isAr(lang) ? "right" : "left", ...ltr,
+          borderBottom: `1px solid ${LINE}`, minHeight: 20, paddingBottom: 3,
+          fontWeight: 700, fontSize: 12.5, textAlign: isAr(lang) ? "right" : "left", ...ltr,
         }}
       >
         {dash(value)}
@@ -327,18 +327,18 @@ function FormLine({ label, value, lang, width = "100%" }) {
 // Printed tick box
 function CheckBox({ checked, label }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "2px 0" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0" }}>
       <span
         style={{
-          width: 12, height: 12, border: `1.5px solid ${checked ? ACCENT : MUTE}`,
+          width: 14, height: 14, border: `1.5px solid ${checked ? ACCENT : MUTE}`,
           borderRadius: 2, display: "inline-flex", alignItems: "center", justifyContent: "center",
-          background: checked ? ACCENT : "#fff", color: "#fff", fontSize: 9,
+          background: checked ? ACCENT : "#fff", color: "#fff", fontSize: 10,
           fontWeight: 900, lineHeight: 1, ...exact,
         }}
       >
         {checked ? "✓" : ""}
       </span>
-      <span style={{ fontSize: 10, fontWeight: checked ? 700 : 500, color: checked ? INK : MUTE }}>
+      <span style={{ fontSize: 11.5, fontWeight: checked ? 700 : 500, color: checked ? INK : MUTE }}>
         {label}
       </span>
     </div>
@@ -362,7 +362,7 @@ export function BonEntree({ purchase, showroom, lang = "fr", dateTime }) {
   const code = isClient ? purchase?.clientId : purchase?.reference;
 
   return (
-    <div style={sheetStyle(lang)}>
+    <div style={sheetStyle(lang, true)}>
       <Header showroom={showroom} lang={lang} />
       <TitleBar
         lang={lang}
@@ -481,7 +481,7 @@ export function EngagementDepot({ purchase, showroom, lang = "fr" }) {
   };
 
   return (
-    <div style={sheetStyle(lang)}>
+    <div style={sheetStyle(lang, true)}>
       <Header showroom={showroom} lang={lang} />
       <TitleBar
         lang={lang}
@@ -549,7 +549,7 @@ export function ReceptionForm({ purchase, showroom, lang = "fr", dateTime, docTy
     : showroom?.name;
 
   return (
-    <div style={sheetStyle(lang)}>
+    <div style={sheetStyle(lang, true)}>
       <Header showroom={showroom} lang={lang} />
       <TitleBar
         lang={lang}
@@ -757,7 +757,7 @@ export function BonVersement({ sale, showroom, lang = "fr", payment, amount }) {
   ];
 
   return (
-    <div style={sheetStyle(lang)}>
+    <div style={sheetStyle(lang, true)}>
       <Header showroom={showroom} lang={lang} />
       <TitleBar
         lang={lang}
@@ -817,7 +817,7 @@ export function BonEntreeSortie({ sale, showroom, lang = "fr", dateTime, docType
   const list = docTypes.length ? docTypes : Array.from(attached);
 
   return (
-    <div style={sheetStyle(lang)}>
+    <div style={sheetStyle(lang, true)}>
       <Header showroom={showroom} lang={lang} />
       <TitleBar
         lang={lang}

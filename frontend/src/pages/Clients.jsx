@@ -18,6 +18,7 @@ import { SettlementReceipt } from "../components/PrintDocs.jsx";
 import PrintHub from "../components/PrintHub.jsx";
 import { formatAmount, formatDate, initials, toDateTimeLocal } from "../utils/format.js";
 import DateInput from "../components/DateInput.jsx";
+import PaymentMethodSelect from "../components/PaymentMethodSelect.jsx";
 
 /* ---------------------------------------------------------------------------
  * Règlement propriétaire
@@ -149,7 +150,7 @@ function SettlementForm({ pending, onClose, onCreated }) {
             <input className="input" type="number" value={share} onChange={(e) => setShare(e.target.value)} />
           </Field>
           <Field label={t("settlements.paymentMethod")}>
-            <input className="input" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} placeholder={t("settlements.paymentMethodHint")} />
+            <PaymentMethodSelect value={paymentMethod} onChange={setPaymentMethod} />
           </Field>
           <Field label={t("common.datetime")}>
             <DateInput withTime value={date} onChange={setDate} />
