@@ -449,7 +449,7 @@ export function BonEntree({ purchase, showroom, lang = "fr", dateTime }) {
 
       {/* Remark */}
       <Frame title={x.remark} style={{ marginTop: 10 }}>
-        <div style={{ minHeight: 34, fontSize: 10 }}>{purchase?.remark || ""}</div>
+        <div style={{ minHeight: 24, fontSize: 10.5 }}>{purchase?.remark || ""}</div>
       </Frame>
 
       <Signatures left={x.sigAgency} right={isClient ? x.sigOwner : x.sigShowroomPrint} />
@@ -580,7 +580,7 @@ export function ReceptionForm({ purchase, showroom, lang = "fr", dateTime, docTy
       </Frame>
 
       <Frame title={x.remark} style={{ marginTop: 10 }}>
-        <div style={{ minHeight: 40, fontSize: 11, fontWeight: 700 }}>{purchase?.remark || ""}</div>
+        <div style={{ minHeight: 26, fontSize: 11.5, fontWeight: 700 }}>{purchase?.remark || ""}</div>
       </Frame>
 
       <div style={{ ...grid2, marginTop: 10 }}>
@@ -851,7 +851,7 @@ export function BonEntreeSortie({ sale, showroom, lang = "fr", dateTime, docType
       <InspectionBlock inspection={sale?.inspection} lang={lang} />
 
       <Frame title={x.remark} style={{ marginTop: 10 }}>
-        <div style={{ minHeight: 34, fontSize: 10 }} />
+        <div style={{ minHeight: 22, fontSize: 10.5 }} />
       </Frame>
 
       <Signatures left={x.sigDriver} right={x.sigAgency} />
@@ -904,7 +904,7 @@ export function FactureDocument({ sale, showroom, lang = "fr", proforma = false,
   ].filter(Boolean).join(" ");
 
   return (
-    <div style={sheetStyle(lang)}>
+    <div style={sheetStyle(lang, true)}>
       <Header showroom={showroom} lang={lang} />
 
       {/* Invoice number + place/date, like the paper model */}
@@ -1125,7 +1125,7 @@ export function SettlementReceipt({ settlement, showroom, lang = "fr" }) {
   const expenses = Array.isArray(settlement?.expenses) ? settlement.expenses : [];
 
   return (
-    <div style={sheetStyle(lang)}>
+    <div style={sheetStyle(lang, true)}>
       <Header showroom={showroom} lang={lang} />
       <TitleBar
         lang={lang}

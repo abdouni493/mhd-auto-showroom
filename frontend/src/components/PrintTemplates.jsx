@@ -209,8 +209,8 @@ export const tr = (lang) => L[lang] || L.fr;
 export const isAr = (lang) => lang === "ar";
 
 // A4 portrait printable height = 297mm − 10mm top − 10mm bottom margin.
-// A hair under 277mm so rounding never spills a blank second page.
-export const SHEET_FILL_HEIGHT = "276mm";
+// Kept a few mm under 277mm so rounding never spills a blank second page.
+export const SHEET_FILL_HEIGHT = "273mm";
 
 // `fill` turns the sheet into a full-page flex column whose blocks spread out
 // to occupy the whole sheet — big, evenly spaced, with no empty band left at the
@@ -226,8 +226,8 @@ export function sheetStyle(lang, fill = false) {
     width: "190mm",
     margin: "0 auto",
     padding: "0",
-    fontSize: "13px",
-    lineHeight: 1.5,
+    fontSize: "12px",
+    lineHeight: 1.4,
     direction: isAr(lang) ? "rtl" : "ltr",
     textAlign: isAr(lang) ? "right" : "left",
     ...(fill
@@ -260,7 +260,7 @@ export function Frame({ title, children, style }) {
       >
         {title}
       </div>
-      <div style={{ padding: "10px 12px" }}>{children}</div>
+      <div style={{ padding: "7px 11px" }}>{children}</div>
     </div>
   );
 }
@@ -494,7 +494,7 @@ export function InspectionBlock({ inspection, lang }) {
               <div style={{ color: MUTE }}>—</div>
             ) : (
               arr.map((it, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 5, padding: "2px 0" }}>
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 5, padding: "1px 0" }}>
                   <span style={{ fontWeight: 900, fontFamily: "monospace", color: it.active ? "#047857" : ACCENT, ...exact }}>
                     {it.active ? "✓" : "✗"}
                   </span>
@@ -536,15 +536,15 @@ export function Signatures({ left, right }) {
   const box = {
     border: `1px solid ${LINE}`,
     borderRadius: 6,
-    height: 92,
+    height: 68,
     display: "flex",
     flexDirection: "column",
     justifyContent: "flex-end",
-    padding: "8px 11px",
+    padding: "7px 11px",
   };
-  const cap = { borderTop: `1px solid ${MUTE}`, paddingTop: 5, textAlign: "center", fontSize: 11.5, color: MUTE, textTransform: "uppercase", fontWeight: 700 };
+  const cap = { borderTop: `1px solid ${MUTE}`, paddingTop: 4, textAlign: "center", fontSize: 11, color: MUTE, textTransform: "uppercase", fontWeight: 700 };
   return (
-    <div style={{ ...grid2, marginTop: 14, breakInside: "avoid" }}>
+    <div style={{ ...grid2, marginTop: 10, breakInside: "avoid" }}>
       <div style={box}><div style={cap}>{left}</div></div>
       <div style={box}><div style={cap}>{right}</div></div>
     </div>
