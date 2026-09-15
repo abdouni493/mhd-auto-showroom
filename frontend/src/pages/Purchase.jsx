@@ -536,9 +536,12 @@ export default function Purchase() {
         label: t("print.reception"),
         desc: t("print.receptionDesc"),
         icon: ClipboardCheck,
-        options: [{ name: "dateTime", label: t("print.dateTime"), type: "datetime", default: toDateTimeLocal(p.receivedAt || p.date) }],
+        options: [
+          { name: "dateTime", label: t("print.dateTime"), type: "datetime", default: toDateTimeLocal(p.receivedAt || p.date) },
+          { name: "receivedPhone", label: t("print.receivedPhone"), type: "text", default: "", hint: t("print.receivedPhoneHint") },
+        ],
         render: (lang, o) => (
-          <ReceptionForm purchase={p} showroom={settings} lang={lang} dateTime={o.dateTime} docTypes={docTypeNames} />
+          <ReceptionForm purchase={p} showroom={settings} lang={lang} dateTime={o.dateTime} receivedPhone={o.receivedPhone} docTypes={docTypeNames} />
         ),
       },
       {

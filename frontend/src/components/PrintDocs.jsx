@@ -537,7 +537,7 @@ export function EngagementDepot({ purchase, showroom, lang = "fr" }) {
 // ============================================================================
 // 3. FORMULAIRE RÉCEPTION VÉHICULE
 // ============================================================================
-export function ReceptionForm({ purchase, showroom, lang = "fr", dateTime, docTypes = [] }) {
+export function ReceptionForm({ purchase, showroom, lang = "fr", dateTime, receivedPhone, docTypes = [] }) {
   const x = x2(lang);
   const car = purchase?.car || {};
   const attached = new Set((car.documents || []).map((d) => d.type));
@@ -592,7 +592,9 @@ export function ReceptionForm({ purchase, showroom, lang = "fr", dateTime, docTy
         </Frame>
         <Frame title={x.handedTo}>
           <FormLine lang={lang} label={x.handedTo} value={purchase?.receivedBy} />
-          <FormLine lang={lang} label={x.phoneNo} value={purchase?.receivedPhone || purchase?.client?.phonePrimary || showroom?.phone} />
+          {/* Phone is only printed when the user typed one in the print hub;
+              it is never auto-filled from the client/showroom record. */}
+          <FormLine lang={lang} label={x.phoneNo} value={receivedPhone || ""} />
         </Frame>
       </div>
 

@@ -632,6 +632,8 @@
     "chooseLang": "Langue du document",
     "noDocs": "Aucun document disponible",
     "dateTime": "Date et heure",
+    "receivedPhone": "N° de téléphone (À M./Mme)",
+    "receivedPhoneHint": "Laisser vide pour ne pas l'afficher",
     "amountReceived": "Montant versé",
     "bonEntree": "Bon d'entrée + Inspection",
     "bonEntreeDesc": "Entrée du véhicule en stock, avec le rapport d'inspection",
