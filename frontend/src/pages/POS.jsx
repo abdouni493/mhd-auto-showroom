@@ -38,10 +38,6 @@ function SaleFlow({ car, onClose, onCreated }) {
   // expenses engaged on the vehicle).
   const isClientCar = car.purchase?.sourceType === "CLIENT";
   const owner = car.purchase?.client || null;
-  const carExpenses = (car.expenses || [])
-    .filter((e) => e.type === "CAR" || !e.type)
-    .reduce((a, e) => a + (Number(e.amount) || 0), 0);
-  const [showroomShare, setShowroomShare] = useState("");
   const [saleType, setSaleType] = useState("NORMAL");
   const [basePrice, setBasePrice] = useState(String(basePriceDefault));
   const [tvaEnabled, setTvaEnabled] = useState(false);
@@ -52,6 +48,8 @@ function SaleFlow({ car, onClose, onCreated }) {
   const [paidTouched, setPaidTouched] = useState(false);
   const [clientTakeCar, setClientTakeCar] = useState(true);
   const [date, setDate] = useState(toDateTimeLocal());
+  // Date of the first versement — asked only when the client does not pay in full.
+  const [firstVersementDate, setFirstVersementDate] = useState(toDateTimeLocal());
   const [saving, setSaving] = useState(false);
 
   // live totals
@@ -63,8 +61,6 @@ function SaleFlow({ car, onClose, onCreated }) {
   total = Math.round(total);
   const paid = paidTouched ? Number(amountPaid) || 0 : total;
   const rest = Math.max(0, total - paid);
-  const share = Number(showroomShare) || 0;
-  const ownerAmount = Math.max(0, total - share - carExpenses);
 
   const step1Valid = useExisting ? !!client : Object.keys(validateClient(newClient)).length === 0;
 
@@ -85,7 +81,11 @@ function SaleFlow({ car, onClose, onCreated }) {
         client: useExisting ? null : newClient,
         saleType, basePrice: base, tvaEnabled, tvaRate, reductionType, reductionValue,
         amountPaid: paid, clientTakeCar, inspection, date,
-        showroomShare: isClientCar ? share : 0,
+        // The showroom's part of a prestation car is set later, when the owner
+        // règlement is created — not here.
+        showroomShare: 0,
+        // When it is a partial payment, record the date of that first versement.
+        initialPaymentDate: rest > 0 && paid > 0 ? new Date(firstVersementDate).toISOString() : null,
       };
       const data = await salesApi.create(payload);
       onCreated(data);
@@ -207,9 +207,24 @@ function SaleFlow({ car, onClose, onCreated }) {
               <Field label={t("pos.amountPaid")}><input className="input" type="number" value={paidTouched ? amountPaid : total} onChange={(e) => { setPaidTouched(true); setAmountPaid(e.target.value); }} /></Field>
               <p className="text-sm">{t("common.rest")} : <span className={rest > 0 ? "text-rose-400 font-black" : "text-emerald-400 font-black"}>{formatAmount(rest)}</span></p>
 
-              {/* Vehicle owned by a client: split the sale */}
+              {/* Partial payment: ask when the first versement is made. */}
+              {rest > 0 && paid > 0 && (
+                <div className="pt-3 mt-1 border-t border-rose-500/25 space-y-2">
+                  <div className="flex items-center gap-2 text-rose-400">
+                    <HandCoins size={15} />
+                    <span className="label-caps !mb-0 !text-rose-400">{t("pos.firstVersement")}</span>
+                  </div>
+                  <Field label={t("pos.firstVersementDate")}>
+                    <DateInput withTime value={firstVersementDate} onChange={setFirstVersementDate} />
+                  </Field>
+                  <p className="text-[0.65rem] text-text-muted italic">{t("pos.firstVersementHint")}</p>
+                </div>
+              )}
+
+              {/* Vehicle owned by a client: the owner's règlement (and the showroom
+                  share) is created later, from the Fournisseurs page. */}
               {isClientCar && (
-                <div className="pt-3 mt-1 border-t border-amber-500/25 space-y-2.5">
+                <div className="pt-3 mt-1 border-t border-amber-500/25 space-y-2">
                   <div className="flex items-center gap-2 text-amber-400">
                     <HandCoins size={15} />
                     <span className="label-caps !mb-0 !text-amber-400">{t("pos.clientCarTitle")}</span>
@@ -219,19 +234,6 @@ function SaleFlow({ car, onClose, onCreated }) {
                       {t("pos.owner")} : <span className="text-text-primary font-bold">{owner.firstName} {owner.lastName}</span>
                     </p>
                   )}
-                  <Field label={t("pos.showroomShare")}>
-                    <input
-                      className="input"
-                      type="number"
-                      value={showroomShare}
-                      onChange={(e) => setShowroomShare(e.target.value)}
-                      placeholder="0"
-                    />
-                  </Field>
-                  <div className="text-xs space-y-1">
-                    <div className="flex justify-between"><span className="text-text-muted">{t("sales.carExpenses")}</span><span className="text-amber-400 font-bold">- {formatAmount(carExpenses)}</span></div>
-                    <div className="flex justify-between"><span className="text-text-muted">{t("pos.ownerAmount")}</span><span className="text-emerald-400 font-black">{formatAmount(ownerAmount)}</span></div>
-                  </div>
                   <p className="text-[0.65rem] text-text-muted italic">{t("pos.settlementHint")}</p>
                 </div>
               )}

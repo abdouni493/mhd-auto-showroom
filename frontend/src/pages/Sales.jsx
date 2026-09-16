@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import { Eye, Pencil, Trash2, Printer, Wallet, LayoutGrid, Table as TableIcon, TrendingUp, X, UserCog, Mail, Receipt, FileText, Banknote, ArrowRightLeft, Send, HandCoins } from "lucide-react";
+import { Eye, Pencil, Trash2, Printer, LayoutGrid, Table as TableIcon, TrendingUp, X, UserCog, Mail, Receipt, FileText, Banknote, ArrowRightLeft, Send, HandCoins, History, AlertTriangle } from "lucide-react";
 import { salesApi, clientsApi, carsApi, inspectionApi } from "../lib/api.js";
 import { useFetch } from "../hooks/useApi.js";
 import { useCan } from "../lib/permissions.js";
@@ -14,7 +14,8 @@ import ClientForm, { validateClient } from "../components/ClientForm.jsx";
 import InspectionChecklist, { DEFAULT_INSPECTION, hasInspectionItems } from "../components/InspectionChecklist.jsx";
 import { CarImage } from "../components/CarCard.jsx";
 import { SaleInvoice } from "../components/PrintTemplates.jsx";
-import { BonVersement, BonEntreeSortie, FactureDocument } from "../components/PrintDocs.jsx";
+import { BonEntreeSortie, FactureDocument, VersementStatement } from "../components/PrintDocs.jsx";
+import { usePrintDialog, printInLang } from "../components/PrintChooser.jsx";
 import PrintHub, { DocPicker } from "../components/PrintHub.jsx";
 import { renderDocsToHtml, documentLabels, sendDocumentsEmail } from "../lib/email.js";
 import { formatAmount, formatDate, initials, toDateTimeLocal, ENERGY_LABELS, GEARBOX_LABELS } from "../utils/format.js";
@@ -280,6 +281,231 @@ function SaleEditForm({ sale, onClose, onSaved }) {
   );
 }
 
+// Ordinal (versement number) helper — payments oldest first.
+function orderVersements(list) {
+  return (list || []).slice().sort(
+    (a, b) => new Date(a.date) - new Date(b.date) || (a.id || 0) - (b.id || 0)
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * Créer un versement — records a new installment on a sale. Shows the sale
+ * total and everything already paid, then computes the remaining balance live
+ * as the user types the amount of this versement.
+ * ------------------------------------------------------------------------- */
+function VersementForm({ sale, onClose, onCreated }) {
+  const { t } = useTranslation();
+  const toast = useToast();
+  const [data, setData] = useState(null);
+  const [amount, setAmount] = useState("");
+  const [description, setDescription] = useState("");
+  const [date, setDate] = useState(toDateTimeLocal());
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    salesApi
+      .versements(sale.id)
+      .then(setData)
+      .catch(() =>
+        setData({ total: sale.totalAfterReduction || 0, paid: sale.amountPaid || 0, rest: sale.amountRest || 0, list: [] })
+      );
+  }, [sale.id]);
+
+  const total = data?.total ?? sale.totalAfterReduction ?? 0;
+  const paidBefore = data?.paid ?? sale.amountPaid ?? 0;
+  const thisAmount = Number(amount) || 0;
+  const restAfter = Math.max(0, total - paidBefore - thisAmount);
+
+  const submit = async () => {
+    if (thisAmount <= 0) { toast(t("versements.amountRequired"), "error"); return; }
+    setSaving(true);
+    try {
+      await salesApi.addVersement(sale.id, sale.carId, {
+        amount: thisAmount, description, date: new Date(date).toISOString(),
+      });
+      const fresh = await salesApi.versements(sale.id);
+      toast(t("versements.createdToast"));
+      onCreated(fresh);
+    } catch (e) {
+      alert(e.message || t("common.error"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const car = sale.car || {};
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={t("versements.newTitle")}
+      size="md"
+      footer={
+        <>
+          <button className="btn-ghost" onClick={onClose}>{t("common.cancel")}</button>
+          <button className="btn-primary" onClick={submit} disabled={saving || thisAmount <= 0}>
+            {saving ? "..." : <><HandCoins size={14} /> {t("versements.create")}</>}
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 glass-card p-3 !rounded-xl">
+          <div className="w-20 h-14 rounded-lg overflow-hidden shrink-0"><CarImage images={car.images} heightClass="h-14" /></div>
+          <div className="min-w-0 flex-1">
+            <p className="heading text-sm text-text-primary truncate">{car.brand} {car.model}</p>
+            <p className="text-xs text-text-muted truncate">{sale.reference} · {sale.client?.firstName} {sale.client?.lastName}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2.5">
+          <Card className="p-3"><p className="label-caps">{t("versements.saleTotal")}</p><p className="text-base font-black text-text-primary">{formatAmount(total)}</p></Card>
+          <Card className="p-3"><p className="label-caps">{t("versements.alreadyPaid")}</p><p className="text-base font-black text-emerald-400">{formatAmount(paidBefore)}</p></Card>
+          <Card className="p-3 border border-rose-500/40"><p className="label-caps">{t("versements.currentRest")}</p><p className="text-base font-black text-rose-400">{formatAmount(Math.max(0, total - paidBefore))}</p></Card>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label={t("versements.thisVersement")} required>
+            <input className="input" type="number" autoFocus value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" />
+          </Field>
+          <Field label={t("common.datetime")}>
+            <DateInput withTime value={date} onChange={setDate} />
+          </Field>
+        </div>
+
+        <div className="flex justify-between items-center px-1">
+          <span className="label-caps !mb-0">{t("versements.restAfter")}</span>
+          <span className={`text-lg font-black ${restAfter > 0 ? "text-rose-400" : "text-emerald-400"}`}>{formatAmount(restAfter)}</span>
+        </div>
+
+        <Field label={`${t("versements.observation")} (${t("common.optional")})`}>
+          <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("versements.observationHint")} />
+        </Field>
+      </div>
+    </Modal>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * Historique des versements — every installment of a sale, each with edit /
+ * delete / print, plus a "print all" (full statement) button. All prints use
+ * the same "Versements" statement template (FR / AR chosen at print time).
+ * ------------------------------------------------------------------------- */
+function VersementHistory({ sale, showroom, onClose, onChanged }) {
+  const { t } = useTranslation();
+  const toast = useToast();
+  const openPrint = usePrintDialog();
+  const [data, setData] = useState(null);
+  const [edit, setEdit] = useState(null);
+  const [deleteId, setDeleteId] = useState(null);
+
+  const load = () =>
+    salesApi.versements(sale.id).then(setData).catch(() => setData({ total: 0, paid: 0, rest: 0, list: [] }));
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [sale.id]);
+
+  const list = orderVersements(data?.list);
+  const printOne = (p) =>
+    openPrint((lang) => <VersementStatement sale={sale} showroom={showroom} lang={lang} payments={list} highlightId={p.id} />);
+  const printAll = () =>
+    openPrint((lang) => <VersementStatement sale={sale} showroom={showroom} lang={lang} payments={list} />);
+
+  const saveEdit = async () => {
+    try {
+      await salesApi.updateVersement(edit.id, {
+        amount: Number(edit.amount) || 0, description: edit.description, date: new Date(edit.date).toISOString(),
+      });
+      setEdit(null); await load(); onChanged?.();
+      toast(t("versements.updatedToast"));
+    } catch (e) { alert(e.message || t("common.error")); }
+  };
+  const confirmDelete = async () => {
+    try {
+      await salesApi.deleteVersement(deleteId);
+      setDeleteId(null); await load(); onChanged?.();
+      toast(t("versements.deletedToast"), "info");
+    } catch (e) { alert(e.message || t("common.error")); }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`${t("versements.historyTitle")} — ${sale.reference}`}
+      size="lg"
+      footer={
+        <>
+          <button className="btn-ghost" onClick={onClose}>{t("common.close")}</button>
+          <button className="btn-primary" onClick={printAll} disabled={!list.length}>
+            <Printer size={14} /> {t("versements.printAll")}
+          </button>
+        </>
+      }
+    >
+      {!data ? (
+        <p className="text-text-muted text-center py-6">{t("common.loading")}</p>
+      ) : (
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-2.5">
+            <Card className="p-3"><p className="label-caps">{t("versements.saleTotal")}</p><p className="text-base font-black text-text-primary">{formatAmount(data.total)}</p></Card>
+            <Card className="p-3"><p className="label-caps">{t("versements.totalPaid")}</p><p className="text-base font-black text-emerald-400">{formatAmount(data.paid)}</p></Card>
+            <Card className="p-3 border border-rose-500/40"><p className="label-caps">{t("versements.restToPay")}</p><p className="text-base font-black text-rose-400">{formatAmount(data.rest)}</p></Card>
+          </div>
+
+          {list.length === 0 ? (
+            <p className="text-text-muted text-sm text-center py-4">{t("versements.none")}</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="text-left rtl:text-right bg-red-600/10 border-b border-red-600/30">
+                    {["N°", t("versements.bonNo"), t("common.amount"), t("common.rest"), t("common.date"), t("versements.observation"), ""].map((h, i) => (
+                      <th key={i} className="p-2.5 label-caps !text-red-300/80">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.map((p, i) => (
+                    <tr key={p.id} className={`border-b border-red-600/10 ${i % 2 ? "bg-white/[0.015]" : ""}`}>
+                      <td className="p-2.5 font-mono text-xs text-text-muted">{p.id}{p.isInitial ? ` · ${t("versements.initial")}` : ""}</td>
+                      <td className="p-2.5 font-mono text-xs text-text-muted">{sale.id}</td>
+                      <td className="p-2.5 text-emerald-400 font-bold">{formatAmount(p.amount)}</td>
+                      <td className="p-2.5 text-rose-400">{formatAmount(p.restAfter)}</td>
+                      <td className="p-2.5 text-text-muted whitespace-nowrap">{formatDate(p.date)}</td>
+                      <td className="p-2.5 text-text-muted">{p.description || "—"}</td>
+                      <td className="p-2.5">
+                        <ActionMenu items={[
+                          { label: t("common.print"), icon: Printer, onClick: () => printOne(p) },
+                          { label: t("common.edit"), icon: Pencil, onClick: () => setEdit({ ...p, date: toDateTimeLocal(p.date) }) },
+                          { label: t("common.delete"), icon: Trash2, danger: true, onClick: () => setDeleteId(p.id) },
+                        ]} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Edit one versement */}
+      <Modal open={!!edit} onClose={() => setEdit(null)} title={t("versements.edit")} size="sm"
+        footer={<><button className="btn-ghost" onClick={() => setEdit(null)}>{t("common.cancel")}</button><button className="btn-primary" onClick={saveEdit}>{t("common.save")}</button></>}>
+        {edit && (
+          <div className="space-y-4">
+            <Field label={t("common.amount")}><input className="input" type="number" value={edit.amount} onChange={(e) => setEdit({ ...edit, amount: e.target.value })} /></Field>
+            <Field label={t("common.datetime")}><DateInput withTime value={edit.date} onChange={(v) => setEdit({ ...edit, date: v })} /></Field>
+            <Field label={t("versements.observation")}><input className="input" value={edit.description || ""} onChange={(e) => setEdit({ ...edit, description: e.target.value })} /></Field>
+          </div>
+        )}
+      </Modal>
+
+      <ConfirmModal open={!!deleteId} onClose={() => setDeleteId(null)} onConfirm={confirmDelete} message={t("versements.deleteMsg")} />
+    </Modal>
+  );
+}
+
 export default function Sales() {
   const { t } = useTranslation();
   const can = useCan();
@@ -295,19 +521,23 @@ export default function Sales() {
     return salesApi.list(params);
   }, [filter, search]);
   const [viewItem, setViewItem] = useState(null);
-  const [payTarget, setPayTarget] = useState(null);
-  const [payAmount, setPayAmount] = useState("");
+  const [versementTarget, setVersementTarget] = useState(null); // create a versement
+  const [historyTarget, setHistoryTarget] = useState(null);     // versements history
+  const [versementPrompt, setVersementPrompt] = useState(null); // { sale, list } → print prompt
   const [editItem, setEditItem] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [printTarget, setPrintTarget] = useState(null);
+  const [printPayments, setPrintPayments] = useState([]);
   const [mailTarget, setMailTarget] = useState(null);
+  const [mailPayments, setMailPayments] = useState([]);
 
   const { data: docTypeRows } = useFetch(() => carsApi.getDocumentTypes(), []);
   const docTypeNames = (docTypeRows || []).map((d) => d.name);
 
   // Every printable document of a sale. The same list feeds the "Impressions"
-  // hub and the "Envoyer par email" picker.
-  const saleDocs = (sale) => {
+  // hub and the "Envoyer par email" picker. `payments` are the sale's versements,
+  // needed by the "Versements" statement (prefetched when a hub/email opens).
+  const saleDocs = (sale, payments = []) => {
     if (!sale) return [];
     return [
       {
@@ -329,8 +559,7 @@ export default function Sales() {
         label: t("print.bonVersement"),
         desc: t("print.bonVersementDesc"),
         icon: Banknote,
-        options: [{ name: "amount", label: t("print.amountReceived"), type: "number", default: String(sale.amountPaid ?? "") }],
-        render: (lang, o) => <BonVersement sale={sale} showroom={settings} lang={lang} amount={o.amount} />,
+        render: (lang) => <VersementStatement sale={sale} showroom={settings} lang={lang} payments={payments} />,
       },
       {
         key: "bon-entree-sortie",
@@ -352,10 +581,15 @@ export default function Sales() {
     ];
   };
 
-  const pay = async () => {
-    await salesApi.addPayment(payTarget.id, payTarget.carId, Number(payAmount));
-    setPayTarget(null); setPayAmount(""); refetch();
-    toast(t("sales.paidToast"));
+  // Open the Impressions hub / the email modal, prefetching the sale's
+  // versements so the "Versements" statement can be printed / emailed.
+  const openPrintHub = async (s) => {
+    setPrintTarget(s); setPrintPayments([]);
+    try { const v = await salesApi.versements(s.id); setPrintPayments(v.list); } catch { setPrintPayments([]); }
+  };
+  const openMail = async (s) => {
+    setMailTarget(s); setMailPayments([]);
+    try { const v = await salesApi.versements(s.id); setMailPayments(v.list); } catch { setMailPayments([]); }
   };
 
   const confirmDelete = async () => {
@@ -368,15 +602,35 @@ export default function Sales() {
   const menuItems = (s) => [
     { label: t("common.view"), icon: Eye, onClick: () => setViewItem(s) },
     can("sales", "edit") && { label: t("common.edit"), icon: Pencil, onClick: () => setEditItem(s) },
-    can("sales", "edit") && s.amountRest > 0 && { label: t("common.payDebt"), icon: Wallet, onClick: () => { setPayTarget(s); setPayAmount(String(s.amountRest)); } },
-    can("sales", "print") && { label: t("print.printings"), icon: Printer, onClick: () => setPrintTarget(s) },
-    can("sales", "print") && { label: t("email.action"), icon: Mail, onClick: () => setMailTarget(s) },
+    (can("sales", "edit") || can("payments", "create")) && s.amountRest > 0 && { label: t("versements.create"), icon: HandCoins, onClick: () => setVersementTarget(s) },
+    { label: t("versements.historyTitle"), icon: History, onClick: () => setHistoryTarget(s) },
+    can("sales", "print") && { label: t("print.printings"), icon: Printer, onClick: () => openPrintHub(s) },
+    can("sales", "print") && { label: t("email.action"), icon: Mail, onClick: () => openMail(s) },
     can("sales", "delete") && { label: t("common.delete"), icon: Trash2, danger: true, onClick: () => setDeleteId(s.id) },
   ];
+
+  const debtSales = (sales || []).filter((s) => s.amountRest > 0);
+  const debtTotal = debtSales.reduce((a, s) => a + (s.amountRest || 0), 0);
 
   return (
     <div>
       <PageHeader title={t("nav.sales")} />
+
+      {/* Global debt alert */}
+      {debtSales.length > 0 && (
+        <Card className="p-4 mb-5 border border-rose-500/40 bg-rose-500/5">
+          <div className="flex items-start gap-3">
+            <span className="p-2 rounded-xl bg-rose-500/15 text-rose-400 shrink-0"><AlertTriangle size={20} /></span>
+            <div className="flex-1 min-w-0">
+              <p className="heading text-sm text-rose-400">{t("sales.debtAlertTitle")}</p>
+              <p className="text-xs text-text-muted mt-0.5">{t("sales.debtAlertDesc", { count: debtSales.length, total: formatAmount(debtTotal) })}</p>
+            </div>
+            {filter !== "paid=DEBT" && (
+              <button className="btn-ghost text-xs py-1.5 shrink-0" onClick={() => setFilter("paid=DEBT")}>{t("sales.filterDebt")}</button>
+            )}
+          </div>
+        </Card>
+      )}
 
       <div className="flex flex-col sm:flex-row gap-3 mb-6 items-start">
         <div className="flex flex-wrap gap-2">
@@ -394,7 +648,7 @@ export default function Sales() {
       ) : view === "cards" ? (
         <AnimatedGrid className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {sales.map((s) => (
-            <Card key={s.id} className="p-4 flex gap-4">
+            <Card key={s.id} className={`p-4 flex gap-4 ${s.amountRest > 0 ? "border border-rose-500/40" : ""}`}>
               <div className="w-24 h-[72px] rounded-lg overflow-hidden shrink-0"><CarImage images={s.car?.images} heightClass="h-[72px]" /></div>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start">
@@ -408,7 +662,7 @@ export default function Sales() {
                 <div className="flex items-center justify-between gap-1.5 mb-1.5 flex-wrap">
                   <div className="flex gap-1.5">
                     <Badge color={s.saleType === "DEPOSIT" ? "warning" : "success"}>{s.saleType === "DEPOSIT" ? t("sales.deposit") : t("sales.normal")}</Badge>
-                    {s.amountRest > 0 ? <Badge color="debt">{t("sales.debt")}</Badge> : <Badge color="success">{t("sales.paid")}</Badge>}
+                    {s.amountRest > 0 ? <Badge color="debt"><AlertTriangle size={10} /> {t("sales.debt")}</Badge> : <Badge color="success">{t("sales.paid")}</Badge>}
                   </div>
                   {s.hasPurchaseInfo ? (
                     <div className={`px-2.5 py-0.5 rounded-full text-xs font-bold flex items-center gap-1 border shadow-sm ${
@@ -568,25 +822,47 @@ export default function Sales() {
                 )}
               </div>
             )}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button className="btn-ghost" onClick={() => { setPrintTarget(viewItem); setViewItem(null); }}><Printer size={14} /> {t("print.printings")}</button>
-              <button className="btn-ghost" onClick={() => { setMailTarget(viewItem); setViewItem(null); }}><Mail size={14} /> {t("email.action")}</button>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <button className="btn-ghost" onClick={() => { setHistoryTarget(viewItem); setViewItem(null); }}><History size={14} /> {t("versements.historyTitle")}</button>
+              <button className="btn-ghost" onClick={() => { openPrintHub(viewItem); setViewItem(null); }}><Printer size={14} /> {t("print.printings")}</button>
+              <button className="btn-ghost" onClick={() => { openMail(viewItem); setViewItem(null); }}><Mail size={14} /> {t("email.action")}</button>
             </div>
           </div>
         )}
       </Modal>
 
-      {/* Pay debt */}
-      <Modal open={!!payTarget} onClose={() => setPayTarget(null)} title={t("common.payDebt")} size="sm"
-        footer={<><button className="btn-ghost" onClick={() => setPayTarget(null)}>{t("common.cancel")}</button><button className="btn-primary" onClick={pay}>{t("common.validate")}</button></>}>
-        {payTarget && (
-          <div className="space-y-3">
-            <div className="flex justify-between text-sm"><span className="text-text-muted">{t("common.total")}</span><span className="text-text-primary">{formatAmount(payTarget.totalAfterReduction)}</span></div>
-            <div className="flex justify-between text-sm"><span className="text-text-muted">{t("common.paid")}</span><span className="text-emerald-400">{formatAmount(payTarget.amountPaid)}</span></div>
-            <div className="flex justify-between text-sm"><span className="text-text-muted">{t("common.rest")}</span><span className="text-rose-400">{formatAmount(payTarget.amountRest)}</span></div>
-            <Field label={t("sales.paymentToPay")}><input className="input" type="number" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} /></Field>
-          </div>
-        )}
+      {/* Créer un versement */}
+      {versementTarget && (
+        <VersementForm
+          sale={versementTarget}
+          onClose={() => setVersementTarget(null)}
+          onCreated={(fresh) => {
+            const sale = versementTarget;
+            setVersementTarget(null);
+            refetch();
+            setVersementPrompt({ sale, list: fresh.list });
+          }}
+        />
+      )}
+
+      {/* Historique des versements */}
+      {historyTarget && (
+        <VersementHistory
+          sale={historyTarget}
+          showroom={settings}
+          onClose={() => setHistoryTarget(null)}
+          onChanged={refetch}
+        />
+      )}
+
+      {/* Print prompt after a versement is created */}
+      <Modal open={!!versementPrompt} onClose={() => setVersementPrompt(null)} title={t("versements.created")} size="sm"
+        footer={<>
+          <button className="btn-ghost" onClick={() => setVersementPrompt(null)}>{t("common.skip")}</button>
+          <button className="btn-ghost" onClick={() => { printInLang((lang) => <VersementStatement sale={versementPrompt.sale} showroom={settings} lang={lang} payments={versementPrompt.list} />, "ar"); setVersementPrompt(null); }}><Printer size={14} /> {t("common.printAr")}</button>
+          <button className="btn-primary" onClick={() => { printInLang((lang) => <VersementStatement sale={versementPrompt.sale} showroom={settings} lang={lang} payments={versementPrompt.list} />, "fr"); setVersementPrompt(null); }}><Printer size={14} /> {t("common.printFr")}</button>
+        </>}>
+        <p className="text-text-muted">{t("versements.printPrompt")}</p>
       </Modal>
 
       {/* Edit — full wizard, same detail level as the POS sale flow */}
@@ -606,13 +882,13 @@ export default function Sales() {
         open={!!printTarget}
         onClose={() => setPrintTarget(null)}
         title={t("print.printings")}
-        docs={saleDocs(printTarget)}
+        docs={saleDocs(printTarget, printPayments)}
       />
 
       {/* Envoi par email (Brevo) */}
       <EmailModal
         sale={mailTarget}
-        docs={saleDocs(mailTarget)}
+        docs={saleDocs(mailTarget, mailPayments)}
         showroom={settings}
         onClose={() => setMailTarget(null)}
       />

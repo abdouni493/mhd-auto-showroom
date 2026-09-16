@@ -8,7 +8,7 @@ import { initials } from "../utils/format.js";
 import {
   Gauge, CarFront, ShoppingBag, Calculator, Tag, Banknote, Vault,
   MonitorSmartphone, CalendarClock, Contact, Briefcase, CircleDollarSign,
-  PieChart, SlidersHorizontal, LogOut, Languages, X,
+  PieChart, SlidersHorizontal, LogOut, Languages, X, Handshake,
 } from "lucide-react";
 
 // The navigation is grouped by activity instead of being one long flat list.
@@ -26,6 +26,7 @@ const NAV_GROUPS = [
     items: [
       { to: "/app/showroom", key: "showroom", icon: CarFront },
       { to: "/app/purchase", key: "purchase", icon: ShoppingBag },
+      { to: "/app/suppliers", key: "suppliers", icon: Handshake, badge: "settlements" },
     ],
   },
   {
@@ -33,14 +34,8 @@ const NAV_GROUPS = [
     items: [
       { to: "/app/pos", key: "pos", icon: Calculator },
       { to: "/app/sales", key: "sales", icon: Tag },
+      { to: "/app/clients", key: "clients", icon: Contact },
       { to: "/app/payments", key: "payments", icon: Banknote },
-    ],
-  },
-  {
-    key: "people",
-    items: [
-      { to: "/app/clients", key: "clients", icon: Contact, badge: "settlements" },
-      { to: "/app/workers", key: "workers", icon: Briefcase },
     ],
   },
   {
@@ -48,6 +43,7 @@ const NAV_GROUPS = [
     items: [
       { to: "/app/caisse", key: "caisse", icon: Vault },
       { to: "/app/expenses", key: "expenses", icon: CircleDollarSign },
+      { to: "/app/workers", key: "workers", icon: Briefcase },
     ],
   },
   {

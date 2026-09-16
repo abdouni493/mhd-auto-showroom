@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Printer, FileBarChart, Loader2, LayoutGrid, Table as TableIcon, ChevronRight, TrendingUp } from "lucide-react";
+import { Printer, FileBarChart, Loader2, LayoutGrid, Table as TableIcon, ChevronRight, TrendingUp, AlertTriangle } from "lucide-react";
 import { reportsApi } from "../lib/api.js";
 import { useStore } from "../store/useStore.js";
 import { useCan } from "../lib/permissions.js";
@@ -192,6 +192,16 @@ export default function Reports() {
     { key: "amount", label: "Montant", render: (e) => money(e.amount), cls: "text-amber-400 font-bold" },
     { key: "date", label: "Date", render: (e) => formatDate(e.date), cls: "text-text-muted" },
   ];
+  const prestationCols = [
+    { key: "client", label: "Propriétaire", render: (p) => `${p.client?.firstName || ""} ${p.client?.lastName || ""}` },
+    { key: "car", label: "Véhicule", render: (p) => `${p.car?.brand} ${p.car?.model}`, cls: "text-text-muted" },
+    { key: "sale", label: "Prix vente", render: (p) => money(p.salePrice), cls: "text-text-primary" },
+    { key: "share", label: "Part showroom", render: (p) => money(p.showroomShare), cls: "text-text-muted" },
+    { key: "gain", label: "Gain showroom", render: (p) => p.settled
+        ? <span className={p.showroomGain >= 0 ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}><TrendingUp size={12} className="inline mr-1" />{money(p.showroomGain)}</span>
+        : <span className="text-amber-400">En attente</span> },
+    { key: "date", label: "Date", render: (p) => formatDate(p.date), cls: "text-text-muted" },
+  ];
 
   // row → detail object
   const saleDetail = (s) => ({ car: s.car, rows: [["Client", `${s.client?.firstName} ${s.client?.lastName}`], ["Téléphone", s.client?.phonePrimary], ["Véhicule", `${s.car?.brand} ${s.car?.model}`], ["Plaque", s.car?.plate], ["Prix de vente", money(s.totalAfterReduction)], ["Achat initial", money(s.purchasePrice || 0)], ["Profit", money(s.totalAfterReduction - (s.purchasePrice || 0))], ["Payé", money(s.amountPaid)], ["Date", formatDate(s.date)]] });
@@ -201,6 +211,7 @@ export default function Reports() {
   const debtPurchaseDetail = (d) => ({ car: d.car, rows: [["Source", d.source], ["Véhicule", `${d.car?.brand} ${d.car?.model}`], ["Total", money(d.total)], ["Payé", money(d.paid)], ["Reste", money(d.rest)], ["Date", formatDate(d.date)]] });
   const payrollDetail = (p) => ({ rows: [["Employé", p.fullName], ["Rôle", p.role], ["Type", p.paymentType], ["Salaire base", money(p.baseSalary)], ["Acomptes", money(p.advances)], ["Absences", money(p.absences)], ["Net payé", money(p.netPaid)]] });
   const expenseDetail = (e) => ({ rows: [["Nom", e.name], ["Description", e.description || "—"], ["Montant", money(e.amount)], ["Date", formatDate(e.date)]] });
+  const prestationDetail = (p) => ({ car: p.car, rows: [["Propriétaire", `${p.client?.firstName || ""} ${p.client?.lastName || ""}`], ["Véhicule", `${p.car?.brand} ${p.car?.model}`], ["Prix de vente", money(p.salePrice)], ["Part showroom", money(p.showroomShare)], ["Dépenses véhicule", money(p.expenses)], ["Gain showroom", p.settled ? money(p.showroomGain) : "En attente de règlement"], ["Réglé", p.settled ? "Oui" : "Non"], ["Date", formatDate(p.date)]] });
 
   return (
     <div>
@@ -235,6 +246,21 @@ export default function Reports() {
             <p>Période : {formatDate(from)} → {formatDate(to)}</p>
           </div>
 
+          {/* Debt alerts */}
+          {(report.alerts?.clientDebtCount > 0 || report.alerts?.purchaseDebtCount > 0) && (
+            <div className="glass-card p-4 mb-5 border border-rose-500/40 bg-rose-500/5 flex items-start gap-3">
+              <span className="p-2 rounded-xl bg-rose-500/15 text-rose-400 shrink-0"><AlertTriangle size={20} /></span>
+              <div className="flex-1 min-w-0">
+                <p className="heading text-sm text-rose-400">Alertes dettes</p>
+                <p className="text-xs text-text-muted mt-0.5">
+                  {report.alerts.clientDebtCount} dette(s) clients — <span className="text-rose-400 font-bold">{money(report.alerts.clientDebtTotal)}</span>
+                  {"  ·  "}
+                  {report.alerts.purchaseDebtCount} dette(s) sur achats — <span className="text-rose-400 font-bold">{money(report.alerts.purchaseDebtTotal)}</span>
+                </p>
+              </div>
+            </div>
+          )}
+
           <Section title="1. Synthèse Globale">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {[
@@ -262,6 +288,7 @@ export default function Reports() {
           <Section title="7. Dettes sur Achats"><DataBlock cols={debtPurchaseCols} rows={report.purchaseDebts} view={view} onRow={(r) => setDetail({ title: "Dette", ...debtPurchaseDetail(r) })} /></Section>
           <Section title="8. Employés & Salaires"><DataBlock cols={payrollCols} rows={report.payroll} view={view} onRow={(r) => setDetail({ title: "Salaire", ...payrollDetail(r) })} /></Section>
           <Section title="9. Ventes de Véhicules de Clients"><DataBlock cols={debtPurchaseCols} rows={report.clientSourcedPurchases} view={view} onRow={(r) => setDetail({ title: "Véhicule client", ...debtPurchaseDetail(r) })} /></Section>
+          <Section title="10. Ventes Prestation (Gains Showroom)"><DataBlock cols={prestationCols} rows={report.prestationSales} view={view} onRow={(r) => setDetail({ title: "Vente prestation", ...prestationDetail(r) })} /></Section>
         </div>
       )}
 

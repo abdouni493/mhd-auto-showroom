@@ -21,11 +21,11 @@ export default function ClientForm({ value, onChange, errors = {} }) {
       <SingleImageUpload value={c.photo} onChange={(url) => onChange({ ...c, photo: url })} label={t("client.photo")} bucket={BUCKETS.clientPhotos} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field label={t("client.firstName")} required error={errors.firstName}>
-          <input className="input" value={c.firstName || ""} onChange={set("firstName")} />
-        </Field>
         <Field label={t("client.lastName")} required error={errors.lastName}>
           <input className="input" value={c.lastName || ""} onChange={set("lastName")} />
+        </Field>
+        <Field label={t("client.firstName")} required error={errors.firstName}>
+          <input className="input" value={c.firstName || ""} onChange={set("firstName")} />
         </Field>
         <Field label={t("client.birthDate")}>
           <DateInput value={toDateInput(c.birthDate)} onChange={set("birthDate")} />

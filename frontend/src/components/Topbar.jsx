@@ -21,7 +21,7 @@ export default function Topbar({ onMenu }) {
     i18n.changeLanguage(next);
   };
 
-  const showAlert = pendingSettlements > 0 && can("clients", "view");
+  const showAlert = pendingSettlements > 0 && can("suppliers", "view");
 
   return (
     <header className="app-topbar sticky top-0 z-30 flex items-center gap-3 px-4 sm:px-6 py-3 border-b border-red-600/20 bg-black/60 backdrop-blur-md">
@@ -44,7 +44,7 @@ export default function Topbar({ onMenu }) {
             exit={{ opacity: 0, scale: 0.9 }}
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.96 }}
-            onClick={() => navigate("/app/clients?settle=1")}
+            onClick={() => navigate("/app/suppliers?settle=1")}
             title={t("settlements.alertTitle")}
             className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-amber-500/50 bg-amber-500/12 text-amber-400 text-xs font-bold uppercase tracking-wider"
           >

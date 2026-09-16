@@ -3,9 +3,9 @@ import { useStore } from "../store/useStore.js";
 // Permission sections — keys match the sidebar nav keys AND the worker-role
 // permission map. Order is the sidebar display order.
 export const SECTIONS = [
-  "dashboard", "showroom", "purchase", "pos", "sales", "payments",
+  "dashboard", "showroom", "purchase", "suppliers", "pos", "sales", "payments",
   // "settlements" gates the owner règlement of a vehicle left by a client
-  // (the action lives on the Clients page, it has no sidebar entry of its own).
+  // (the action lives on the Fournisseurs page, it has no sidebar entry of its own).
   "settlements",
   "caisse", "websiteSettings", "websiteReservations", "clients",
   "workers", "expenses", "reports", "settings",
@@ -18,6 +18,7 @@ export const ROUTE_SECTION = {
   dashboard: "dashboard",
   showroom: "showroom",
   purchase: "purchase",
+  suppliers: "suppliers",
   pos: "pos",
   sales: "sales",
   payments: "payments",

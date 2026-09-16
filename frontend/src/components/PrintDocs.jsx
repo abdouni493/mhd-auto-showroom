@@ -99,6 +99,22 @@ const D = {
     thisPayment: "Versement de ce jour",
     remainingAfter: "Reste à payer",
     paymentMode: "Mode de paiement",
+    // Relevé de versements (statement)
+    versementsTitle: "Versements",
+    versementsExtra: "Relevé des versements sur la vente",
+    dateLabel: "Date",
+    montantLabel: "Montant",
+    remiseLabel: "Remise",
+    versementLabel: "Versement",
+    colVersementNo: "N° de versements",
+    colBonNo: "N° du bon",
+    colVersements: "Versements",
+    colVersementDate: "Date de versements",
+    colObservation: "Observation",
+    totalPaidLabel: "Total",
+    restToPay: "Reste à payer",
+    sigAgencyStamp: "Signature et cachet de l'Agence",
+    sigClientPrint: "Empreinte et signature du client",
     // Bon d'entrée / sortie
     inOutTitle: "Bon d'Entrée / Sortie",
     inOutExtra: "Sortie du véhicule du parc showroom",
@@ -215,6 +231,22 @@ const D = {
     thisPayment: "دفعة اليوم",
     remainingAfter: "المبلغ المتبقي",
     paymentMode: "طريقة الدفع",
+    // كشف الدفعات
+    versementsTitle: "الدفعات",
+    versementsExtra: "كشف الدفعات على البيع",
+    dateLabel: "التاريخ",
+    montantLabel: "المبلغ",
+    remiseLabel: "تخفيض",
+    versementLabel: "الدفعة",
+    colVersementNo: "رقم الدفعة",
+    colBonNo: "رقم الوصل",
+    colVersements: "الدفعات",
+    colVersementDate: "تاريخ الدفعة",
+    colObservation: "ملاحظة",
+    totalPaidLabel: "المجموع",
+    restToPay: "المبلغ المتبقي",
+    sigAgencyStamp: "توقيع و ختم الوكالة",
+    sigClientPrint: "بصمة و توقيع العميل",
     inOutTitle: "وصل دخول / خروج",
     inOutExtra: "خروج المركبة من حظيرة المعرض",
     outDateTime: "تاريخ و ساعة الخروج",
@@ -1220,6 +1252,135 @@ export function SettlementReceipt({ settlement, showroom, lang = "fr" }) {
       )}
 
       <Signatures left={x.sigOwnerReceipt} right={x.sigShowroom} />
+      <Footer showroom={showroom} lang={lang} />
+    </div>
+  );
+}
+
+// ============================================================================
+// 9. RELEVÉ DES VERSEMENTS  (statement of every installment paid on a sale)
+//    Faithful to the paper "Versements" document — showroom header + logo,
+//    client & vehicle info blocks, a table of every versement with its bon
+//    number, versement number, amount, date and observation, then the total
+//    paid and the remaining balance, with the agency stamp / client signature.
+//    `highlightId` bolds one versement (used when printing a single one).
+// ============================================================================
+export function VersementStatement({ sale, showroom, lang = "fr", payments = [], highlightId = null }) {
+  const x = x2(lang);
+  const s = tableStyles(lang);
+  const car = sale?.car || {};
+  const client = sale?.client || {};
+  const total = Number(sale?.totalAfterReduction) || 0;
+  const list = (Array.isArray(payments) ? payments : [])
+    .slice()
+    .sort((a, b) => new Date(a.date) - new Date(b.date) || (a.id || 0) - (b.id || 0));
+  const totalPaid = list.reduce((a, p) => a + (Number(p.amount) || 0), 0);
+  const rest = Math.max(0, total - totalPaid);
+  const featured =
+    highlightId != null ? list.find((p) => p.id === highlightId) : list[list.length - 1];
+  const reduction = Number(sale?.reductionValue) || 0;
+  const bonNo = sale?.id ?? "";
+
+  return (
+    <div style={sheetStyle(lang, false)}>
+      <Header showroom={showroom} lang={lang} />
+      <TitleBar
+        lang={lang}
+        title={x.versementsTitle}
+        reference={bonNo}
+        date={formatDate(featured?.date || sale?.date)}
+        extra={x.versementsExtra}
+      />
+
+      <div style={grid2}>
+        {/* Client info */}
+        <Frame title={x.clientBlock}>
+          <Row lang={lang} label={x.dateLabel} value={formatDate(featured?.date || sale?.date)} />
+          <Row lang={lang} label={x.clientBlock} value={`${client.firstName || ""} ${client.lastName || ""}`.trim()} strong />
+          <Row lang={lang} label={x.clientCode} value={client.id} />
+          <Row lang={lang} label={x.montantLabel} value={formatAmount(total)} strong last />
+        </Frame>
+        {/* Vehicle info */}
+        <Frame title={x.vehicle}>
+          <Row lang={lang} label={x.colCarCode} value={car.id} />
+          <Row lang={lang} label={x.colBrand} value={carName(car)} strong />
+          <Row lang={lang} label={x.plate} value={car.plate} />
+          <Row lang={lang} label={x.versementLabel} value={formatAmount(featured?.amount || 0)} />
+          <Row lang={lang} label={x.remiseLabel} value={formatAmount(reduction)} last />
+        </Frame>
+      </div>
+
+      {/* Versements table */}
+      <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", marginTop: 10 }}>
+        <colgroup>
+          <col style={{ width: "17%" }} />
+          <col style={{ width: "13%" }} />
+          <col style={{ width: "22%" }} />
+          <col style={{ width: "20%" }} />
+          <col style={{ width: "28%" }} />
+        </colgroup>
+        <thead>
+          <tr>
+            <th style={s.th}>{x.colVersementNo}</th>
+            <th style={s.th}>{x.colBonNo}</th>
+            <th style={{ ...s.th, textAlign: s.end }}>{x.colVersements}</th>
+            <th style={s.th}>{x.colVersementDate}</th>
+            <th style={s.th}>{x.colObservation}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {list.length === 0 ? (
+            <tr>
+              <td style={{ ...s.td, textAlign: "center", color: MUTE }} colSpan={5}>—</td>
+            </tr>
+          ) : (
+            list.map((p, i) => {
+              const hot = highlightId != null && p.id === highlightId;
+              const bg = hot ? "#fde8e8" : i % 2 ? SOFT : "#fff";
+              return (
+                <tr key={p.id ?? i} style={{ background: bg, ...exact }}>
+                  <td style={{ ...s.td, ...ltr, textAlign: s.start, fontWeight: hot ? 900 : 700, color: hot ? ACCENT : INK }}>{p.id ?? i + 1}</td>
+                  <td style={{ ...s.td, ...ltr, textAlign: s.start }}>{bonNo}</td>
+                  <td style={{ ...s.td, textAlign: s.end, fontWeight: 800, ...ltr }}>{formatAmount(p.amount)}</td>
+                  <td style={{ ...s.td, whiteSpace: "nowrap", ...ltr, textAlign: s.start }}>{formatDate(p.date)}</td>
+                  <td style={{ ...s.td, color: MUTE }}>{dash(p.description)}</td>
+                </tr>
+              );
+            })
+          )}
+        </tbody>
+      </table>
+
+      {/* Total paid + remaining balance */}
+      <div style={{ ...grid2, marginTop: 10 }}>
+        <div
+          style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            border: `1px solid ${LINE}`, borderRadius: 6, padding: "9px 12px", background: SOFT, ...exact,
+          }}
+        >
+          <span style={{ fontWeight: 800, textTransform: "uppercase", fontSize: 11 }}>{x.totalPaidLabel}</span>
+          <span style={{ fontWeight: 900, fontSize: 16, ...ltr }}>{formatAmount(totalPaid)}</span>
+        </div>
+        <div
+          style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            borderRadius: 6, padding: "9px 12px",
+            background: rest > 0 ? ACCENT : "#047857", color: "#fff", ...exact,
+          }}
+        >
+          <span style={{ fontWeight: 800, textTransform: "uppercase", fontSize: 11 }}>{x.restToPay}</span>
+          <span style={{ fontWeight: 900, fontSize: 16, ...ltr }}>{formatAmount(rest)}</span>
+        </div>
+      </div>
+
+      {/* Amount in words of the total collected */}
+      <div style={{ marginTop: 10, border: `1px dashed ${LINE}`, borderRadius: 6, padding: "7px 9px", fontSize: 10.5 }}>
+        <span style={{ fontWeight: 800, color: INK }}>{x.stopSumVoucher} </span>
+        <span style={{ fontWeight: 700 }}>{numberToWords(totalPaid, lang)}</span>
+      </div>
+
+      <Signatures left={x.sigAgencyStamp} right={x.sigClientPrint} />
       <Footer showroom={showroom} lang={lang} />
     </div>
   );

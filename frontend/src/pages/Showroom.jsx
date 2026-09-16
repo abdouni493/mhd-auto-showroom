@@ -47,6 +47,20 @@ function CarDetail({ car }) {
   const totalExpenses = (car.expenses || []).reduce((a, e) => a + e.amount, 0);
   const client = sale?.client || purchase?.client;
 
+  // Prestation (client-owned) vehicle: the showroom keeps a share of the sale.
+  // Its gain (share − vehicle expenses) is only fixed once the owner règlement
+  // has been created.
+  const isPrestation = purchase?.sourceType === "CLIENT";
+  const settlementRel = sale ? (Array.isArray(sale.settlement) ? sale.settlement[0] : sale.settlement) : null;
+  const settled = !!settlementRel;
+  const carExpenses = (car.expenses || [])
+    .filter((e) => e.type === "CAR" || !e.type)
+    .reduce((a, e) => a + (Number(e.amount) || 0), 0);
+  const showroomShare = Number(settlementRel?.showroomShare ?? sale?.showroomShare) || 0;
+  const salePrice = Number(sale?.totalAfterReduction) || 0;
+  const showroomGain = showroomShare - carExpenses;
+  const ownerAmount = salePrice - showroomShare - carExpenses;
+
   return (
     <div>
       <div className="rounded-xl overflow-hidden mb-5">
@@ -113,6 +127,37 @@ function CarDetail({ car }) {
           {sale && <DRow label={t("showroom.remainingDebt")} value={<span className="text-rose-400">{formatAmount(sale.amountRest)}</span>} />}
         </div>
       </Section>
+
+      {isPrestation && sale && (
+        <Section title={t("showroom.sectionPrestation")} tint="text-amber-400">
+          <div className={`glass-card p-3 border ${settled ? "border-emerald-500/30" : "border-amber-500/30"}`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="label-caps !mb-0 !text-amber-400">{t("pos.clientCarTitle")}</span>
+              {settled ? (
+                <Badge color="success">{t("showroom.settled")}</Badge>
+              ) : (
+                <Badge color="warning">{t("showroom.settlementPending")}</Badge>
+              )}
+            </div>
+            <DRow label={t("showroom.sellingPrice")} value={formatAmount(salePrice)} />
+            <DRow label={t("pos.showroomShare")} value={settled ? formatAmount(showroomShare) : "—"} />
+            <DRow label={t("sales.carExpenses")} value={formatAmount(carExpenses)} />
+            <DRow
+              label={t("showroom.showroomGain")}
+              value={
+                settled ? (
+                  <span className={showroomGain >= 0 ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
+                    {showroomGain >= 0 ? "+" : ""}{formatAmount(showroomGain)}
+                  </span>
+                ) : (
+                  <span className="text-amber-400">{t("showroom.gainPending")}</span>
+                )
+              }
+            />
+            <DRow label={t("pos.ownerAmount")} value={settled ? formatAmount(ownerAmount) : "—"} />
+          </div>
+        </Section>
+      )}
 
       <Section title={t("showroom.sectionExpenses")} tint="text-amber-400">
         <p className="text-2xl font-black text-amber-400 mb-2">{formatAmount(totalExpenses)}</p>

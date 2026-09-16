@@ -1,16 +1,17 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import {
-  Lock, Vault, ArrowDownCircle, ArrowUpCircle, Eye, Pencil, Trash2,
-  Printer, ShieldCheck,
+  Vault, ArrowDownCircle, ArrowUpCircle, Eye, Pencil, Trash2, Printer,
+  Tag, ShoppingBag, CircleDollarSign, Briefcase, Handshake, Wallet, Scale,
+  TrendingUp, TrendingDown, Search,
 } from "lucide-react";
-import { cashApi, clientsApi, auth } from "../lib/api.js";
+import { cashApi, clientsApi } from "../lib/api.js";
 import { useFetch } from "../hooks/useApi.js";
 import { useCan } from "../lib/permissions.js";
 import { useStore } from "../store/useStore.js";
 import {
-  Card, Badge, Modal, ConfirmModal, Field, EmptyState, SkeletonGrid, AnimatedGrid, useToast,
+  Card, Badge, Modal, ConfirmModal, Field, EmptyState, SkeletonGrid, useToast,
 } from "../components/ui.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import ActionMenu from "../components/ActionMenu.jsx";
@@ -20,109 +21,73 @@ import { usePrintDialog } from "../components/PrintChooser.jsx";
 import { formatAmount, formatDateTime, toDateTimeLocal } from "../utils/format.js";
 import DateInput from "../components/DateInput.jsx";
 
-const UNLOCK_KEY = "caisse-unlocked";
+// The category chips + how each ledger line is coloured / iconed.
+const CATEGORIES = {
+  cash:       { icon: Wallet,            tint: "text-sky-400",     bg: "bg-sky-500/15" },
+  sale:       { icon: Tag,               tint: "text-emerald-400", bg: "bg-emerald-500/15" },
+  purchase:   { icon: ShoppingBag,       tint: "text-violet-400",  bg: "bg-violet-500/15" },
+  expense:    { icon: CircleDollarSign,  tint: "text-amber-400",   bg: "bg-amber-500/15" },
+  payroll:    { icon: Briefcase,         tint: "text-cyan-400",    bg: "bg-cyan-500/15" },
+  settlement: { icon: Handshake,         tint: "text-fuchsia-400", bg: "bg-fuchsia-500/15" },
+};
 
-// ── Admin-password gate ───────────────────────────────────────────────────
-function LockScreen({ onUnlock }) {
-  const { t } = useTranslation();
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const submit = async (e) => {
-    e?.preventDefault?.();
-    if (!password) return;
-    setLoading(true);
-    setError("");
-    try {
-      const ok = await auth.verifyPassword(password);
-      if (ok) {
-        sessionStorage.setItem(UNLOCK_KEY, "1");
-        onUnlock();
-      } else {
-        setError(t("caisse.wrongPassword"));
-      }
-    } catch {
-      setError(t("caisse.wrongPassword"));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="min-h-[70vh] flex items-center justify-center">
-      <motion.form
-        onSubmit={submit}
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ type: "spring", stiffness: 300, damping: 24 }}
-        className="glass-panel w-full max-w-sm p-7 text-center"
-      >
-        <motion.div
-          className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-red-600 to-red-900 flex items-center justify-center"
-          animate={{ boxShadow: ["0 0 0px rgba(220,38,38,0)", "0 0 28px rgba(220,38,38,0.45)", "0 0 0px rgba(220,38,38,0)"] }}
-          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-        >
-          <Lock size={28} className="text-white" />
-        </motion.div>
-        <h2 className="heading text-xl text-text-primary mb-1">{t("caisse.lockTitle")}</h2>
-        <p className="text-sm text-text-muted mb-5">{t("caisse.lockDesc")}</p>
-
-        <Field label={t("caisse.passwordLabel")}>
-          <input
-            className="input text-center"
-            type="password"
-            autoFocus
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-          />
-        </Field>
-        {error && <p className="text-rose-400 text-xs mt-2">{error}</p>}
-
-        <button type="submit" className="btn-primary w-full mt-5 justify-center" disabled={loading}>
-          <ShieldCheck size={16} /> {loading ? "..." : t("caisse.unlock")}
-        </button>
-      </motion.form>
-    </div>
-  );
-}
-
-// ── Caisse content (after unlock) ─────────────────────────────────────────
-function CaisseContent() {
+export default function Caisse() {
   const { t } = useTranslation();
   const can = useCan();
   const { settings } = useStore();
   const toast = useToast();
   const openPrint = usePrintDialog();
 
-  const [tab, setTab] = useState("DEPOSIT"); // DEPOSIT | WITHDRAWAL
-  const [search, setSearch] = useState("");
-  const { data: all, loading, refetch } = useFetch(() => cashApi.list({ search }), [search]);
+  // The whole money ledger + the raw manual cash rows (for edit / delete / print).
+  const { data: ledger, loading, refetch } = useFetch(() => cashApi.ledger(), []);
+  const { data: cashRows, refetch: refetchCash } = useFetch(() => cashApi.list({}), []);
 
-  const [form, setForm] = useState(null); // { type, clientName, clientPhone, clientId, amount, description, date }
+  const [category, setCategory] = useState(""); // "" = all
+  const [search, setSearch] = useState("");
+  const [form, setForm] = useState(null);
   const [editId, setEditId] = useState(null);
   const [viewItem, setViewItem] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
 
-  const list = (all || []).filter((x) => x.type === tab);
-  const totalDeposits = (all || []).filter((x) => x.type === "DEPOSIT").reduce((a, x) => a + (x.amount || 0), 0);
-  const totalWithdrawals = (all || []).filter((x) => x.type === "WITHDRAWAL").reduce((a, x) => a + (x.amount || 0), 0);
-  const balance = totalDeposits - totalWithdrawals;
+  const totals = ledger?.totals || { totalIn: 0, totalOut: 0, balance: 0, byCategory: {} };
+  const entries = useMemo(() => {
+    let list = ledger?.entries || [];
+    if (category) list = list.filter((e) => e.category === category);
+    if (search) {
+      const s = search.toLowerCase();
+      list = list.filter(
+        (e) =>
+          (e.label || "").toLowerCase().includes(s) ||
+          (e.sub || "").toLowerCase().includes(s) ||
+          (e.description || "").toLowerCase().includes(s) ||
+          (e.reference || "").toLowerCase().includes(s)
+      );
+    }
+    return list;
+  }, [ledger, category, search]);
+
+  const cashById = useMemo(() => {
+    const m = {};
+    for (const r of cashRows || []) m[r.id] = r;
+    return m;
+  }, [cashRows]);
+
+  const reload = () => { refetch(); refetchCash(); };
 
   const openNew = (type) => {
     setForm({ type, clientName: "", clientPhone: "", clientId: null, amount: "", description: "", date: toDateTimeLocal(new Date()) });
     setEditId(null);
   };
-  const openEdit = (x) => {
+  const openEditCash = (id) => {
+    const x = cashById[id];
+    if (!x) return;
     setForm({
       type: x.type, clientName: x.clientName || "", clientPhone: x.clientPhone || "",
       clientId: x.clientId || null, amount: String(x.amount ?? ""), description: x.description || "",
       date: toDateTimeLocal(x.date),
     });
-    setEditId(x.id);
+    setEditId(id);
   };
-
   const pickClient = (c) =>
     setForm((f) => ({ ...f, clientId: c.id, clientName: `${c.firstName || ""} ${c.lastName || ""}`.trim(), clientPhone: c.phonePrimary || "" }));
 
@@ -140,85 +105,145 @@ function CaisseContent() {
     };
     if (editId) await cashApi.update(editId, payload);
     else await cashApi.create(payload);
-    setForm(null); setEditId(null); refetch();
+    setForm(null); setEditId(null); reload();
     toast(t("caisse.savedToast"));
   };
 
-  const confirmDelete = async () => { await cashApi.delete(deleteId); setDeleteId(null); refetch(); toast(t("caisse.deletedToast"), "info"); };
+  const confirmDelete = async () => { await cashApi.delete(deleteId); setDeleteId(null); reload(); toast(t("caisse.deletedToast"), "info"); };
 
-  const doPrint = (x) => openPrint((lang) => <CashTransactionInvoice transaction={x} showroom={settings} lang={lang} />);
+  const printCash = (id) => {
+    const x = cashById[id];
+    if (x) openPrint((lang) => <CashTransactionInvoice transaction={x} showroom={settings} lang={lang} />);
+  };
 
-  const menuItems = (x) => [
-    { label: t("common.view"), icon: Eye, onClick: () => setViewItem(x) },
-    can("caisse", "edit") && { label: t("common.edit"), icon: Pencil, onClick: () => openEdit(x) },
-    can("caisse", "print") && { label: t("common.print"), icon: Printer, onClick: () => doPrint(x) },
-    can("caisse", "delete") && { label: t("common.delete"), icon: Trash2, danger: true, onClick: () => setDeleteId(x.id) },
+  const CAT_CHIPS = [
+    ["", t("caisse.catAll")],
+    ["cash", t("caisse.catCash")],
+    ["sale", t("caisse.catSale")],
+    ["purchase", t("caisse.catPurchase")],
+    ["expense", t("caisse.catExpense")],
+    ["payroll", t("caisse.catPayroll")],
+    ["settlement", t("caisse.catSettlement")],
   ];
-
-  const isDeposit = tab === "DEPOSIT";
 
   return (
     <div>
-      <PageHeader
-        title={t("nav.caisse")}
-        action={can("caisse", "create") ? () => openNew(tab) : undefined}
-        actionLabel={isDeposit ? t("caisse.newDeposit") : t("caisse.newWithdrawal")}
-      />
+      <PageHeader title={t("nav.caisse")} subtitle={t("caisse.subtitle")} />
 
-      {/* Totals */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      {/* Balance / in / out */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
         <Card className="p-4 flex items-center justify-between" style={{ borderLeft: "3px solid #10b981" }}>
-          <div><p className="label-caps">{t("caisse.totalDeposits")}</p><p className="text-xl font-black text-emerald-400 mt-1">{formatAmount(totalDeposits)}</p></div>
-          <ArrowDownCircle className="text-emerald-400" size={26} />
+          <div><p className="label-caps">{t("caisse.totalIn")}</p><p className="text-xl font-black text-emerald-400 mt-1">{formatAmount(totals.totalIn)}</p></div>
+          <TrendingUp className="text-emerald-400" size={26} />
         </Card>
         <Card className="p-4 flex items-center justify-between" style={{ borderLeft: "3px solid #fb7185" }}>
-          <div><p className="label-caps">{t("caisse.totalWithdrawals")}</p><p className="text-xl font-black text-rose-300 mt-1">{formatAmount(totalWithdrawals)}</p></div>
-          <ArrowUpCircle className="text-rose-300" size={26} />
+          <div><p className="label-caps">{t("caisse.totalOut")}</p><p className="text-xl font-black text-rose-300 mt-1">{formatAmount(totals.totalOut)}</p></div>
+          <TrendingDown className="text-rose-300" size={26} />
         </Card>
         <Card className="p-4 flex items-center justify-between" style={{ borderLeft: "3px solid #dc2626" }}>
-          <div><p className="label-caps">{t("caisse.balance")}</p><p className={`text-xl font-black mt-1 ${balance >= 0 ? "text-text-primary" : "text-rose-400"}`}>{formatAmount(balance)}</p></div>
-          <Vault className="text-red-400" size={26} />
+          <div><p className="label-caps">{t("caisse.balance")}</p><p className={`text-xl font-black mt-1 ${totals.balance >= 0 ? "text-text-primary" : "text-rose-400"}`}>{formatAmount(totals.balance)}</p></div>
+          <Scale className="text-red-400" size={26} />
         </Card>
       </div>
 
-      {/* Tabs + search */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6 items-start">
-        <div className="flex gap-2">
-          <button className={`chip ${isDeposit ? "chip-active" : ""}`} onClick={() => setTab("DEPOSIT")}><ArrowDownCircle size={13} /> {t("caisse.tabDeposits")}</button>
-          <button className={`chip ${!isDeposit ? "chip-active" : ""}`} onClick={() => setTab("WITHDRAWAL")}><ArrowUpCircle size={13} /> {t("caisse.tabWithdrawals")}</button>
-        </div>
-        <input className="input sm:max-w-xs sm:ml-auto rtl:sm:ml-0 rtl:sm:mr-auto" placeholder={t("caisse.searchPlaceholder")} value={search} onChange={(e) => setSearch(e.target.value)} />
+      {/* Category totals */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 mb-6">
+        {["cash", "sale", "purchase", "expense", "payroll", "settlement"].map((k) => {
+          const meta = CATEGORIES[k];
+          const Icon = meta.icon;
+          return (
+            <button
+              key={k}
+              onClick={() => setCategory(category === k ? "" : k)}
+              className={`glass-card p-3 text-left rtl:text-right border transition ${category === k ? "border-red-600/60" : "border-white/5"}`}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`p-1.5 rounded-lg ${meta.bg} ${meta.tint}`}><Icon size={14} /></span>
+                <span className="label-caps !mb-0">{t(`caisse.cat${k.charAt(0).toUpperCase() + k.slice(1)}`)}</span>
+              </div>
+              <p className="text-sm font-black text-text-primary">{formatAmount(totals.byCategory?.[k] || 0)}</p>
+            </button>
+          );
+        })}
       </div>
 
-      {loading ? <SkeletonGrid /> : list.length === 0 ? (
-        <EmptyState icon={Vault} message={t("caisse.noTransactions")} cta={can("caisse", "create") ? (isDeposit ? t("caisse.newDeposit") : t("caisse.newWithdrawal")) : undefined} onCta={() => openNew(tab)} />
-      ) : (
-        <AnimatedGrid className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {list.map((x) => (
-            <Card key={x.id} className="p-4">
-              <div className="flex justify-between items-start gap-2">
-                <div className="min-w-0">
-                  <p className="text-xs text-text-muted font-mono">{x.reference}</p>
-                  <p className="heading text-sm text-text-primary truncate mt-0.5">
-                    {isDeposit ? (x.clientName || "—") : (x.description || t("caisse.withdrawal"))}
-                  </p>
-                  {isDeposit && x.clientPhone && <p className="text-xs text-text-muted">{x.clientPhone}</p>}
-                </div>
-                <ActionMenu items={menuItems(x)} />
-              </div>
-              {isDeposit && x.description && <p className="text-xs text-text-muted truncate mt-1">{x.description}</p>}
-              <div className="flex justify-between items-end mt-3">
-                <span className={`text-lg font-black ${isDeposit ? "text-emerald-400" : "text-rose-300"}`}>
-                  {isDeposit ? "+" : "−"} {formatAmount(x.amount)}
-                </span>
-                <span className="text-xs text-text-muted">{formatDateTime(x.date)}</span>
-              </div>
-            </Card>
+      {/* Toolbar */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-5 items-start">
+        <div className="flex flex-wrap gap-2">
+          {CAT_CHIPS.map(([k, label]) => (
+            <button key={k} className={`chip ${category === k ? "chip-active" : ""}`} onClick={() => setCategory(k)}>{label}</button>
           ))}
-        </AnimatedGrid>
+        </div>
+        <div className="relative flex-1 sm:max-w-xs sm:ml-auto rtl:sm:ml-0 rtl:sm:mr-auto">
+          <Search className="absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-text-muted" size={16} />
+          <input className="input pl-9 rtl:pl-3 rtl:pr-9" placeholder={t("caisse.searchPlaceholder")} value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        {can("caisse", "create") && (
+          <div className="flex gap-2">
+            <button className="btn-ghost text-xs" onClick={() => openNew("DEPOSIT")}><ArrowDownCircle size={14} /> {t("caisse.newDeposit")}</button>
+            <button className="btn-ghost text-xs" onClick={() => openNew("WITHDRAWAL")}><ArrowUpCircle size={14} /> {t("caisse.newWithdrawal")}</button>
+          </div>
+        )}
+      </div>
+
+      {/* Ledger */}
+      {loading ? <SkeletonGrid /> : entries.length === 0 ? (
+        <EmptyState icon={Vault} message={t("caisse.noTransactions")} />
+      ) : (
+        <Card className="overflow-x-auto p-0">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="text-left rtl:text-right bg-red-600/10 border-b border-red-600/30">
+                {[t("common.date"), t("caisse.colType"), t("caisse.colLabel"), t("caisse.colRef"), t("common.amount"), ""].map((h, i) => (
+                  <th key={i} className="p-3 label-caps !text-red-300/80">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((e, i) => {
+                const meta = CATEGORIES[e.category] || CATEGORIES.cash;
+                const Icon = meta.icon;
+                const isCash = e.category === "cash";
+                const rawId = isCash ? Number(String(e.id).replace("cash-", "")) : null;
+                return (
+                  <motion.tr
+                    key={e.id}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: Math.min(i, 20) * 0.02 }}
+                    className={`border-b border-red-600/10 hover:bg-red-600/8 ${i % 2 ? "bg-white/[0.015]" : ""}`}
+                  >
+                    <td className="p-3 text-text-muted whitespace-nowrap">{formatDateTime(e.date)}</td>
+                    <td className="p-3">
+                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold ${meta.bg} ${meta.tint}`}>
+                        <Icon size={12} /> {t(`caisse.cat${e.category.charAt(0).toUpperCase() + e.category.slice(1)}`)}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <p className="text-text-primary">{e.label}</p>
+                      {e.sub && <p className="text-xs text-text-muted">{e.sub}</p>}
+                    </td>
+                    <td className="p-3 font-mono text-xs text-text-muted">{e.reference || "—"}</td>
+                    <td className={`p-3 font-black whitespace-nowrap ${e.dir === "IN" ? "text-emerald-400" : "text-rose-300"}`}>
+                      {e.dir === "IN" ? "+ " : "− "}{formatAmount(e.amount)}
+                    </td>
+                    <td className="p-3">
+                      <ActionMenu items={[
+                        { label: t("common.view"), icon: Eye, onClick: () => setViewItem(e) },
+                        isCash && can("caisse", "print") && { label: t("common.print"), icon: Printer, onClick: () => printCash(rawId) },
+                        isCash && can("caisse", "edit") && { label: t("common.edit"), icon: Pencil, onClick: () => openEditCash(rawId) },
+                        isCash && can("caisse", "delete") && { label: t("common.delete"), icon: Trash2, danger: true, onClick: () => setDeleteId(rawId) },
+                      ]} />
+                    </td>
+                  </motion.tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </Card>
       )}
 
-      {/* Create / Edit modal */}
+      {/* Create / Edit manual cash movement */}
       <Modal
         open={!!form}
         onClose={() => { setForm(null); setEditId(null); }}
@@ -256,25 +281,26 @@ function CaisseContent() {
         )}
       </Modal>
 
-      {/* View modal */}
+      {/* View any ledger line */}
       <Modal open={!!viewItem} onClose={() => setViewItem(null)} title={t("common.details")} size="sm">
         {viewItem && (
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <Badge color={viewItem.type === "DEPOSIT" ? "success" : "debt"}>{viewItem.type === "DEPOSIT" ? t("caisse.deposit") : t("caisse.withdrawal")}</Badge>
-              <span className="text-xs text-text-muted font-mono">{viewItem.reference}</span>
+              <Badge color={viewItem.dir === "IN" ? "success" : "debt"}>{viewItem.dir === "IN" ? t("caisse.moneyIn") : t("caisse.moneyOut")}</Badge>
+              {viewItem.reference && <span className="text-xs text-text-muted font-mono">{viewItem.reference}</span>}
             </div>
             <div className="grid grid-cols-1">
               {Object.entries({
-                ...(viewItem.type === "DEPOSIT" ? { [t("caisse.clientName")]: viewItem.clientName, [t("caisse.clientPhone")]: viewItem.clientPhone } : {}),
-                [t("common.amount")]: formatAmount(viewItem.amount),
+                [t("caisse.colType")]: t(`caisse.cat${viewItem.category.charAt(0).toUpperCase() + viewItem.category.slice(1)}`),
+                [t("caisse.colLabel")]: viewItem.label,
+                ...(viewItem.sub ? { [t("common.details")]: viewItem.sub } : {}),
+                [t("common.amount")]: `${viewItem.dir === "IN" ? "+ " : "− "}${formatAmount(viewItem.amount)}`,
                 [t("common.datetime")]: formatDateTime(viewItem.date),
-                [t("common.description")]: viewItem.description,
+                ...(viewItem.description ? { [t("common.description")]: viewItem.description } : {}),
               }).map(([k, v]) => (
                 <div key={k} className="flex justify-between text-sm border-b border-red-600/10 py-1.5"><span className="text-text-muted">{k}</span><span className="text-text-primary text-right">{v || "—"}</span></div>
               ))}
             </div>
-            <button className="btn-ghost w-full justify-center" onClick={() => doPrint(viewItem)}><Printer size={14} /> {t("common.print")}</button>
           </div>
         )}
       </Modal>
@@ -282,10 +308,4 @@ function CaisseContent() {
       <ConfirmModal open={!!deleteId} onClose={() => setDeleteId(null)} onConfirm={confirmDelete} />
     </div>
   );
-}
-
-export default function Caisse() {
-  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(UNLOCK_KEY) === "1");
-  if (!unlocked) return <LockScreen onUnlock={() => setUnlocked(true)} />;
-  return <CaisseContent />;
 }

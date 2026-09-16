@@ -56,13 +56,23 @@ function shapeSale(s) {
   s.sourceType = purchaseObj?.sourceType || purchaseObj?.source_type || null;
   s.isClientCar = s.sourceType === "CLIENT";
   s.showroomShare = Number(s.showroomShare) || 0;
+  // The owner (car depositor) — read from the purchase relation for prestation cars.
+  s.owner = purchaseObj?.client ? shapeClient({ ...purchaseObj.client }) : null;
+
+  // A "règlement propriétaire" (client_settlements row) may embed as an object
+  // (unique sale_id → one-to-one) or as an array. Normalise to a single object.
+  const settlementRel = Array.isArray(s.settlement) ? s.settlement[0] : s.settlement;
+  s.settlement = settlementRel || null;
+  s.settled = !!settlementRel;
 
   s.purchasePrice = purchasePrice;
   s.carExpenses = carExpenses;
   s.totalCost = totalCost;
   if (s.isClientCar) {
-    // showroom result = its share minus what it spent on the vehicle
-    s.hasPurchaseInfo = true;
+    // The vehicle belongs to a client. The showroom's result is its share minus
+    // what it spent on the vehicle — but the share is only fixed when the owner
+    // règlement is created, so a gain is only shown once the sale is settled.
+    s.hasPurchaseInfo = s.settled;
     s.gain = s.showroomShare - carExpenses;
     s.ownerAmount = salePrice - s.showroomShare - carExpenses;
   } else {
@@ -83,7 +93,7 @@ const CAR_FULL = `
   car_documents(*),
   expenses(*),
   purchases(*, client:clients(*), purchase_payments(*)),
-  sales(*, client:clients(*), payments:sale_payments(*))
+  sales(*, client:clients(*), payments:sale_payments(*), settlement:client_settlements(*))
 `;
 const PURCHASE_FULL = `
   *,
@@ -93,9 +103,10 @@ const PURCHASE_FULL = `
 `;
 const SALE_FULL = `
   *,
-  car:cars(*, car_documents(*), purchases(*), expenses(*)),
+  car:cars(*, car_documents(*), purchases(*, client:clients(*)), expenses(*)),
   client:clients(*),
-  payments:sale_payments(*)
+  payments:sale_payments(*),
+  settlement:client_settlements(*)
 `;
 const PAYMENT_FULL = `
   *,
@@ -835,6 +846,17 @@ export const salesApi = {
       .select()
       .single();
     if (error) throw error;
+
+    // Partial payment: the sale is created with a down payment (seeded as the
+    // "Versement initial" by a trigger, dated on the sale). When the user gave a
+    // separate date for that first versement, apply it to that seeded row.
+    if (payload.initialPaymentDate && Number(payload.amountPaid) > 0) {
+      await supabase
+        .from("sale_payments")
+        .update({ date: payload.initialPaymentDate })
+        .eq("sale_id", data.id)
+        .eq("is_initial", true);
+    }
     return getSaleFull(data.id);
   },
   // Full update — the Sales edit form sends every field the POS creation flow
@@ -903,10 +925,57 @@ export const salesApi = {
     const { error } = await supabase.from("sales").delete().eq("id", id);
     if (error) throw error;
   },
-  async addPayment(saleId, carId, amount, description) {
+  async addPayment(saleId, carId, amount, description, date) {
     const { error } = await supabase
       .from("sale_payments")
-      .insert({ sale_id: saleId, car_id: carId, amount: Number(amount), description, date: new Date().toISOString() });
+      .insert({
+        sale_id: saleId, car_id: carId, amount: Number(amount), description,
+        date: date || new Date().toISOString(),
+      });
+    if (error) throw error;
+  },
+  // ── Versements (installment payments) of a single sale ────────────────────
+  // Every sale_payment of the sale, oldest first, enriched with a running rest
+  // ("reste après ce versement") so the receipt and the history table can print
+  // the remaining balance line by line.
+  async versements(saleId) {
+    const { data: sale } = await supabase
+      .from("sales")
+      .select("id, total_after_reduction")
+      .eq("id", saleId)
+      .single();
+    const total = Number(sale?.total_after_reduction) || 0;
+    const { data, error } = await supabase
+      .from("sale_payments")
+      .select("*")
+      .eq("sale_id", saleId)
+      .order("date", { ascending: true })
+      .order("id", { ascending: true });
+    if (error) throw error;
+    let running = 0;
+    const list = rows(data).map((p) => {
+      running += Number(p.amount) || 0;
+      return { ...p, restAfter: Math.max(0, total - running) };
+    });
+    return { total, paid: running, rest: Math.max(0, total - running), list };
+  },
+  async addVersement(saleId, carId, { amount, description, date }) {
+    const { error } = await supabase
+      .from("sale_payments")
+      .insert({
+        sale_id: saleId, car_id: carId, amount: Number(amount) || 0,
+        description: description || null, date: date || new Date().toISOString(),
+      });
+    if (error) throw error;
+  },
+  async updateVersement(id, { amount, description, date }) {
+    const patch = { amount: Number(amount) || 0, description: description ?? null };
+    if (date) patch.date = date;
+    const { error } = await supabase.from("sale_payments").update(patch).eq("id", id);
+    if (error) throw error;
+  },
+  async deleteVersement(id) {
+    const { error } = await supabase.from("sale_payments").delete().eq("id", id);
     if (error) throw error;
   },
 };
@@ -1455,6 +1524,104 @@ export const cashApi = {
       0
     );
   },
+  // Unified money ledger across the whole application: every cash movement,
+  // whatever interface produced it — manual caisse deposits/withdrawals, the
+  // versements collected on sales, the money spent acquiring vehicles, the
+  // vehicle & showroom expenses, the worker payments and the owner règlements.
+  // Each entry is { id, category, dir: "IN"|"OUT", label, sub, reference,
+  // amount, date }. `category` drives the filter chips on the Caisse page.
+  async ledger() {
+    const [cashRes, salePayRes, purchasesRes, expensesRes, payrollRes, settlementsRes] =
+      await Promise.all([
+        supabase.from("cash_transactions").select("*, client:clients(*)").order("date", { ascending: false }),
+        supabase
+          .from("sale_payments")
+          .select("*, sale:sales(reference, client:clients(first_name, last_name)), car:cars(brand, model, plate)")
+          .order("date", { ascending: false }),
+        supabase.from("purchases").select("*, car:cars(brand, model, plate), client:clients(first_name, last_name)").order("date", { ascending: false }),
+        supabase.from("expenses").select("*, car:cars(brand, model, plate)").order("date", { ascending: false }),
+        supabase.from("worker_payments").select("*, worker:workers(full_name)").order("date", { ascending: false }),
+        supabase.from("client_settlements").select("*, client:clients(first_name, last_name), car:cars(brand, model, plate)").order("date", { ascending: false }),
+      ]);
+
+    const entries = [];
+    const carName = (c) => [c?.brand, c?.model].filter(Boolean).join(" ").trim();
+    const clientName = (c) => `${c?.first_name || c?.firstName || ""} ${c?.last_name || c?.lastName || ""}`.trim();
+
+    for (const r of rows(cashRes.data)) {
+      entries.push({
+        id: `cash-${r.id}`, category: "cash", dir: r.type === "WITHDRAWAL" ? "OUT" : "IN",
+        label: r.type === "WITHDRAWAL" ? "Retrait de caisse" : "Versement en caisse",
+        sub: r.clientName || r.description || "", reference: r.reference,
+        amount: Number(r.amount) || 0, date: r.date, description: r.description || "",
+      });
+    }
+    for (const r of rows(salePayRes.data)) {
+      entries.push({
+        id: `salepay-${r.id}`, category: "sale", dir: "IN",
+        label: `Versement vente${carName(r.car) ? " — " + carName(r.car) : ""}`,
+        sub: clientName(r.sale?.client) || (r.isInitial ? "Versement initial" : ""),
+        reference: r.sale?.reference, amount: Number(r.amount) || 0, date: r.date,
+        description: r.description || "",
+      });
+    }
+    for (const r of rows(purchasesRes.data)) {
+      const paid = Number(r.amountPaid) || 0;
+      if (paid <= 0) continue;
+      entries.push({
+        id: `purchase-${r.id}`, category: "purchase", dir: "OUT",
+        label: `Achat véhicule${carName(r.car) ? " — " + carName(r.car) : ""}`,
+        sub: r.sourceType === "CLIENT" ? clientName(r.client) : "Showroom",
+        reference: r.reference, amount: paid, date: r.date, description: r.remark || "",
+      });
+    }
+    for (const r of rows(expensesRes.data)) {
+      entries.push({
+        id: `expense-${r.id}`, category: "expense", dir: "OUT",
+        label: `Dépense — ${r.name}`,
+        sub: r.type === "CAR" ? carName(r.car) : "Showroom",
+        reference: null, amount: Number(r.amount) || 0, date: r.date, description: r.description || "",
+      });
+    }
+    for (const r of rows(payrollRes.data)) {
+      entries.push({
+        id: `payroll-${r.id}`, category: "payroll", dir: "OUT",
+        label: `Salaire — ${r.worker?.fullName || ""}`.trim(),
+        sub: r.month || "", reference: null, amount: Number(r.amount) || 0, date: r.date,
+        description: r.description || "",
+      });
+    }
+    for (const r of rows(settlementsRes.data)) {
+      entries.push({
+        id: `settlement-${r.id}`, category: "settlement", dir: "OUT",
+        label: `Règlement propriétaire${carName(r.car) ? " — " + carName(r.car) : ""}`,
+        sub: clientName(r.client), reference: r.reference,
+        amount: Number(r.ownerAmount) || 0, date: r.date, description: r.note || "",
+      });
+    }
+
+    entries.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    const sum = (pred) => entries.filter(pred).reduce((a, e) => a + e.amount, 0);
+    const totalIn = sum((e) => e.dir === "IN");
+    const totalOut = sum((e) => e.dir === "OUT");
+    return {
+      entries,
+      totals: {
+        totalIn,
+        totalOut,
+        balance: totalIn - totalOut,
+        byCategory: {
+          cash: sum((e) => e.category === "cash"),
+          sale: sum((e) => e.category === "sale"),
+          purchase: sum((e) => e.category === "purchase"),
+          expense: sum((e) => e.category === "expense"),
+          payroll: sum((e) => e.category === "payroll"),
+          settlement: sum((e) => e.category === "settlement"),
+        },
+      },
+    };
+  },
   async create(payload) {
     const { data, error } = await supabase
       .from("cash_transactions")
@@ -1870,8 +2037,8 @@ export const reportsApi = {
       return q;
     };
 
-    const [salesRes, purchasesRes, expensesRes, workersRes] = await Promise.all([
-      applyRange(supabase.from("sales").select("*, car:cars(*), client:clients(*)").order("date", { ascending: false })),
+    const [salesRes, purchasesRes, expensesRes, workersRes, settlementsRes] = await Promise.all([
+      applyRange(supabase.from("sales").select("*, car:cars(*, purchases(*, client:clients(*)), expenses(*)), client:clients(*), settlement:client_settlements(*)").order("date", { ascending: false })),
       applyRange(
         supabase.from("purchases").select("*, car:cars(*), client:clients(*)").order("date", { ascending: false })
       ),
@@ -1884,12 +2051,33 @@ export const reportsApi = {
       supabase
         .from("workers")
         .select("*, role:worker_roles(*), payments:worker_payments(*), advances:worker_advances(*), absences:worker_absences(*)"),
+      applyRange(
+        supabase.from("client_settlements").select("*, car:cars(*), client:clients(*)").order("date", { ascending: false })
+      ),
     ]);
 
     const sales = rows(salesRes.data).map(shapeSale);
     const purchases = rows(purchasesRes.data).map(shapePurchase);
     const expenses = rows(expensesRes.data);
     const workers = rows(workersRes.data);
+    const settlements = rows(settlementsRes.data).map(shapeSettlement);
+
+    // Prestation (client-owned) vehicles sold: what the showroom actually earned
+    // is its share on the sale minus the expenses it engaged on the vehicle. Only
+    // meaningful once the owner règlement has been created.
+    const prestationSales = sales
+      .filter((s) => s.isClientCar)
+      .map((s) => ({
+        client: s.owner || s.client,
+        car: s.car,
+        salePrice: s.totalAfterReduction || 0,
+        showroomShare: s.showroomShare || 0,
+        expenses: s.carExpenses || 0,
+        showroomGain: s.settled ? s.gain : 0,
+        settled: s.settled,
+        date: s.date,
+      }));
+    const totalShowroomGainPrestation = prestationSales.reduce((a, p) => a + (p.showroomGain || 0), 0);
 
     const carExpenses = expenses.filter((e) => e.type === "CAR");
     const showroomExpenses = expenses.filter((e) => e.type === "SHOWROOM");
@@ -2013,6 +2201,15 @@ export const reportsApi = {
       purchaseDebts,
       payroll,
       clientSourcedPurchases,
+      prestationSales,
+      settlements,
+      alerts: {
+        clientDebtCount: clientDebts.length,
+        clientDebtTotal: clientDebts.reduce((a, d) => a + (d.rest || 0), 0),
+        purchaseDebtCount: purchaseDebts.length,
+        purchaseDebtTotal: purchaseDebts.reduce((a, d) => a + (d.rest || 0), 0),
+        totalShowroomGainPrestation,
+      },
     };
   },
 };

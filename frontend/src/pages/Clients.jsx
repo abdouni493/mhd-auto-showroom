@@ -164,13 +164,21 @@ function SettlementForm({ pending, onClose, onCreated }) {
   );
 }
 
-export default function Clients() {
+export default function Clients({ mode = "buyers" }) {
   const { t } = useTranslation();
   const can = useCan();
   const { settings, refreshSettlements } = useStore();
   const [params, setParams] = useSearchParams();
 
-  const { data: clients, loading, refetch } = useFetch(() => clientsApi.list(), []);
+  // "owners" = Gestion de fournisseurs (clients who left a vehicle at the
+  // showroom). "buyers" = Clients (everyone else). The two pages share this
+  // component; only the filtering, the labels and the permission section differ.
+  const isOwners = mode === "owners";
+  const section = isOwners ? "suppliers" : "clients";
+  const tx = (key) => (isOwners ? t(`suppliers.${key}`) : t(`clients.${key}`));
+
+  const { data: allClients, loading, refetch } = useFetch(() => clientsApi.list(), []);
+  const clients = (allClients || []).filter((c) => (isOwners ? c.hasDepositCars : !c.hasDepositCars));
   const { data: pendingMap, refetch: refetchPending } = useFetch(() => settlementsApi.pendingByClient(), []);
 
   const [form, setForm] = useState(null);
@@ -192,7 +200,7 @@ export default function Clients() {
 
   // Arriving from the dashboard / top bar alert: open the first owner to settle.
   useEffect(() => {
-    if (params.get("settle") !== "1" || !pendingMap) return;
+    if (!isOwners || params.get("settle") !== "1" || !pendingMap) return;
     const firstId = Object.keys(pendingMap)[0];
     if (firstId && clients) {
       const c = clients.find((x) => String(x.id) === String(firstId));
@@ -258,23 +266,23 @@ export default function Clients() {
 
   const menuItems = (c) => [
     { label: t("common.view"), icon: Eye, onClick: () => setView(c) },
-    can("clients", "edit") && { label: t("common.edit"), icon: Pencil, onClick: () => openEdit(c) },
+    can(section, "edit") && { label: t("common.edit"), icon: Pencil, onClick: () => openEdit(c) },
     { label: t("common.history"), icon: History, onClick: () => openHistory(c) },
     // Only the owners who left a vehicle at the showroom can be settled.
-    c.hasDepositCars && can("settlements", "create") && {
+    isOwners && c.hasDepositCars && can("settlements", "create") && {
       label: t("settlements.action"),
       icon: HandCoins,
       onClick: () => setSettleClient(c),
     },
-    can("clients", "delete") && { label: t("common.delete"), icon: Trash2, danger: true, onClick: () => setDeleteId(c.id) },
+    can(section, "delete") && { label: t("common.delete"), icon: Trash2, danger: true, onClick: () => setDeleteId(c.id) },
   ];
 
   return (
     <div>
-      <PageHeader title={t("clients.title")} action={can("clients", "create") ? openNew : undefined} actionLabel={t("clients.new")} />
+      <PageHeader title={tx("title")} subtitle={isOwners ? t("suppliers.subtitle") : undefined} action={can(section, "create") ? openNew : undefined} actionLabel={tx("new")} />
 
       {/* Global alert: owners waiting for their règlement */}
-      {pendingTotal > 0 && (
+      {isOwners && pendingTotal > 0 && (
         <Card className="p-4 mb-5 border border-amber-500/40 bg-amber-500/5">
           <div className="flex items-start gap-3">
             <span className="p-2 rounded-xl bg-amber-500/15 text-amber-400 shrink-0"><HandCoins size={20} /></span>
@@ -308,7 +316,7 @@ export default function Clients() {
       {loading ? (
         <SkeletonGrid />
       ) : clients?.length === 0 ? (
-        <EmptyState icon={Users} message={t("clients.none")} cta={can("clients", "create") ? t("clients.new") : undefined} onCta={openNew} />
+        <EmptyState icon={Users} message={tx("none")} cta={can(section, "create") ? tx("new") : undefined} onCta={openNew} />
       ) : (
         <AnimatedGrid className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {clients.map((c) => {
@@ -339,7 +347,7 @@ export default function Clients() {
                 </div>
 
                 {/* Per-client alert with the direct action */}
-                {pending.length > 0 && can("settlements", "create") && (
+                {isOwners && pending.length > 0 && can("settlements", "create") && (
                   <button
                     onClick={() => setSettleClient(c)}
                     className="w-full flex items-center gap-2 px-3 py-2 mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 text-xs font-bold text-amber-400 hover:bg-amber-500/20 transition"
@@ -365,7 +373,7 @@ export default function Clients() {
       <Modal
         open={!!form}
         onClose={() => setForm(null)}
-        title={editId ? t("clients.editTitle") : t("clients.newTitle")}
+        title={editId ? tx("editTitle") : tx("newTitle")}
         size="lg"
         footer={
           <>
