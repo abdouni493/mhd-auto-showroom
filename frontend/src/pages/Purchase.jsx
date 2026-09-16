@@ -636,7 +636,7 @@ export default function Purchase() {
         <AnimatedGrid className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {purchases.map((p) => (
             <Card key={p.id} className="p-4 flex gap-4">
-              <div className="w-28 h-20 rounded-lg overflow-hidden shrink-0"><CarImage images={p.car?.images} heightClass="h-20" /></div>
+              <div className="w-28 h-20 rounded-lg overflow-hidden shrink-0"><CarImage images={p.car?.images} heightClass="h-20" fit="cover" /></div>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start gap-2">
                   <div className="min-w-0">

@@ -57,7 +57,7 @@ export default function WebsiteReservations() {
         <AnimatedGrid className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filtered.map((r) => (
             <Card key={r.id} className="p-4 flex gap-4">
-              <div className="w-28 h-20 rounded-lg overflow-hidden shrink-0"><CarImage images={r.car?.images} heightClass="h-20" /></div>
+              <div className="w-28 h-20 rounded-lg overflow-hidden shrink-0"><CarImage images={r.car?.images} heightClass="h-20" fit="cover" /></div>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start">
                   <div>

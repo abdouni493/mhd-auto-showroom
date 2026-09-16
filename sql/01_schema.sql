@@ -102,6 +102,7 @@ CREATE TABLE IF NOT EXISTS public.settings (
   email               TEXT,
   phone               TEXT,
   phone2              TEXT,
+  phone3              TEXT,
   address             TEXT,
   nif                 TEXT,
   nis                 TEXT,
@@ -123,6 +124,7 @@ CREATE TABLE IF NOT EXISTS public.settings (
 );
 
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS phone2              TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS phone3              TEXT;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS rib                 TEXT;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS inspection_template JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS email_sender_name   TEXT;

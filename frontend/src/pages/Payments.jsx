@@ -83,7 +83,7 @@ export default function Payments() {
         <AnimatedGrid className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {payments.map((p) => (
             <Card key={p.id} className="p-4 flex gap-4 items-center">
-              <div className="w-20 h-14 rounded-lg overflow-hidden shrink-0"><CarImage images={p.car?.images} heightClass="h-14" /></div>
+              <div className="w-20 h-14 rounded-lg overflow-hidden shrink-0"><CarImage images={p.car?.images} heightClass="h-14" fit="cover" /></div>
               <div className="flex-1 min-w-0">
                 <p className="heading text-sm text-text-primary">{p.car?.brand} {p.car?.model}</p>
                 <p className="text-xs text-text-muted">{p.client?.firstName} {p.client?.lastName} · {p.car?.plate}</p>
@@ -113,7 +113,7 @@ export default function Payments() {
               <SearchSelect fetcher={(q) => carsApi.list({ search: q })} placeholder={t("payments.searchCarPlaceholder")} mapResults={mapCars} onSelect={setSelectedCar}
                 renderItem={(c) => (
                   <div className="flex items-center gap-2">
-                    <div className="w-12 h-9 rounded overflow-hidden shrink-0"><CarImage images={c.images} heightClass="h-9" /></div>
+                    <div className="w-12 h-9 rounded overflow-hidden shrink-0"><CarImage images={c.images} heightClass="h-9" fit="cover" /></div>
                     <div><p className="text-sm text-text-primary">{c.brand} {c.model}</p><p className="text-xs text-text-muted">{c.plate} · {c.sales?.[0]?.client ? `${c.sales[0].client.firstName} ${c.sales[0].client.lastName}` : ""}</p></div>
                   </div>
                 )} />
@@ -121,7 +121,7 @@ export default function Payments() {
           ) : (
             <Card className="p-3">
               <div className="flex items-center gap-3">
-                <div className="w-16 h-12 rounded overflow-hidden shrink-0"><CarImage images={selectedCar.images} heightClass="h-12" /></div>
+                <div className="w-16 h-12 rounded overflow-hidden shrink-0"><CarImage images={selectedCar.images} heightClass="h-12" fit="cover" /></div>
                 <div className="flex-1"><p className="text-sm text-text-primary font-bold">{selectedCar.brand} {selectedCar.model}</p><p className="text-xs text-text-muted">{selectedCar.plate}{selectedCar.sales?.[0]?.client && ` · ${selectedCar.sales[0].client.firstName} ${selectedCar.sales[0].client.lastName}`}</p></div>
                 <button className="btn-ghost text-xs py-1.5" onClick={() => setSelectedCar(null)}>{t("common.change")}</button>
               </div>

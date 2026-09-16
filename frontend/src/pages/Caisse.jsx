@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import {
   Vault, ArrowDownCircle, ArrowUpCircle, Eye, Pencil, Trash2, Printer,
   Tag, ShoppingBag, CircleDollarSign, Briefcase, Handshake, Wallet, Scale,
-  TrendingUp, TrendingDown, Search,
+  TrendingUp, TrendingDown, Search, AlertTriangle,
 } from "lucide-react";
 import { cashApi, clientsApi } from "../lib/api.js";
 import { useFetch } from "../hooks/useApi.js";
@@ -49,7 +49,7 @@ export default function Caisse() {
   const [viewItem, setViewItem] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
 
-  const totals = ledger?.totals || { totalIn: 0, totalOut: 0, balance: 0, byCategory: {} };
+  const totals = ledger?.totals || { totalIn: 0, totalOut: 0, balance: 0, totalPurchases: 0, totalSales: 0, totalDebts: 0, totalGains: 0, byCategory: {} };
   const entries = useMemo(() => {
     let list = ledger?.entries || [];
     if (category) list = list.filter((e) => e.category === category);
@@ -130,19 +130,23 @@ export default function Caisse() {
     <div>
       <PageHeader title={t("nav.caisse")} subtitle={t("caisse.subtitle")} />
 
-      {/* Balance / in / out */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+      {/* Achats / Ventes / Dettes / Gains */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <Card className="p-4 flex items-center justify-between" style={{ borderLeft: "3px solid #8b5cf6" }}>
+          <div><p className="label-caps">{t("caisse.totalPurchases")}</p><p className="text-xl font-black text-violet-300 mt-1">{formatAmount(totals.totalPurchases)}</p></div>
+          <ShoppingBag className="text-violet-400" size={26} />
+        </Card>
         <Card className="p-4 flex items-center justify-between" style={{ borderLeft: "3px solid #10b981" }}>
-          <div><p className="label-caps">{t("caisse.totalIn")}</p><p className="text-xl font-black text-emerald-400 mt-1">{formatAmount(totals.totalIn)}</p></div>
-          <TrendingUp className="text-emerald-400" size={26} />
+          <div><p className="label-caps">{t("caisse.totalSales")}</p><p className="text-xl font-black text-emerald-400 mt-1">{formatAmount(totals.totalSales)}</p></div>
+          <Tag className="text-emerald-400" size={26} />
         </Card>
         <Card className="p-4 flex items-center justify-between" style={{ borderLeft: "3px solid #fb7185" }}>
-          <div><p className="label-caps">{t("caisse.totalOut")}</p><p className="text-xl font-black text-rose-300 mt-1">{formatAmount(totals.totalOut)}</p></div>
-          <TrendingDown className="text-rose-300" size={26} />
+          <div><p className="label-caps">{t("caisse.totalDebts")}</p><p className="text-xl font-black text-rose-300 mt-1">{formatAmount(totals.totalDebts)}</p></div>
+          <AlertTriangle className="text-rose-300" size={26} />
         </Card>
         <Card className="p-4 flex items-center justify-between" style={{ borderLeft: "3px solid #dc2626" }}>
-          <div><p className="label-caps">{t("caisse.balance")}</p><p className={`text-xl font-black mt-1 ${totals.balance >= 0 ? "text-text-primary" : "text-rose-400"}`}>{formatAmount(totals.balance)}</p></div>
-          <Scale className="text-red-400" size={26} />
+          <div><p className="label-caps">{t("caisse.totalGains")}</p><p className={`text-xl font-black mt-1 ${totals.totalGains >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{totals.totalGains >= 0 ? "+" : ""}{formatAmount(totals.totalGains)}</p></div>
+          <TrendingUp className={totals.totalGains >= 0 ? "text-emerald-400" : "text-rose-400"} size={26} />
         </Card>
       </div>
 

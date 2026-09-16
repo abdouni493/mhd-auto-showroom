@@ -295,7 +295,7 @@ export default function POS() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
           {filtered.map((car) => (
             <Card key={car.id} className="overflow-hidden flex flex-col">
-              <CarImage images={car.images} heightClass="h-40" zoomable />
+              <CarImage images={car.images} heightClass="h-40" fit="cover" zoomable />
               <div className="p-4 flex-1 flex flex-col">
                 <h3 className="heading text-sm text-text-primary truncate">
                   {car.brand} {car.model}{car.color ? ` (${car.color})` : ""}

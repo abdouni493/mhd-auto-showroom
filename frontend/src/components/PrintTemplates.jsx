@@ -292,7 +292,8 @@ export function Header({ showroom, lang }) {
   // never bidi-reverse next to the Arabic "الهاتف :" label.
   const contactItems = [];
   if (showroom?.address) contactItems.push(<span style={ltr}>{showroom.address}</span>);
-  if (showroom?.phone) contactItems.push(<span>{x.telPrefix} <span style={ltr}>{showroom.phone}</span></span>);
+  const phones = [showroom?.phone, showroom?.phone2, showroom?.phone3].filter(Boolean);
+  if (phones.length) contactItems.push(<span>{x.telPrefix} <span style={ltr}>{phones.join(" / ")}</span></span>);
   if (showroom?.email) contactItems.push(<span style={ltr}>{showroom.email}</span>);
   const legal = [
     ["NIF", showroom?.nif],

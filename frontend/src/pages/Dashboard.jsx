@@ -185,7 +185,7 @@ export default function Dashboard() {
             {lists.lastPurchases.length === 0 && <p className="text-text-muted text-sm">{t("common.noData")}</p>}
             {lists.lastPurchases.map((p, i) => (
               <motion.div key={p.id} className="flex items-center gap-3" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04 }}>
-                <div className="w-12 h-9 rounded-lg overflow-hidden shrink-0"><CarImage images={p.car?.images} heightClass="h-9" /></div>
+                <div className="w-12 h-9 rounded-lg overflow-hidden shrink-0"><CarImage images={p.car?.images} heightClass="h-9" fit="cover" /></div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-text-primary truncate font-medium">{p.car?.brand} {p.car?.model}</p>
                   <p className="text-xs text-text-muted truncate">{p.client ? `${p.client.firstName} ${p.client.lastName}` : t("purchase.sourceShowroom")}</p>
@@ -205,7 +205,7 @@ export default function Dashboard() {
             {lists.lastSales.length === 0 && <p className="text-text-muted text-sm">{t("common.noData")}</p>}
             {lists.lastSales.map((s, i) => (
               <motion.div key={s.id} className="flex items-center gap-3" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04 }}>
-                <div className="w-12 h-9 rounded-lg overflow-hidden shrink-0"><CarImage images={s.car?.images} heightClass="h-9" /></div>
+                <div className="w-12 h-9 rounded-lg overflow-hidden shrink-0"><CarImage images={s.car?.images} heightClass="h-9" fit="cover" /></div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-text-primary truncate font-medium">{s.client?.firstName} {s.client?.lastName}</p>
                   <p className="text-xs text-text-muted truncate">{s.car?.brand} {s.car?.model}</p>

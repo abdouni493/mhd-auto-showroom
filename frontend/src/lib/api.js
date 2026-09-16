@@ -296,6 +296,8 @@ export const settingsApi = {
       description: payload.description,
       email: payload.email,
       phone: payload.phone,
+      phone2: payload.phone2,
+      phone3: payload.phone3,
       address: payload.address,
       nif: payload.nif,
       nis: payload.nis,
@@ -1531,7 +1533,7 @@ export const cashApi = {
   // Each entry is { id, category, dir: "IN"|"OUT", label, sub, reference,
   // amount, date }. `category` drives the filter chips on the Caisse page.
   async ledger() {
-    const [cashRes, salePayRes, purchasesRes, expensesRes, payrollRes, settlementsRes] =
+    const [cashRes, salePayRes, purchasesRes, expensesRes, payrollRes, settlementsRes, salesFullRes] =
       await Promise.all([
         supabase.from("cash_transactions").select("*, client:clients(*)").order("date", { ascending: false }),
         supabase
@@ -1542,6 +1544,10 @@ export const cashApi = {
         supabase.from("expenses").select("*, car:cars(brand, model, plate)").order("date", { ascending: false }),
         supabase.from("worker_payments").select("*, worker:workers(full_name)").order("date", { ascending: false }),
         supabase.from("client_settlements").select("*, client:clients(first_name, last_name), car:cars(brand, model, plate)").order("date", { ascending: false }),
+        // Full sales (with the car's purchase, expenses & owner règlement) so the
+        // caisse can show the total selling gain — showroom share only for a
+        // prestation (dépôt client), the normal margin for an ordinary sale.
+        supabase.from("sales").select(SALE_FULL).order("date", { ascending: false }),
       ]);
 
     const entries = [];
@@ -1605,12 +1611,40 @@ export const cashApi = {
     const sum = (pred) => entries.filter(pred).reduce((a, e) => a + e.amount, 0);
     const totalIn = sum((e) => e.dir === "IN");
     const totalOut = sum((e) => e.dir === "OUT");
+
+    // ── Business totals shown as the Caisse header cards ──────────────────
+    const purchaseRows = rows(purchasesRes.data);
+    const saleRows = rows(salesFullRes.data).map(shapeSale);
+
+    const totalPurchases = purchaseRows.reduce((a, p) => a + (Number(p.purchasePrice) || 0), 0);
+    const totalSales = saleRows.reduce((a, s) => a + (Number(s.totalAfterReduction) || 0), 0);
+    const totalDebts =
+      saleRows.reduce((a, s) => a + (Number(s.amountRest) > 0 ? Number(s.amountRest) : 0), 0) +
+      purchaseRows.reduce((a, p) => a + (Number(p.amountRest) > 0 ? Number(p.amountRest) : 0), 0);
+
+    // Selling gain: for a prestation (dépôt client) only the showroom's part is
+    // counted — its share (from the owner règlement if created, else the sale)
+    // minus what the showroom spent on the vehicle — regardless of whether the
+    // règlement has been made yet. A normal sale contributes its usual margin.
+    const saleGain = (s) => {
+      if (s.isClientCar) {
+        const share = Number(s.settlement?.showroomShare ?? s.showroomShare) || 0;
+        return share - (Number(s.carExpenses) || 0);
+      }
+      return Number(s.gain) || 0;
+    };
+    const totalGains = saleRows.reduce((a, s) => a + saleGain(s), 0);
+
     return {
       entries,
       totals: {
         totalIn,
         totalOut,
         balance: totalIn - totalOut,
+        totalPurchases,
+        totalSales,
+        totalDebts,
+        totalGains,
         byCategory: {
           cash: sum((e) => e.category === "cash"),
           sale: sum((e) => e.category === "sale"),

@@ -130,7 +130,7 @@ export default function Expenses() {
         <AnimatedGrid className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {expenses.map((e) => (
             <Card key={e.id} className="p-4 flex gap-3">
-              {tab === "CAR" && <div className="w-16 h-12 rounded-lg overflow-hidden shrink-0"><CarImage images={e.car?.images} heightClass="h-12" /></div>}
+              {tab === "CAR" && <div className="w-16 h-12 rounded-lg overflow-hidden shrink-0"><CarImage images={e.car?.images} heightClass="h-12" fit="cover" /></div>}
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start gap-2">
                   <div className="min-w-0">
@@ -160,7 +160,7 @@ export default function Expenses() {
             {tab === "CAR" && !editId && (
               selectedCar ? (
                 <Card className="p-2 flex items-center gap-2">
-                  <div className="w-12 h-9 rounded overflow-hidden shrink-0"><CarImage images={selectedCar.images} heightClass="h-9" /></div>
+                  <div className="w-12 h-9 rounded overflow-hidden shrink-0"><CarImage images={selectedCar.images} heightClass="h-9" fit="cover" /></div>
                   <div className="flex-1"><p className="text-sm text-text-primary">{selectedCar.brand} {selectedCar.model}</p><p className="text-xs text-text-muted">{selectedCar.plate}</p></div>
                   <button className="btn-ghost text-xs py-1" onClick={() => setSelectedCar(null)}>Changer</button>
                 </Card>

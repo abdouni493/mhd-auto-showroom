@@ -87,7 +87,7 @@ export default function CarCard({ car, onClick, action, actionLabel, price, oldP
       onClick={cardClickable ? () => onClick(car) : undefined}
     >
       <div className="relative">
-        <CarImage images={car.images} />
+        <CarImage images={car.images} fit="cover" />
         <motion.div
           className="absolute top-3 right-3 z-10"
           initial={{ opacity: 0, scale: 0.7, y: -8 }}

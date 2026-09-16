@@ -24,7 +24,7 @@ function Offers() {
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
       {offers.map((c) => (
         <Card key={c.id} className="overflow-hidden">
-          <CarImage images={c.images} heightClass="h-40" zoomable />
+          <CarImage images={c.images} heightClass="h-40" fit="cover" zoomable />
           <div className="p-4">
             <div className="flex justify-between items-start mb-2">
               <div><p className="heading text-sm text-text-primary">{c.brand} {c.model}</p><p className="text-xs text-text-muted">{c.year}</p></div>
@@ -69,7 +69,7 @@ function SpecialOffers() {
             const cd = countdown(o.endDate);
             return (
               <Card key={o.id} className="overflow-hidden">
-                <CarImage images={o.car?.images} heightClass="h-40" zoomable />
+                <CarImage images={o.car?.images} heightClass="h-40" fit="cover" zoomable />
                 <div className="p-4">
                   <p className="heading text-sm text-text-primary">{o.car?.brand} {o.car?.model}</p>
                   <div className="my-2">
@@ -101,7 +101,7 @@ function SpecialOffers() {
         <div className="space-y-4">
           {car ? (
             <Card className="p-2 flex items-center gap-2">
-              <div className="w-12 h-9 rounded overflow-hidden shrink-0"><CarImage images={car.images} heightClass="h-9" /></div>
+              <div className="w-12 h-9 rounded overflow-hidden shrink-0"><CarImage images={car.images} heightClass="h-9" fit="cover" /></div>
               <div className="flex-1"><p className="text-sm text-text-primary">{car.brand} {car.model}</p></div>
               <button className="btn-ghost text-xs py-1" onClick={() => setCar(null)}>Changer</button>
             </Card>

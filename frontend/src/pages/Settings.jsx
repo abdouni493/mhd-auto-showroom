@@ -96,6 +96,8 @@ export default function Settings() {
             <Field label="Description" className="sm:col-span-2"><textarea className="input" rows={2} value={form.description || ""} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
             <Field label="Email"><input className="input" value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
             <Field label="Téléphone"><input className="input" value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
+            <Field label="Téléphone 2"><input className="input" value={form.phone2 || ""} onChange={(e) => setForm({ ...form, phone2: e.target.value })} placeholder="Numéro secondaire" /></Field>
+            <Field label="Téléphone 3"><input className="input" value={form.phone3 || ""} onChange={(e) => setForm({ ...form, phone3: e.target.value })} placeholder="Troisième numéro" /></Field>
             <Field label="Adresse" className="sm:col-span-2"><input className="input" value={form.address || ""} onChange={(e) => setForm({ ...form, address: e.target.value })} /></Field>
             <Field label="NIF"><input className="input" value={form.nif || ""} onChange={(e) => setForm({ ...form, nif: e.target.value })} /></Field>
             <Field label="NIS"><input className="input" value={form.nis || ""} onChange={(e) => setForm({ ...form, nis: e.target.value })} /></Field>

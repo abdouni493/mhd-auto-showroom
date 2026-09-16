@@ -684,7 +684,7 @@ export function FicheTechnique({ car, showroom, lang = "fr", price }) {
               {showroom?.name || "Showroom"}
             </div>
             <div style={{ fontSize: 9.5, opacity: 0.85, ...ltr }}>
-              {[showroom?.phone, showroom?.address].filter(Boolean).join("  ·  ")}
+              {[[showroom?.phone, showroom?.phone2, showroom?.phone3].filter(Boolean).join(" / "), showroom?.address].filter(Boolean).join("  ·  ")}
             </div>
           </div>
         </div>

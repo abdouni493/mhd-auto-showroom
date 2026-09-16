@@ -92,7 +92,7 @@ function SettlementForm({ pending, onClose, onCreated }) {
       <div className="space-y-4">
         {/* Vehicle + owner */}
         <div className="flex items-center gap-3 glass-card p-3 !rounded-xl">
-          <div className="w-20 h-14 rounded-lg overflow-hidden shrink-0"><CarImage images={car.images} heightClass="h-14" /></div>
+          <div className="w-20 h-14 rounded-lg overflow-hidden shrink-0"><CarImage images={car.images} heightClass="h-14" fit="cover" /></div>
           <div className="min-w-0 flex-1">
             <p className="heading text-sm text-text-primary truncate">{car.brand} {car.model}</p>
             <p className="text-xs text-text-muted truncate">
@@ -437,7 +437,7 @@ export default function Clients({ mode = "buyers" }) {
               {history.sales.length === 0 && <p className="text-text-muted text-sm">{t("clients.noSale")}</p>}
               {history.sales.map((s) => (
                 <div key={s.id} className="flex items-center gap-3 glass-card p-2">
-                  <div className="w-14 h-10 rounded overflow-hidden shrink-0"><CarImage images={s.car?.images} heightClass="h-10" /></div>
+                  <div className="w-14 h-10 rounded overflow-hidden shrink-0"><CarImage images={s.car?.images} heightClass="h-10" fit="cover" /></div>
                   <div className="flex-1 min-w-0"><p className="text-sm text-text-primary truncate">{s.car?.brand} {s.car?.model}</p><p className="text-xs text-text-muted">{formatDate(s.date)}</p></div>
                   <div className="text-right rtl:text-left text-sm">
                     <p className="text-text-primary">{formatAmount(s.totalAfterReduction)}</p>
@@ -452,7 +452,7 @@ export default function Clients({ mode = "buyers" }) {
               {history.purchases.length === 0 && <p className="text-text-muted text-sm">{t("clients.noPurchase")}</p>}
               {history.purchases.map((p) => (
                 <div key={p.id} className="flex items-center gap-3 glass-card p-2">
-                  <div className="w-14 h-10 rounded overflow-hidden shrink-0"><CarImage images={p.car?.images} heightClass="h-10" /></div>
+                  <div className="w-14 h-10 rounded overflow-hidden shrink-0"><CarImage images={p.car?.images} heightClass="h-10" fit="cover" /></div>
                   <div className="flex-1 min-w-0"><p className="text-sm text-text-primary truncate">{p.car?.brand} {p.car?.model}</p><p className="text-xs text-text-muted">{formatDate(p.date)}</p></div>
                   <p className="text-sm text-text-primary">{formatAmount(p.purchasePrice)}</p>
                 </div>
@@ -465,7 +465,7 @@ export default function Clients({ mode = "buyers" }) {
               {history.settlements.length === 0 && <p className="text-text-muted text-sm">{t("settlements.none")}</p>}
               {history.settlements.map((st) => (
                 <div key={st.id} className="flex items-center gap-3 glass-card p-2 border border-amber-500/20">
-                  <div className="w-14 h-10 rounded overflow-hidden shrink-0"><CarImage images={st.car?.images} heightClass="h-10" /></div>
+                  <div className="w-14 h-10 rounded overflow-hidden shrink-0"><CarImage images={st.car?.images} heightClass="h-10" fit="cover" /></div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-text-primary truncate">{st.car?.brand} {st.car?.model}</p>
                     <p className="text-xs text-text-muted truncate">
@@ -507,7 +507,7 @@ export default function Clients({ mode = "buyers" }) {
                   onClick={() => setSettleTarget(pending)}
                   className="w-full flex items-center gap-3 glass-card p-3 !rounded-xl border border-amber-500/30 hover:border-amber-500/70 transition text-left rtl:text-right"
                 >
-                  <div className="w-16 h-12 rounded-lg overflow-hidden shrink-0"><CarImage images={pending.car?.images} heightClass="h-12" /></div>
+                  <div className="w-16 h-12 rounded-lg overflow-hidden shrink-0"><CarImage images={pending.car?.images} heightClass="h-12" fit="cover" /></div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-text-primary truncate">{pending.car?.brand} {pending.car?.model}</p>
                     <p className="text-xs text-text-muted truncate">

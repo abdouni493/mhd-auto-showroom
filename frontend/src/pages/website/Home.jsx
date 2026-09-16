@@ -79,7 +79,7 @@ function Tilt3D({ children, className, index = 0, onClick }) {
 function OfferCard({ car, price, oldPrice, onReserve, onOpen, index = 0 }) {
   return (
     <Tilt3D className="glass-card overflow-hidden flex flex-col group" index={index} onClick={() => onOpen({ car, price, oldPrice })}>
-      <div style={{ transform: "translateZ(40px)" }}><CarImage images={car.images} heightClass="h-48" /></div>
+      <div style={{ transform: "translateZ(40px)" }}><CarImage images={car.images} heightClass="h-48" fit="cover" /></div>
       <div className="p-4 flex-1 flex flex-col" style={{ transform: "translateZ(25px)" }}>
         <h3 className="heading text-base text-text-primary">{car.brand} {car.model}</h3>
         <p className="text-xs text-text-muted mb-2">{car.year}</p>

@@ -260,9 +260,6 @@ function SaleEditForm({ sale, onClose, onSaved }) {
               </div>
               <Field label={t("pos.amountPaid")}><input className="input" type="number" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} /></Field>
               <p className="text-sm">{t("common.rest")} : <span className={rest > 0 ? "text-rose-400 font-black" : "text-emerald-400 font-black"}>{formatAmount(rest)}</span></p>
-              {sale.hasPurchaseInfo && (
-                <p className="text-sm">{t("sales.gain")} : <span className={gain >= 0 ? "text-emerald-400 font-black" : "text-rose-400 font-black"}>{gain >= 0 ? "+" : ""}{formatAmount(gain)}</span></p>
-              )}
 
               <div className="flex items-center justify-between"><span className="label-caps !mb-0">{t("pos.clientTakesCar")}</span><Toggle checked={clientTakeCar} onChange={setClientTakeCar} /></div>
               <Field label={t("common.datetime")}><DateInput withTime value={date} onChange={setDate} /></Field>
@@ -352,7 +349,7 @@ function VersementForm({ sale, onClose, onCreated }) {
     >
       <div className="space-y-4">
         <div className="flex items-center gap-3 glass-card p-3 !rounded-xl">
-          <div className="w-20 h-14 rounded-lg overflow-hidden shrink-0"><CarImage images={car.images} heightClass="h-14" /></div>
+          <div className="w-20 h-14 rounded-lg overflow-hidden shrink-0"><CarImage images={car.images} heightClass="h-14" fit="cover" /></div>
           <div className="min-w-0 flex-1">
             <p className="heading text-sm text-text-primary truncate">{car.brand} {car.model}</p>
             <p className="text-xs text-text-muted truncate">{sale.reference} · {sale.client?.firstName} {sale.client?.lastName}</p>
@@ -649,7 +646,7 @@ export default function Sales() {
         <AnimatedGrid className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {sales.map((s) => (
             <Card key={s.id} className={`p-4 flex gap-4 ${s.amountRest > 0 ? "border border-rose-500/40" : ""}`}>
-              <div className="w-24 h-[72px] rounded-lg overflow-hidden shrink-0"><CarImage images={s.car?.images} heightClass="h-[72px]" /></div>
+              <div className="w-24 h-[72px] rounded-lg overflow-hidden shrink-0"><CarImage images={s.car?.images} heightClass="h-[72px]" fit="cover" /></div>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start">
                   <div>
@@ -718,7 +715,7 @@ export default function Sales() {
                   </td>
                   <td className="p-3">
                     <div className="flex items-center gap-2">
-                      <div className="w-10 h-7 rounded overflow-hidden shrink-0"><CarImage images={s.car?.images} heightClass="h-7" /></div>
+                      <div className="w-10 h-7 rounded overflow-hidden shrink-0"><CarImage images={s.car?.images} heightClass="h-7" fit="cover" /></div>
                       <span className="text-text-muted">{s.car?.brand} {s.car?.model}</span>
                     </div>
                   </td>
