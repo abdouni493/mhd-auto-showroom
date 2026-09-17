@@ -162,6 +162,31 @@ const D = {
     note: "Observation",
     yes: "Oui",
     no: "Non",
+    // Fiche de bénéfice (Caisse → Bénéfice)
+    beneficeTitle: "Fiche de Bénéfice",
+    totalCostLabel: "Coût total du véhicule",
+    beneficeNormal: "Vente normale — marge réalisée par le showroom",
+    beneficePrestation: "Prestation — véhicule déposé par un client",
+    beneficeDetail: "Décompte du bénéfice",
+    beneficeNet: "Bénéfice net du showroom",
+    beneficeMargin: "Marge sur le prix de vente",
+    buyerBlock: "Acheteur",
+    ownerBlock: "Propriétaire du véhicule",
+    saleDateLabel: "Date de la vente",
+    saleTypeLabel: "Type de vente",
+    collected: "Encaissé",
+    settlementState: "Règlement du propriétaire",
+    settlementDone: "Effectué",
+    settlementPending: "En attente",
+    colExpense: "Dépense",
+    colExpenseDate: "Date",
+    colExpenseAmount: "Montant",
+    stopSumBenefice: "Arrêté le présent bénéfice à la somme de :",
+    sigAccounting: "Visa de la comptabilité",
+    beneficeNoteNormal:
+      "Bénéfice = prix de vente − prix d'achat du véhicule − dépenses engagées sur le véhicule.",
+    beneficeNotePrestation:
+      "Bénéfice = part revenant au showroom − dépenses engagées sur le véhicule. Le reste du prix de vente est reversé au propriétaire.",
   },
   ar: {
     entryTitle: "وصل دخول",
@@ -290,6 +315,31 @@ const D = {
     note: "ملاحظة",
     yes: "نعم",
     no: "لا",
+    // بطاقة الربح
+    beneficeTitle: "بطاقة الربح",
+    totalCostLabel: "التكلفة الإجمالية للمركبة",
+    beneficeNormal: "بيع عادي — الهامش المحقق من طرف المعرض",
+    beneficePrestation: "خدمة — مركبة مودعة من طرف عميل",
+    beneficeDetail: "كشف الربح",
+    beneficeNet: "الربح الصافي للمعرض",
+    beneficeMargin: "نسبة الربح من سعر البيع",
+    buyerBlock: "المشتري",
+    ownerBlock: "مالك المركبة",
+    saleDateLabel: "تاريخ البيع",
+    saleTypeLabel: "نوع البيع",
+    collected: "المحصَّل",
+    settlementState: "تسوية المالك",
+    settlementDone: "تمت",
+    settlementPending: "في الانتظار",
+    colExpense: "المصروف",
+    colExpenseDate: "التاريخ",
+    colExpenseAmount: "المبلغ",
+    stopSumBenefice: "أوقف هذا الربح على مبلغ :",
+    sigAccounting: "تأشيرة المحاسبة",
+    beneficeNoteNormal:
+      "الربح = سعر البيع − سعر شراء المركبة − المصاريف المنفقة على المركبة.",
+    beneficeNotePrestation:
+      "الربح = حصة المعرض − المصاريف المنفقة على المركبة. ما تبقى من سعر البيع يُسلَّم للمالك.",
   },
 };
 
@@ -638,6 +688,11 @@ export function ReceptionForm({ purchase, showroom, lang = "fr", dateTime, recei
 
 // ============================================================================
 // 4. FICHE TECHNIQUE — branded spec sheet with an editable price
+//    Printed as ONE full A4 page: the sheet is a flex column that stretches to
+//    the whole printable height (sheetStyle(lang, true)) and every block is set
+//    in a large type scale so the page reads from a distance on the windscreen
+//    of the vehicle. printNode() scales the sheet down if a very long
+//    description ever pushes it past a single page.
 // ============================================================================
 export function FicheTechnique({ car, showroom, lang = "fr", price }) {
   const x = x2(lang);
@@ -664,107 +719,121 @@ export function FicheTechnique({ car, showroom, lang = "fr", price }) {
     [x.plate, car?.plate],
   ].filter(([, v]) => v !== undefined);
 
+  const hasPhoto = Array.isArray(car?.images) && !!car.images[0];
+
   return (
-    <div style={sheetStyle(lang)}>
+    <div style={{ ...sheetStyle(lang, true), fontSize: "15px" }}>
       {/* Brand band */}
       <div
         style={{
           background: `linear-gradient(120deg, ${INK} 0%, #1f2937 55%, ${ACCENT} 100%)`,
-          color: "#fff", borderRadius: 10, padding: "14px 18px",
+          color: "#fff", borderRadius: 12, padding: "18px 24px",
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          gap: 14, marginBottom: 12, ...exact,
+          gap: 18, flexShrink: 0, ...exact,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
-          <div style={{ background: "#fff", borderRadius: 8, padding: 5, ...exact }}>
-            <PrintLogo src={showroom?.logo} size={46} />
+        <div style={{ display: "flex", alignItems: "center", gap: 18, minWidth: 0 }}>
+          <div style={{ background: "#fff", borderRadius: 10, padding: 7, ...exact }}>
+            <PrintLogo src={showroom?.logo} size={66} />
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 900, fontSize: 19, textTransform: "uppercase", letterSpacing: "0.04em", ...ltr }}>
+            <div style={{ fontWeight: 900, fontSize: 27, textTransform: "uppercase", letterSpacing: "0.04em", lineHeight: 1.15, ...ltr }}>
               {showroom?.name || "Showroom"}
             </div>
-            <div style={{ fontSize: 9.5, opacity: 0.85, ...ltr }}>
+            <div style={{ fontSize: 13, opacity: 0.9, marginTop: 3, ...ltr }}>
               {[[showroom?.phone, showroom?.phone2, showroom?.phone3].filter(Boolean).join(" / "), showroom?.address].filter(Boolean).join("  ·  ")}
             </div>
           </div>
         </div>
-        <div style={{ textAlign: ar ? "left" : "right" }}>
-          <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.14em", opacity: 0.8 }}>{x.ficheTitle}</div>
+        <div style={{ textAlign: ar ? "left" : "right", flexShrink: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.16em", opacity: 0.85 }}>{x.ficheTitle}</div>
           {car?.year && (
-            <div style={{ fontWeight: 900, fontSize: 24, lineHeight: 1.1, ...ltr }}>{car.year}</div>
+            <div style={{ fontWeight: 900, fontSize: 36, lineHeight: 1.05, ...ltr }}>{car.year}</div>
           )}
         </div>
       </div>
 
       {/* Model name */}
-      <div style={{ textAlign: "center", marginBottom: 12 }}>
-        <div style={{ fontWeight: 900, fontSize: 30, textTransform: "uppercase", letterSpacing: "0.02em", color: INK, ...ltr }}>
+      <div style={{ textAlign: "center", flexShrink: 0, padding: "4px 0" }}>
+        <div style={{ fontWeight: 900, fontSize: 44, lineHeight: 1.08, textTransform: "uppercase", letterSpacing: "0.01em", color: INK, ...ltr }}>
           {carName(car)}
         </div>
-        <div style={{ height: 3, width: 90, background: ACCENT, margin: "6px auto 0", borderRadius: 2, ...exact }} />
+        <div style={{ height: 5, width: 130, background: ACCENT, margin: "8px auto 0", borderRadius: 3, ...exact }} />
       </div>
 
-      {/* Photo */}
-      {Array.isArray(car?.images) && car.images[0] && (
-        <div style={{ textAlign: "center", marginBottom: 12 }}>
+      {/* Photo — takes every millimetre left between the title and the specs */}
+      {hasPhoto && (
+        <div
+          style={{
+            flex: "1 1 auto", minHeight: 0, display: "flex", overflow: "hidden",
+            alignItems: "center", justifyContent: "center", padding: "2px 0",
+          }}
+        >
           <img
             src={car.images[0]}
             alt=""
-            style={{ maxHeight: 190, maxWidth: "100%", objectFit: "contain", borderRadius: 8, ...exact }}
+            style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain", borderRadius: 10, ...exact }}
           />
         </div>
       )}
 
       {/* Spec grid */}
-      <div
-        style={{
-          textAlign: "center", fontWeight: 900, fontSize: 12, textTransform: "uppercase",
-          letterSpacing: "0.16em", color: INK, marginBottom: 8,
-        }}
-      >
-        {x.specification}
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
-        {specs.map(([label, value], i) => (
-          <div
-            key={i}
-            style={{
-              border: `1px solid ${LINE}`, borderRadius: 7, padding: "7px 9px",
-              background: i % 2 ? "#fff" : SOFT, ...exact,
-              [ar ? "borderRight" : "borderLeft"]: `3px solid ${ACCENT}`,
-            }}
-          >
-            <div style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", color: MUTE, letterSpacing: "0.04em" }}>
-              {label}
+      <div style={{ flexShrink: 0 }}>
+        <div
+          style={{
+            textAlign: "center", fontWeight: 900, fontSize: 17, textTransform: "uppercase",
+            letterSpacing: "0.18em", color: INK, margin: "6px 0 10px",
+          }}
+        >
+          {x.specification}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+          {specs.map(([label, value], i) => (
+            <div
+              key={i}
+              style={{
+                border: `1px solid ${LINE}`, borderRadius: 9, padding: "10px 13px",
+                background: i % 2 ? "#fff" : SOFT, ...exact,
+                [ar ? "borderRight" : "borderLeft"]: `5px solid ${ACCENT}`,
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", color: MUTE, letterSpacing: "0.05em" }}>
+                {label}
+              </div>
+              <div style={{ fontWeight: 900, fontSize: 17, lineHeight: 1.25, marginTop: 3, ...ltr, textAlign: ar ? "right" : "left", wordBreak: "break-word" }}>
+                {dash(value)}
+              </div>
             </div>
-            <div style={{ fontWeight: 800, fontSize: 11.5, marginTop: 1, ...ltr, textAlign: ar ? "right" : "left", wordBreak: "break-word" }}>
-              {dash(value)}
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       {car?.fiche && (
-        <Frame title={x.vehicleDescription} style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 10.5, whiteSpace: "pre-line" }}>{car.fiche}</div>
-        </Frame>
+        <div style={{ flexShrink: 0, marginTop: 10 }}>
+          <Frame title={x.vehicleDescription}>
+            <div style={{ fontSize: 14, lineHeight: 1.45, whiteSpace: "pre-line" }}>{car.fiche}</div>
+          </Frame>
+        </div>
       )}
 
       {/* Price banner */}
       <div
         style={{
           background: `linear-gradient(100deg, ${ACCENT} 0%, #7f1d1d 100%)`,
-          color: "#fff", borderRadius: 999, padding: "12px 26px", textAlign: "center",
-          fontWeight: 900, fontSize: 24, letterSpacing: "0.04em", ...exact,
+          color: "#fff", borderRadius: 999, padding: "18px 30px", textAlign: "center",
+          fontWeight: 900, fontSize: 36, letterSpacing: "0.03em", marginTop: 12,
+          flexShrink: 0, ...exact,
         }}
       >
-        <span style={{ fontSize: 14, textTransform: "uppercase", letterSpacing: "0.16em", opacity: 0.9 }}>
+        <span style={{ fontSize: 19, textTransform: "uppercase", letterSpacing: "0.18em", opacity: 0.92 }}>
           {x.priceLabel} :{" "}
         </span>
         <span style={ltr}>{formatAmount(shownPrice)}</span>
       </div>
 
-      <Footer showroom={showroom} lang={lang} />
+      <div style={{ flexShrink: 0 }}>
+        <Footer showroom={showroom} lang={lang} fontSize={13} />
+      </div>
     </div>
   );
 }
@@ -1382,6 +1451,195 @@ export function VersementStatement({ sale, showroom, lang = "fr", payments = [],
 
       <Signatures left={x.sigAgencyStamp} right={x.sigClientPrint} />
       <Footer showroom={showroom} lang={lang} />
+    </div>
+  );
+}
+
+// ============================================================================
+// 10. FICHE DE BÉNÉFICE — le gain du showroom sur UNE vente
+//     Imprimée depuis Caisse → Bénéfice. Elle reprend l'en-tête du showroom
+//     (logo, identité, mentions légales), le véhicule, l'acheteur — et, pour
+//     une prestation, le propriétaire du véhicule — puis le décompte complet
+//     du bénéfice : prix de vente, coût d'acquisition ou part du showroom,
+//     détail des dépenses engagées et bénéfice net mis en valeur.
+//     `gain` est un enregistrement produit par cashApi.ledger().gains.
+// ============================================================================
+export function BeneficeSheet({ gain, showroom, lang = "fr" }) {
+  const x = x2(lang);
+  const ar = isAr(lang);
+  const st = tableStyles(lang);
+  const g = gain || {};
+  const prestation = g.kind === "PRESTATION";
+  const car = g.car || {};
+  const buyer = g.client || {};
+  const owner = g.owner || {};
+  const expenses = Array.isArray(g.expensesList) ? g.expensesList : [];
+  const positive = Number(g.gain || 0) >= 0;
+  const gainColor = positive ? "#047857" : ACCENT;
+
+  const person = (c) => `${c?.firstName || ""} ${c?.lastName || ""}`.trim() || "—";
+
+  // Le décompte : les lignes qui mènent au bénéfice net, signées + / −.
+  const lines = prestation
+    ? [
+        [x.salePrice, g.salePrice, null],
+        [x.showroomShare, g.showroomShare, "+"],
+        [x.expensesTotal, g.carExpenses, "−"],
+        [x.ownerAmount, g.ownerAmount, null],
+      ]
+    : [
+        [x.salePrice, g.salePrice, "+"],
+        [x.purchasePrice, g.purchasePrice, "−"],
+        [x.expensesTotal, g.carExpenses, "−"],
+        [x.totalCostLabel, g.totalCost, null],
+      ];
+
+  return (
+    <div style={sheetStyle(lang, true)}>
+      <div>
+        <Header showroom={showroom} lang={lang} />
+        <TitleBar
+          lang={lang}
+          title={x.beneficeTitle}
+          reference={g.reference || g.saleId}
+          date={formatDateTime(g.date)}
+          extra={prestation ? x.beneficePrestation : x.beneficeNormal}
+        />
+
+        {/* Véhicule + acheteur */}
+        <div style={grid2}>
+          <Frame title={x.vehicle}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
+              <Row lang={lang} label={x.brand} value={car.brand} strong />
+              <Row lang={lang} label={x.model} value={car.model} strong />
+              <Row lang={lang} label={x.plate} value={car.plate} />
+              <Row lang={lang} label={x.year} value={car.year} />
+              <Row lang={lang} label={x.color} value={car.color} />
+              <Row lang={lang} label={x.mileage} value={car.mileage != null ? formatAmount(car.mileage, x.kmUnit) : "—"} />
+            </div>
+            <Row lang={lang} label={x.chassis} value={car.vin} last />
+          </Frame>
+
+          <Frame title={x.buyerBlock}>
+            <Row lang={lang} label={x.fullName} value={person(buyer)} strong />
+            <Row lang={lang} label={x.phone} value={buyer.phonePrimary} />
+            <Row lang={lang} label={x.saleDateLabel} value={formatDate(g.date)} />
+            <Row lang={lang} label={x.saleTypeLabel} value={prestation ? x.saleDeposit : x.saleNormal} />
+            <Row lang={lang} label={x.collected} value={formatAmount(g.amountPaid)} />
+            <Row lang={lang} label={x.restToPay} value={formatAmount(g.amountRest)} last />
+          </Frame>
+        </div>
+
+        {/* Propriétaire (prestation uniquement) */}
+        {prestation && (
+          <div style={{ marginTop: 10 }}>
+            <Frame title={x.ownerBlock}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
+                <Row lang={lang} label={x.fullName} value={person(owner)} strong />
+                <Row lang={lang} label={x.phone} value={owner.phonePrimary} />
+                <Row lang={lang} label={x.ownerAmount} value={formatAmount(g.ownerAmount)} strong />
+                <Row lang={lang} label={x.settlementState} value={g.settled ? x.settlementDone : x.settlementPending} />
+              </div>
+            </Frame>
+          </div>
+        )}
+
+        {/* Décompte du bénéfice */}
+        <div style={{ marginTop: 10 }}>
+          <Frame title={x.beneficeDetail}>
+            {lines.map(([label, value, sign], i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                  gap: 10, padding: "6px 0",
+                  borderBottom: i === lines.length - 1 ? "none" : `1px dotted ${LINE}`,
+                }}
+              >
+                <span style={{ color: sign ? INK : MUTE, fontSize: 12.5, fontWeight: sign ? 700 : 600 }}>
+                  {sign ? `${sign}  ` : ""}{label}
+                </span>
+                <span style={{ fontWeight: 800, fontSize: 13.5, textAlign: ar ? "left" : "right", ...ltr }}>
+                  {formatAmount(value)}
+                </span>
+              </div>
+            ))}
+          </Frame>
+        </div>
+
+        {/* Détail des dépenses engagées sur le véhicule */}
+        <div style={{ marginTop: 10 }}>
+          <Frame title={x.expensesList}>
+            {expenses.length === 0 ? (
+              <div style={{ color: MUTE, fontSize: 11.5, padding: "2px 0" }}>{x.noExpense}</div>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+                <colgroup>
+                  <col style={{ width: "52%" }} />
+                  <col style={{ width: "23%" }} />
+                  <col style={{ width: "25%" }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th style={st.th}>{x.colExpense}</th>
+                    <th style={st.th}>{x.colExpenseDate}</th>
+                    <th style={{ ...st.th, textAlign: st.end }}>{x.colExpenseAmount}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {expenses.map((e, i) => (
+                    <tr key={e.id ?? i} style={{ background: i % 2 ? SOFT : "#fff", ...exact }}>
+                      <td style={st.td}>{dash(e.name)}</td>
+                      <td style={{ ...st.td, whiteSpace: "nowrap", ...ltr, textAlign: st.start }}>{formatDate(e.date)}</td>
+                      <td style={{ ...st.td, textAlign: st.end, fontWeight: 800, ...ltr }}>{formatAmount(e.amount)}</td>
+                    </tr>
+                  ))}
+                  <tr>
+                    <td style={st.tf} colSpan={2}>{x.expensesTotal}</td>
+                    <td style={{ ...st.tf, textAlign: st.end, ...ltr }}>{formatAmount(g.carExpenses)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            )}
+          </Frame>
+        </div>
+      </div>
+
+      <div>
+        {/* Bénéfice net — la ligne que ce document existe pour porter */}
+        <div
+          style={{
+            marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center",
+            gap: 14, borderRadius: 10, padding: "16px 22px",
+            background: `linear-gradient(100deg, ${INK} 0%, #1f2937 60%, ${gainColor} 100%)`,
+            color: "#fff", ...exact,
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", opacity: 0.85 }}>
+              {x.beneficeNet}
+            </div>
+            <div style={{ fontSize: 10.5, opacity: 0.78, marginTop: 3 }}>
+              {x.beneficeMargin} : <span style={ltr}>{(Number(g.margin) || 0).toFixed(1)} %</span>
+            </div>
+          </div>
+          <div style={{ fontWeight: 900, fontSize: 30, whiteSpace: "nowrap", ...ltr }}>
+            {positive ? "+ " : "− "}{formatAmount(Math.abs(Number(g.gain) || 0))}
+          </div>
+        </div>
+
+        <div style={{ marginTop: 10, border: `1px dashed ${LINE}`, borderRadius: 6, padding: "7px 9px", fontSize: 10.5 }}>
+          <span style={{ fontWeight: 800, color: INK }}>{x.stopSumBenefice} </span>
+          <span style={{ fontWeight: 700 }}>{numberToWords(Math.abs(Number(g.gain) || 0), lang)}</span>
+        </div>
+
+        <div style={{ marginTop: 7, fontSize: 10, color: MUTE, lineHeight: 1.45 }}>
+          {prestation ? x.beneficeNotePrestation : x.beneficeNoteNormal}
+        </div>
+
+        <Signatures left={x.sigAccounting} right={x.sigShowroom} />
+        <Footer showroom={showroom} lang={lang} />
+      </div>
     </div>
   );
 }

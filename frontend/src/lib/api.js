@@ -1622,21 +1622,58 @@ export const cashApi = {
       saleRows.reduce((a, s) => a + (Number(s.amountRest) > 0 ? Number(s.amountRest) : 0), 0) +
       purchaseRows.reduce((a, p) => a + (Number(p.amountRest) > 0 ? Number(p.amountRest) : 0), 0);
 
+    // ── Bénéfices : one detailed record per sale ─────────────────────────
     // Selling gain: for a prestation (dépôt client) only the showroom's part is
     // counted — its share (from the owner règlement if created, else the sale)
     // minus what the showroom spent on the vehicle — regardless of whether the
     // règlement has been made yet. A normal sale contributes its usual margin.
-    const saleGain = (s) => {
-      if (s.isClientCar) {
-        const share = Number(s.settlement?.showroomShare ?? s.showroomShare) || 0;
-        return share - (Number(s.carExpenses) || 0);
-      }
-      return Number(s.gain) || 0;
-    };
-    const totalGains = saleRows.reduce((a, s) => a + saleGain(s), 0);
+    // Each record carries every number the Caisse "Bénéfice" list shows and the
+    // bénéfice sheet prints, so no extra round-trip is needed.
+    const gains = saleRows.map((s) => {
+      const salePrice = Number(s.totalAfterReduction) || 0;
+      const carExpenses = Number(s.carExpenses) || 0;
+      const purchasePrice = Number(s.purchasePrice) || 0;
+      const isPrestation = !!s.isClientCar;
+      // The share is only definitive once the owner règlement exists; before
+      // that the one agreed on the sale is used.
+      const showroomShare = isPrestation
+        ? Number(s.settlement?.showroomShare ?? s.showroomShare) || 0
+        : 0;
+      const gain = isPrestation ? showroomShare - carExpenses : Number(s.gain) || 0;
+      const expensesList = Array.isArray(s.car?.expenses)
+        ? s.car.expenses.filter((e) => e.type === "CAR" || !e.type)
+        : [];
+      return {
+        id: `gain-${s.id}`,
+        saleId: s.id,
+        reference: s.reference,
+        date: s.date,
+        kind: isPrestation ? "PRESTATION" : "NORMAL",
+        sale: s,
+        car: s.car || null,
+        client: s.client || null,
+        owner: s.owner || null,
+        salePrice,
+        purchasePrice,
+        carExpenses,
+        expensesList,
+        totalCost: Number(s.totalCost) || 0,
+        showroomShare,
+        ownerAmount: isPrestation ? salePrice - showroomShare - carExpenses : 0,
+        settled: !!s.settled,
+        amountPaid: Number(s.amountPaid) || 0,
+        amountRest: Number(s.amountRest) || 0,
+        paymentMethod: s.paymentMethod || null,
+        gain,
+        // Share of the selling price the showroom actually keeps.
+        margin: salePrice > 0 ? (gain / salePrice) * 100 : 0,
+      };
+    });
+    const totalGains = gains.reduce((a, g) => a + g.gain, 0);
 
     return {
       entries,
+      gains,
       totals: {
         totalIn,
         totalOut,
@@ -1646,6 +1683,7 @@ export const cashApi = {
         totalDebts,
         totalGains,
         byCategory: {
+          benefice: totalGains,
           cash: sum((e) => e.category === "cash"),
           sale: sum((e) => e.category === "sale"),
           purchase: sum((e) => e.category === "purchase"),

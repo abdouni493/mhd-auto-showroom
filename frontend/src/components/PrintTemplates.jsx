@@ -552,10 +552,12 @@ export function Signatures({ left, right }) {
   );
 }
 
-export function Footer({ showroom, lang }) {
+// `fontSize` lets a document that prints in a larger type scale (the fiche
+// technique, the bénéfice sheet) keep its footer in proportion with the rest.
+export function Footer({ showroom, lang, fontSize = 10.5 }) {
   const x = tr(lang);
   return (
-    <div style={{ marginTop: 12, paddingTop: 8, borderTop: `1px solid ${LINE}`, display: "flex", justifyContent: "space-between", fontSize: 10.5, color: MUTE }}>
+    <div style={{ marginTop: 12, paddingTop: 8, borderTop: `1px solid ${LINE}`, display: "flex", justifyContent: "space-between", fontSize, color: MUTE }}>
       <span><span style={ltr}>{showroom?.name || "Showroom"}</span> — {x.thanks}</span>
       <span>{x.generatedOn} <span style={ltr}>{formatDate(new Date())}</span></span>
     </div>
