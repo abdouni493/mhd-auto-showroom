@@ -795,28 +795,11 @@ export const salesApi = {
     let clientId = payload.clientId;
     if (!clientId && payload.client) {
       const c = payload.client;
+      // Same mapping as clientsApi.create — including client_type, which a
+      // buyer entered here always carries as "NORMAL".
       const { data: cl, error: clErr } = await supabase
         .from("clients")
-        .insert({
-          first_name: c.firstName,
-          last_name: c.lastName,
-          phone_primary: c.phonePrimary,
-          phone_secondary: c.phoneSecondary,
-          email: c.email,
-          address: c.address,
-          profession: c.profession,
-          birth_date: c.birthDate || null,
-          birth_place: c.birthPlace,
-          gender: c.gender || null,
-          photo_url: c.photo,
-          doc_type: c.docType,
-          doc_number: c.docNumber,
-          doc_delivery_date: c.docDeliveryDate || null,
-          doc_expiry: c.docExpiry || null,
-          doc_delivery_address: c.docDeliveryAddress,
-          nif: c.nif,
-          rc: c.rc,
-        })
+        .insert(clientWrite(c))
         .select()
         .single();
       if (clErr) throw clErr;
@@ -986,6 +969,10 @@ export const salesApi = {
 function shapeClient(c) {
   if (!c) return c;
   c.photo = c.photoUrl ?? null; // components read client.photo
+  // "PRESTATION" = fournisseur ayant déposé un véhicule (page Fournisseurs,
+  // proposé à l'achat) ; "NORMAL" = client de vente. Rows written before the
+  // column existed read back as null.
+  c.clientType = c.clientType === "PRESTATION" ? "PRESTATION" : "NORMAL";
   return c;
 }
 function clientWrite(p) {
@@ -1008,6 +995,7 @@ function clientWrite(p) {
     nif: p.nif,
     rc: p.rc,
     photo_url: p.photo ?? p.photoUrl ?? null,
+    client_type: p.clientType === "PRESTATION" ? "PRESTATION" : "NORMAL",
   };
 }
 
@@ -1032,12 +1020,16 @@ export const clientsApi = {
       return c;
     });
   },
-  async search(query) {
-    const { data, error } = await supabase
+  // `type` restricts the répertoire to one side of the business: the purchase
+  // form only ever picks a "PRESTATION" fournisseur, the POS and the sale only
+  // ever pick a "NORMAL" client. Omitted, every client is searched.
+  async search(query, type) {
+    let q = supabase
       .from("clients")
       .select("*")
-      .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,phone_primary.ilike.%${query}%`)
-      .limit(15);
+      .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,phone_primary.ilike.%${query}%`);
+    if (type) q = q.eq("client_type", type);
+    const { data, error } = await q.limit(15);
     if (error) throw error;
     return rows(data).map(shapeClient);
   },

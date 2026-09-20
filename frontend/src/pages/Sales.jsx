@@ -38,7 +38,7 @@ function SaleEditForm({ sale, onClose, onSaved }) {
 
   // client — either swapped for another existing one, or edited in place
   const [client, setClient] = useState(sale.client || null);
-  const [clientDraft, setClientDraft] = useState(sale.client ? { ...sale.client } : {});
+  const [clientDraft, setClientDraft] = useState(sale.client ? { ...sale.client } : { clientType: "NORMAL" });
   const [clientDirty, setClientDirty] = useState(false);
   const [editingClient, setEditingClient] = useState(false);
   const [clientErrors, setClientErrors] = useState({});
@@ -177,7 +177,7 @@ function SaleEditForm({ sale, onClose, onSaved }) {
               <>
                 <p className="text-xs text-text-muted italic">{t("sales.pickClient")}</p>
                 <SearchSelect
-                  fetcher={(q) => clientsApi.search(q)}
+                  fetcher={(q) => clientsApi.search(q, "NORMAL")}
                   placeholder={t("purchase.searchClient")}
                   onSelect={pickClient}
                   renderItem={(c) => <div><p className="text-sm text-text-primary">{c.firstName} {c.lastName}</p><p className="text-xs text-text-muted">{c.phonePrimary}</p></div>}

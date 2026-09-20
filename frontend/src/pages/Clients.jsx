@@ -12,7 +12,7 @@ import { useStore } from "../store/useStore.js";
 import { Card, Badge, Modal, ConfirmModal, EmptyState, SkeletonGrid, AnimatedGrid, Field, useToast } from "../components/ui.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import ActionMenu from "../components/ActionMenu.jsx";
-import ClientForm, { validateClient } from "../components/ClientForm.jsx";
+import ClientForm, { validateClient, clientTypeOf } from "../components/ClientForm.jsx";
 import { CarImage } from "../components/CarCard.jsx";
 import { SettlementReceipt } from "../components/PrintDocs.jsx";
 import PrintHub from "../components/PrintHub.jsx";
@@ -170,15 +170,18 @@ export default function Clients({ mode = "buyers" }) {
   const { settings, refreshSettlements } = useStore();
   const [params, setParams] = useSearchParams();
 
-  // "owners" = Gestion de fournisseurs (clients who left a vehicle at the
-  // showroom). "buyers" = Clients (everyone else). The two pages share this
-  // component; only the filtering, the labels and the permission section differ.
+  // "owners" = Gestion de fournisseurs (clients de type PRESTATION, ceux qui
+  // déposent un véhicule au showroom). "buyers" = Clients (type NORMAL). The
+  // two pages share this component; only the filtering, the labels and the
+  // permission section differ. The type is a column the user edits himself —
+  // it is no longer deduced from the purchases.
   const isOwners = mode === "owners";
+  const wantedType = isOwners ? "PRESTATION" : "NORMAL";
   const section = isOwners ? "suppliers" : "clients";
   const tx = (key) => (isOwners ? t(`suppliers.${key}`) : t(`clients.${key}`));
 
   const { data: allClients, loading, refetch } = useFetch(() => clientsApi.list(), []);
-  const clients = (allClients || []).filter((c) => (isOwners ? c.hasDepositCars : !c.hasDepositCars));
+  const clients = (allClients || []).filter((c) => clientTypeOf(c) === wantedType);
   const { data: pendingMap, refetch: refetchPending } = useFetch(() => settlementsApi.pendingByClient(), []);
 
   const [form, setForm] = useState(null);
@@ -202,16 +205,16 @@ export default function Clients({ mode = "buyers" }) {
   useEffect(() => {
     if (!isOwners || params.get("settle") !== "1" || !pendingMap) return;
     const firstId = Object.keys(pendingMap)[0];
-    if (firstId && clients) {
-      const c = clients.find((x) => String(x.id) === String(firstId));
+    if (firstId && allClients) {
+      const c = allClients.find((x) => String(x.id) === String(firstId));
       if (c) setSettleClient(c);
     }
     params.delete("settle");
     setParams(params, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingMap, clients]);
+  }, [pendingMap, allClients]);
 
-  const openNew = () => { setForm({}); setEditId(null); setErrors({}); };
+  const openNew = () => { setForm({ clientType: wantedType }); setEditId(null); setErrors({}); };
   const openEdit = (c) => { setForm({ ...c }); setEditId(c.id); setErrors({}); };
 
   const save = async () => {
@@ -291,7 +294,7 @@ export default function Clients({ mode = "buyers" }) {
               <p className="text-xs text-text-muted mt-0.5">{t("settlements.alertDesc", { count: pendingTotal })}</p>
               <div className="flex flex-wrap gap-2 mt-3">
                 {Object.entries(pendingMap || {}).map(([clientId, list]) => {
-                  const c = (clients || []).find((x) => String(x.id) === String(clientId));
+                  const c = (allClients || []).find((x) => String(x.id) === String(clientId));
                   if (!c) return null;
                   return (
                     <button
@@ -341,6 +344,9 @@ export default function Clients({ mode = "buyers" }) {
                 </div>
 
                 <div className="flex gap-1.5 mb-3 flex-wrap">
+                  <Badge color={clientTypeOf(c) === "PRESTATION" ? "warning" : "info"}>
+                    {clientTypeOf(c) === "PRESTATION" ? t("client.typePrestation") : t("client.typeNormal")}
+                  </Badge>
                   {c.email && <Badge color="muted"><Mail size={10} /> {c.email}</Badge>}
                   {c.docType && <Badge color="info">{c.docType}</Badge>}
                   {c.hasDepositCars && <Badge color="warning"><CarIcon size={10} /> {t("settlements.depositBadge", { count: c.stats.depositCars })}</Badge>}
@@ -391,6 +397,7 @@ export default function Clients({ mode = "buyers" }) {
           <div className="space-y-1.5">
             {view.photo && <img src={view.photo} className="w-24 h-24 rounded-xl object-cover mb-3" alt="" />}
             {Object.entries({
+              [t("client.type")]: clientTypeOf(view) === "PRESTATION" ? t("client.typePrestation") : t("client.typeNormal"),
               [t("common.phone")]: view.phonePrimary,
               [t("client.phoneSecondary")]: view.phoneSecondary,
               [t("common.email")]: view.email,

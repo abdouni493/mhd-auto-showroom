@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { Handshake, ShoppingCart } from "lucide-react";
 import { Field } from "./ui.jsx";
 import { SingleImageUpload } from "./ImageUpload.jsx";
 import { BUCKETS } from "../lib/supabase.js";
@@ -7,17 +8,55 @@ import DateInput from "./DateInput.jsx";
 
 const DOC_TYPES = ["Permis Biométrique", "Carte d'Identité", "Passeport"];
 
+// Which side of the business the record belongs to. A "PRESTATION" is a
+// fournisseur who leaves a vehicle at the showroom (page Fournisseurs, picked
+// by the purchase form); a "NORMAL" is a buyer (page Clients, picked by the
+// point de vente and the sale).
+export const CLIENT_TYPES = [
+  ["NORMAL", "client.typeNormal", "client.typeNormalHint", ShoppingCart],
+  ["PRESTATION", "client.typePrestation", "client.typePrestationHint", Handshake],
+];
+
+export const clientTypeOf = (c) => (c?.clientType === "PRESTATION" ? "PRESTATION" : "NORMAL");
+
 // Controlled client form. value = client object, onChange(field, val) or onChange(newObject)
-export default function ClientForm({ value, onChange, errors = {} }) {
+// `showType` hides the type picker where the choice is already implied.
+export default function ClientForm({ value, onChange, errors = {}, showType = true }) {
   const { t } = useTranslation();
   const c = value || {};
   const set = (field) => (e) => {
     const v = e?.target ? e.target.value : e;
     onChange({ ...c, [field]: v });
   };
+  const type = clientTypeOf(c);
 
   return (
     <div className="space-y-5">
+      {showType && (
+        <div>
+          <p className="label-caps">{t("client.type")}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {CLIENT_TYPES.map(([key, label, hint, Icon]) => {
+              const active = type === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => onChange({ ...c, clientType: key })}
+                  className={`p-3 rounded-xl border flex items-center gap-3 text-left rtl:text-right transition ${active ? "border-red-500 bg-red-600/15" : "border-red-600/30 hover:border-red-600/60"}`}
+                >
+                  <span className={`p-2 rounded-lg shrink-0 ${active ? "bg-red-600/25 text-red-300" : "bg-red-600/10 text-text-muted"}`}><Icon size={18} /></span>
+                  <span className="min-w-0">
+                    <span className={`block font-black uppercase text-xs tracking-wide ${active ? "text-red-300" : "text-text-muted"}`}>{t(label)}</span>
+                    <span className="block text-[0.68rem] text-text-muted mt-0.5 normal-case">{t(hint)}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <SingleImageUpload value={c.photo} onChange={(url) => onChange({ ...c, photo: url })} label={t("client.photo")} bucket={BUCKETS.clientPhotos} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

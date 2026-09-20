@@ -21,7 +21,9 @@ function SaleFlow({ car, onClose, onCreated }) {
   const { t } = useTranslation();
   const [step, setStep] = useState(0);
   const [client, setClient] = useState(null);
-  const [newClient, setNewClient] = useState({});
+  // A sale is always made to a buyer: the new client is created as "NORMAL"
+  // and only the clients of that type can be picked.
+  const [newClient, setNewClient] = useState({ clientType: "NORMAL" });
   const [useExisting, setUseExisting] = useState(false);
   const [clientErrors, setClientErrors] = useState({});
   const [inspection, setInspection] = useState(DEFAULT_INSPECTION);
@@ -78,7 +80,7 @@ function SaleFlow({ car, onClose, onCreated }) {
       const payload = {
         carId: car.id,
         clientId: useExisting ? client?.id : null,
-        client: useExisting ? null : newClient,
+        client: useExisting ? null : { clientType: "NORMAL", ...newClient },
         saleType, basePrice: base, tvaEnabled, tvaRate, reductionType, reductionValue,
         amountPaid: paid, clientTakeCar, inspection, date,
         // The showroom's part of a prestation car is set later, when the owner
@@ -132,7 +134,7 @@ function SaleFlow({ car, onClose, onCreated }) {
                   </div>
                 </Card>
               ) : (
-                <SearchSelect fetcher={(q) => clientsApi.search(q)} placeholder={t("purchase.searchClient")} onSelect={setClient}
+                <SearchSelect fetcher={(q) => clientsApi.search(q, "NORMAL")} placeholder={t("purchase.searchClient")} onSelect={setClient}
                   renderItem={(c) => <div><p className="text-sm text-text-primary">{c.firstName} {c.lastName}</p><p className="text-xs text-text-muted">{c.phonePrimary}</p></div>} />
               )
             ) : (

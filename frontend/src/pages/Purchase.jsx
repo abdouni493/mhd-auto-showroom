@@ -165,7 +165,7 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
     const errs = validateClient(newClient || {});
     if (Object.keys(errs).length) { setClientErrors(errs); return; }
     try {
-      const data = await clientsApi.create(newClient);
+      const data = await clientsApi.create({ clientType: "PRESTATION", ...newClient });
       setClient(data);
       setNewClient(null);
     } catch (e) { alert(e.message || "Erreur"); }
@@ -290,10 +290,13 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
                   </Card>
                 ) : (
                   <>
-                    <SearchSelect fetcher={(q) => clientsApi.search(q)} placeholder={t("purchase.searchClient")} onSelect={setClient}
+                    {/* A purchase is always a "prestation": only the fournisseurs
+                        of that type are offered, and a new one is created as
+                        such. */}
+                    <SearchSelect fetcher={(q) => clientsApi.search(q, "PRESTATION")} placeholder={t("purchase.searchSupplier")} onSelect={setClient}
                       renderItem={(c) => <div><p className="text-sm text-text-primary">{c.firstName} {c.lastName}</p><p className="text-xs text-text-muted">{c.phonePrimary}</p></div>} />
                     {!newClient ? (
-                      <button className="btn-ghost w-full mt-3" onClick={() => setNewClient({})}><Plus size={14} /> {t("purchase.newClient")}</button>
+                      <button className="btn-ghost w-full mt-3" onClick={() => setNewClient({ clientType: "PRESTATION" })}><Plus size={14} /> {t("purchase.newSupplier")}</button>
                     ) : (
                       <Card className="p-4 mt-3">
                         <ClientForm value={newClient} onChange={setNewClient} errors={clientErrors} />
