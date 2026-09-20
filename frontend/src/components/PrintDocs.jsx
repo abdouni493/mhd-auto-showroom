@@ -711,20 +711,10 @@ export function FicheTechnique({ car, showroom, lang = "fr", price }) {
     [x.plate, car?.plate],
   ].filter(([, v]) => v !== undefined && v !== null && v !== "");
 
-  // Two columns of label / value pairs — read down the left column first.
-  const half = Math.ceil(specs.length / 2);
-  const columns = [specs.slice(0, half), specs.slice(half)];
-
-  const cellLabel = {
-    padding: "9px 12px", border: `1px solid ${LINE}`, fontSize: 13,
-    fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em",
-    color: MUTE, whiteSpace: "nowrap", textAlign: ar ? "right" : "left",
-  };
-  const cellValue = {
-    padding: "9px 12px", border: `1px solid ${LINE}`, fontSize: 19,
-    fontWeight: 900, color: INK, lineHeight: 1.2, wordBreak: "break-word",
-    textAlign: ar ? "right" : "left", ...ltr,
-  };
+  // Specs laid out three per row — a stacked label over a big bold value —
+  // exactly like the windscreen fiche technique the showroom prints.
+  const rows = [];
+  for (let i = 0; i < specs.length; i += 3) rows.push(specs.slice(i, i + 3));
 
   return (
     <div style={{ ...sheetStyle(lang, true), fontSize: "14px" }}>
@@ -739,60 +729,76 @@ export function FicheTechnique({ car, showroom, lang = "fr", price }) {
         />
       </div>
 
-      {/* Vehicle identity — the biggest type of the sheet */}
+      {/* Vehicle identity — red band with the car name, like the windscreen sheet */}
       <div
         style={{
-          flexShrink: 0, textAlign: "center", border: `2px solid ${ACCENT}`,
-          borderRadius: 10, padding: "16px 18px", background: SOFT, ...exact,
+          flexShrink: 0, textAlign: "center", background: ACCENT,
+          borderRadius: 10, padding: "18px 20px", ...exact,
         }}
       >
-        <div style={{ fontWeight: 900, fontSize: 40, lineHeight: 1.1, textTransform: "uppercase", letterSpacing: "0.01em", color: INK, ...ltr }}>
+        <div style={{ fontWeight: 900, fontStyle: "italic", fontSize: 42, lineHeight: 1.05, textTransform: "uppercase", letterSpacing: "0.01em", color: "#fff", ...ltr }}>
           {carName(car)}
         </div>
         {(car?.year || car?.plate) && (
-          <div style={{ marginTop: 6, fontWeight: 800, fontSize: 20, color: ACCENT, letterSpacing: "0.06em", ...ltr }}>
+          <div
+            style={{
+              display: "inline-block", marginTop: 10, background: "#fff", color: ACCENT,
+              fontWeight: 900, fontSize: 18, padding: "5px 16px", borderRadius: 999,
+              letterSpacing: "0.06em", ...ltr, ...exact,
+            }}
+          >
             {[car?.year, car?.plate].filter(Boolean).join("   ·   ")}
           </div>
         )}
       </div>
 
-      {/* Spec table — two label/value columns, every value big and bold */}
-      <div style={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", justifyContent: "center", padding: "10px 0" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-          <colgroup>
-            <col style={{ width: "18%" }} />
-            <col style={{ width: "32%" }} />
-            <col style={{ width: "18%" }} />
-            <col style={{ width: "32%" }} />
-          </colgroup>
-          <thead>
-            <tr>
-              <th
-                colSpan={4}
-                style={{
-                  background: ACCENT, color: "#fff", padding: "9px 12px", fontSize: 14,
-                  fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.16em",
-                  border: `1px solid ${ACCENT}`, textAlign: "center", ...exact,
-                }}
-              >
-                {x.specification}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {Array.from({ length: half }).map((_, i) => (
-              <tr key={i} style={{ background: i % 2 ? SOFT : "#fff", ...exact }}>
-                <td style={cellLabel}>{columns[0][i]?.[0] || ""}</td>
-                <td style={cellValue}>{columns[0][i] ? dash(columns[0][i][1]) : ""}</td>
-                <td style={cellLabel}>{columns[1][i]?.[0] || ""}</td>
-                <td style={cellValue}>{columns[1][i] ? dash(columns[1][i][1]) : ""}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* SPÉCIFICATION — underlined heading, centered, like the printed sheet */}
+      <div style={{ flexShrink: 0, textAlign: "center", margin: "10px 0 2px" }}>
+        <span
+          style={{
+            display: "inline-block", fontSize: 24, fontWeight: 900, color: INK,
+            textTransform: "uppercase", letterSpacing: "0.08em",
+            borderBottom: `3px solid ${INK}`, paddingBottom: 5,
+          }}
+        >
+          {x.specification}
+        </span>
+      </div>
+
+      {/* Spec grid — stacked label over a big bold value, three per row */}
+      <div style={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", justifyContent: "center", padding: "8px 0" }}>
+        <div>
+          {rows.map((row, ri) => (
+            <div
+              key={ri}
+              style={{
+                display: "flex",
+                borderBottom: ri === rows.length - 1 ? "none" : `1px solid ${LINE}`,
+              }}
+            >
+              {row.map(([label, value], ci) => (
+                <div
+                  key={ci}
+                  style={{ flex: "1 1 0", minWidth: 0, padding: "13px 16px", textAlign: ar ? "right" : "left" }}
+                >
+                  <div style={{ fontSize: 16, fontWeight: 900, color: INK, textTransform: "uppercase", letterSpacing: "0.02em", lineHeight: 1.15 }}>
+                    {label}
+                  </div>
+                  <div style={{ marginTop: 5, fontSize: 21, fontWeight: 800, color: INK, lineHeight: 1.2, wordBreak: "break-word", ...ltr }}>
+                    {dash(value)}
+                  </div>
+                </div>
+              ))}
+              {row.length < 3 &&
+                Array.from({ length: 3 - row.length }).map((_, k) => (
+                  <div key={`pad-${k}`} style={{ flex: "1 1 0", minWidth: 0 }} />
+                ))}
+            </div>
+          ))}
+        </div>
 
         {car?.fiche && (
-          <div style={{ marginTop: 10 }}>
+          <div style={{ marginTop: 12 }}>
             <Frame title={x.vehicleDescription}>
               <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.45, whiteSpace: "pre-line" }}>{car.fiche}</div>
             </Frame>
