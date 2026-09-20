@@ -105,6 +105,12 @@ export const L = {
     showroomCat: "Showroom",
     noExpenses: "Aucune dépense enregistrée pour cette période.",
     preparedBy: "Établi par",
+    // Period reports (Caisse + Rapports)
+    noRows: "Aucune donnée enregistrée pour cette période.",
+    reportOf: "Rapport",
+    periodFrom: "Du",
+    periodTo: "Au",
+    linesCount: "Nombre de lignes",
     // New: deposit conditions
     depositConditionsTitle: "CONDITION RELATIVE AUX ARRHES",
     depositConditionsText: `Le montant versé par le client à la réservation du véhicule est expressément considéré comme des ARRHES DE RÉSERVATION.
@@ -196,6 +202,12 @@ Le client reconnaît avoir été informé de cette condition avant le versement 
     showroomCat: "المعرض",
     noExpenses: "لا توجد مصاريف مسجلة خلال هذه الفترة.",
     preparedBy: "أعدّه",
+    // Period reports (Caisse + Rapports)
+    noRows: "لا توجد بيانات مسجلة خلال هذه الفترة.",
+    reportOf: "تقرير",
+    periodFrom: "من",
+    periodTo: "إلى",
+    linesCount: "عدد السطور",
     // New: deposit conditions (Arabic translation)
     depositConditionsTitle: "شروط متعلقة بالعربون",
     depositConditionsText: `المبلغ المدفوع من قبل العميل عند حجز المركبة يُعتَبر صراحةً عربونًا للحجز.
@@ -958,6 +970,181 @@ export function CashTransactionInvoice({ transaction, showroom, lang = "fr" }) {
       />
 
       <Signatures left={isWithdrawal ? x.sigBeneficiary : x.sigClient} right={x.sigShowroom} />
+      <Footer showroom={showroom} lang={lang} />
+    </div>
+  );
+}
+
+// ============================================================================
+// Generic period report — the single paper used by every "period + print"
+// screen of the application (Caisse categories, Bénéfice, Caisse nette, and
+// each part of the Rapports page, alone or all together).
+//
+//   stats  : [{ label, value, accent }]          summary tiles under the title
+//   blocks : [{ title, columns, rows, totals, empty, note }]
+//            columns : [{ label, width, align: "start"|"end"|"center",
+//                         render: (row, i) => node, bold }]
+//            totals  : [{ label, value }] — closing lines of the block
+//
+// Multi-page friendly: the sheet keeps the normal flow (no fixed height) and
+// each <thead> repeats on every printed page.
+// ============================================================================
+export function PeriodReport({
+  showroom,
+  lang = "fr",
+  title,
+  subtitle,
+  from,
+  to,
+  stats = [],
+  blocks = [],
+  note,
+}) {
+  const x = tr(lang);
+  const ar = isAr(lang);
+  const alignStart = ar ? "right" : "left";
+  const alignEnd = ar ? "left" : "right";
+  const sideOf = (a) => (a === "end" ? alignEnd : a === "center" ? "center" : alignStart);
+
+  const th = {
+    background: ACCENT, color: "#fff", padding: "7px 9px", fontSize: 10.5,
+    fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em",
+    border: `1px solid ${ACCENT}`, textAlign: alignStart, ...exact,
+  };
+  const td = {
+    padding: "6px 9px", border: `1px solid ${LINE}`, fontSize: 11.5,
+    verticalAlign: "top", textAlign: alignStart,
+  };
+  const tf = { ...td, background: SOFT, fontWeight: 900, fontSize: 12.5, ...exact };
+
+  return (
+    <div style={sheetStyle(lang)}>
+      <Header showroom={showroom} lang={lang} />
+
+      {/* Title band — a period statement instead of a document number */}
+      <div
+        style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12,
+          background: SOFT, border: `1px solid ${LINE}`,
+          ...(ar ? { borderRight: `4px solid ${ACCENT}` } : { borderLeft: `4px solid ${ACCENT}` }),
+          borderRadius: 6, padding: "8px 13px", marginBottom: 10, ...exact,
+        }}
+      >
+        <div>
+          <div style={{ fontWeight: 900, fontSize: 18, textTransform: "uppercase", color: ACCENT, letterSpacing: "0.03em" }}>
+            {title}
+          </div>
+          {subtitle && <div style={{ fontSize: 11, color: MUTE, marginTop: 2 }}>{subtitle}</div>}
+        </div>
+        <div style={{ textAlign: alignEnd, fontSize: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 800 }}>
+            {x.period} :{" "}
+            <span style={ltr}>
+              {formatDate(from)} — {formatDate(to)}
+            </span>
+          </div>
+          <div style={{ color: MUTE }}>
+            {x.generatedOn} <span style={ltr}>{formatDate(new Date())}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Summary tiles */}
+      {stats.length > 0 && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: `repeat(${Math.min(stats.length, 4)}, 1fr)`,
+            gap: 7, marginBottom: 10, breakInside: "avoid",
+          }}
+        >
+          {stats.map((st, i) => (
+            <StatBox key={i} label={st.label} value={st.value} accent={st.accent} />
+          ))}
+        </div>
+      )}
+
+      {/* One table per part */}
+      {blocks.map((b, bi) => (
+        <div key={bi} style={{ marginBottom: 12 }}>
+          <div
+            style={{
+              fontWeight: 900, fontSize: 12, textTransform: "uppercase",
+              letterSpacing: "0.05em", color: ACCENT, marginBottom: 5,
+              borderBottom: `1px solid ${LINE}`, paddingBottom: 3,
+            }}
+          >
+            {b.title}
+          </div>
+
+          {!b.rows || b.rows.length === 0 ? (
+            <div style={{ border: `1px solid ${LINE}`, borderRadius: 6, padding: "12px 10px", textAlign: "center", color: MUTE, fontSize: 11.5 }}>
+              {b.empty || x.noRows}
+            </div>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+              {/* Declared widths are normalised to 100 % so a block whose columns
+                  add up to a little more or less still prints evenly. */}
+              <colgroup>
+                {(() => {
+                  const w = b.columns.map((c) => parseFloat(c.width) || 0);
+                  const totalW = w.reduce((a, v) => a + v, 0);
+                  return b.columns.map((c, i) => (
+                    <col key={i} style={totalW > 0 && w[i] > 0 ? { width: `${((w[i] / totalW) * 100).toFixed(3)}%` } : undefined} />
+                  ));
+                })()}
+              </colgroup>
+              <thead style={{ display: "table-header-group" }}>
+                <tr>
+                  {b.columns.map((c, i) => (
+                    <th key={i} style={{ ...th, textAlign: sideOf(c.align) }}>{c.label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {b.rows.map((r, i) => (
+                  <tr key={i} style={{ breakInside: "avoid", background: i % 2 ? SOFT : "#fff", ...exact }}>
+                    {b.columns.map((c, j) => (
+                      <td
+                        key={j}
+                        style={{
+                          ...td,
+                          textAlign: sideOf(c.align),
+                          fontWeight: c.bold ? 800 : 400,
+                          whiteSpace: c.nowrap ? "nowrap" : "normal",
+                          ...(c.ltr ? ltr : {}),
+                        }}
+                      >
+                        {c.render ? c.render(r, i) : r[c.key]}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                {(b.totals || []).map((t, i) => (
+                  <tr key={`t${i}`} style={{ breakInside: "avoid" }}>
+                    <td style={{ ...tf, textTransform: "uppercase" }} colSpan={b.columns.length - 1}>
+                      {t.label}
+                    </td>
+                    <td style={{ ...tf, textAlign: alignEnd, color: t.danger ? ACCENT : INK, whiteSpace: "nowrap", ...ltr }}>
+                      {t.value}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {b.note && <div style={{ fontSize: 10, color: MUTE, marginTop: 4 }}>{b.note}</div>}
+        </div>
+      ))}
+
+      {note && (
+        <div style={{ marginTop: 6, fontSize: 10.5, color: MUTE, border: `1px dashed ${LINE}`, borderRadius: 6, padding: "7px 9px" }}>
+          {note}
+        </div>
+      )}
+
+      <Signatures left={x.preparedBy} right={x.sigShowroom} />
       <Footer showroom={showroom} lang={lang} />
     </div>
   );

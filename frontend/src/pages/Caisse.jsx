@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import {
   Vault, ArrowDownCircle, ArrowUpCircle, Eye, Pencil, Trash2, Printer,
   Tag, ShoppingBag, CircleDollarSign, Briefcase, Handshake, Wallet, Scale,
-  TrendingUp, TrendingDown, Search, AlertTriangle, HandCoins,
+  TrendingUp, TrendingDown, Search, AlertTriangle, HandCoins, CalendarRange, RotateCcw,
 } from "lucide-react";
 import { cashApi, clientsApi } from "../lib/api.js";
 import { useFetch } from "../hooks/useApi.js";
@@ -16,17 +16,19 @@ import {
 import PageHeader from "../components/PageHeader.jsx";
 import ActionMenu from "../components/ActionMenu.jsx";
 import SearchSelect from "../components/SearchSelect.jsx";
-import { CashTransactionInvoice } from "../components/PrintTemplates.jsx";
+import { CashTransactionInvoice, PeriodReport } from "../components/PrintTemplates.jsx";
 import { BeneficeSheet } from "../components/PrintDocs.jsx";
 import { usePrintDialog } from "../components/PrintChooser.jsx";
-import { formatAmount, formatDateTime, formatDate, toDateTimeLocal } from "../utils/format.js";
+import { formatAmount, formatDateTime, formatDate, toDateTimeLocal, toDateInput } from "../utils/format.js";
 import DateInput from "../components/DateInput.jsx";
 
 // The category chips + how each ledger line is coloured / iconed.
-// `benefice` is not a ledger line but a filter of its own: it swaps the ledger
-// table for the per-sale gains of the showroom.
+// `benefice` and `net` are not ledger lines but filters of their own: they swap
+// the ledger table for the per-sale gains of the showroom (bénéfice) and for the
+// net result of the caisse (gains − dépenses).
 const CATEGORIES = {
   benefice:   { icon: TrendingUp,        tint: "text-emerald-400", bg: "bg-emerald-500/15" },
+  net:        { icon: Scale,             tint: "text-red-400",     bg: "bg-red-500/15" },
   cash:       { icon: Wallet,            tint: "text-sky-400",     bg: "bg-sky-500/15" },
   sale:       { icon: Tag,               tint: "text-emerald-400", bg: "bg-emerald-500/15" },
   purchase:   { icon: ShoppingBag,       tint: "text-violet-400",  bg: "bg-violet-500/15" },
@@ -37,6 +39,19 @@ const CATEGORIES = {
 
 const carLabel = (c) => [c?.brand, c?.model].filter(Boolean).join(" ").trim();
 const personLabel = (c) => `${c?.firstName || ""} ${c?.lastName || ""}`.trim();
+
+// Quick period buttons offered next to the two date pickers.
+function periodPresets(t) {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  return [
+    { key: "month", label: t("caisse.presetThisMonth"), from: new Date(y, m, 1), to: now },
+    { key: "last", label: t("caisse.presetLastMonth"), from: new Date(y, m - 1, 1), to: new Date(y, m, 0) },
+    { key: "year", label: t("caisse.presetThisYear"), from: new Date(y, 0, 1), to: now },
+    { key: "12m", label: t("caisse.presetLast12"), from: new Date(y, m - 11, 1), to: now },
+  ].map((p) => ({ key: p.key, label: p.label, from: toDateInput(p.from), to: toDateInput(p.to) }));
+}
 
 export default function Caisse() {
   const { t } = useTranslation();
@@ -49,8 +64,10 @@ export default function Caisse() {
   const { data: ledger, loading, refetch } = useFetch(() => cashApi.ledger(), []);
   const { data: cashRows, refetch: refetchCash } = useFetch(() => cashApi.list({}), []);
 
-  const [category, setCategory] = useState(""); // "" = all, "benefice" = gains view
+  const [category, setCategory] = useState(""); // "" = all, "benefice" / "net" = own views
   const [search, setSearch] = useState("");
+  // Period filter — empty = every record ever entered.
+  const [range, setRange] = useState({ from: "", to: "" });
   const [form, setForm] = useState(null);
   const [editId, setEditId] = useState(null);
   const [viewItem, setViewItem] = useState(null);
@@ -58,11 +75,87 @@ export default function Caisse() {
   const [deleteId, setDeleteId] = useState(null);
 
   const showGains = category === "benefice";
+  const showNet = category === "net";
 
-  const totals = ledger?.totals || { totalIn: 0, totalOut: 0, balance: 0, totalPurchases: 0, totalSales: 0, totalDebts: 0, totalGains: 0, byCategory: {} };
+  // ── Period filtering ─────────────────────────────────────────────────────
+  // `to` is inclusive: everything up to 23:59:59 of that day belongs to the period.
+  const inRange = useMemo(() => {
+    const start = range.from ? new Date(`${range.from}T00:00:00`).getTime() : null;
+    const end = range.to ? new Date(`${range.to}T23:59:59.999`).getTime() : null;
+    return (value) => {
+      if (start === null && end === null) return true;
+      if (!value) return false;
+      const ts = new Date(value).getTime();
+      if (isNaN(ts)) return false;
+      if (start !== null && ts < start) return false;
+      if (end !== null && ts > end) return false;
+      return true;
+    };
+  }, [range.from, range.to]);
+
+  const hasPeriod = !!(range.from || range.to);
+  const periodLabel = hasPeriod
+    ? `${range.from ? formatDate(range.from) : "…"} → ${range.to ? formatDate(range.to) : "…"}`
+    : t("caisse.periodAll");
+
+  const setRangeField = (patch) => setRange((r) => ({ ...r, ...patch }));
+  const resetRange = () => setRange({ from: "", to: "" });
+
+  // Every ledger line of the period, before the category / search filters.
+  const periodEntries = useMemo(
+    () => (ledger?.entries || []).filter((e) => inRange(e.date)),
+    [ledger, inRange]
+  );
+  const periodGains = useMemo(
+    () => (ledger?.gains || []).filter((g) => inRange(g.date)),
+    [ledger, inRange]
+  );
+  const periodPurchases = useMemo(
+    () => (ledger?.purchasesList || []).filter((p) => inRange(p.date)),
+    [ledger, inRange]
+  );
+
+  // ── Totals, recomputed for the selected period ───────────────────────────
+  const totals = useMemo(() => {
+    const sumCat = (k) => periodEntries.filter((e) => e.category === k).reduce((a, e) => a + e.amount, 0);
+    const totalGains = periodGains.reduce((a, g) => a + (Number(g.gain) || 0), 0);
+    const totalPurchases = periodPurchases.reduce((a, p) => a + p.purchasePrice, 0);
+    const totalSales = periodGains.reduce((a, g) => a + (Number(g.salePrice) || 0), 0);
+    const totalDebts =
+      periodGains.reduce((a, g) => a + (Number(g.amountRest) > 0 ? Number(g.amountRest) : 0), 0) +
+      periodPurchases.reduce((a, p) => a + (p.amountRest > 0 ? p.amountRest : 0), 0);
+    const carExpenses = periodEntries
+      .filter((e) => e.category === "expense" && e.expenseType === "CAR")
+      .reduce((a, e) => a + e.amount, 0);
+    const totalExpenses = sumCat("expense");
+    return {
+      totalIn: periodEntries.filter((e) => e.dir === "IN").reduce((a, e) => a + e.amount, 0),
+      totalOut: periodEntries.filter((e) => e.dir === "OUT").reduce((a, e) => a + e.amount, 0),
+      totalPurchases,
+      totalSales,
+      totalDebts,
+      totalGains,
+      totalExpenses,
+      carExpenses,
+      showroomExpenses: totalExpenses - carExpenses,
+      // "Caisse" view: what the showroom kept once its dépenses are paid.
+      net: totalGains - totalExpenses,
+      byCategory: {
+        benefice: totalGains,
+        net: totalGains - totalExpenses,
+        cash: sumCat("cash"),
+        sale: sumCat("sale"),
+        purchase: sumCat("purchase"),
+        expense: totalExpenses,
+        payroll: sumCat("payroll"),
+        settlement: sumCat("settlement"),
+      },
+    };
+  }, [periodEntries, periodGains, periodPurchases]);
+
   const entries = useMemo(() => {
-    let list = ledger?.entries || [];
-    if (category && category !== "benefice") list = list.filter((e) => e.category === category);
+    let list = periodEntries;
+    if (category && category !== "benefice" && category !== "net") list = list.filter((e) => e.category === category);
     if (search) {
       const s = search.toLowerCase();
       list = list.filter(
@@ -74,12 +167,12 @@ export default function Caisse() {
       );
     }
     return list;
-  }, [ledger, category, search]);
+  }, [periodEntries, category, search]);
 
   // One record per sale — the gain the showroom made on it, normal sale or
   // prestation (vehicle left by its owner).
   const gains = useMemo(() => {
-    let list = ledger?.gains || [];
+    let list = periodGains;
     if (search) {
       const s = search.toLowerCase();
       list = list.filter(
@@ -92,9 +185,10 @@ export default function Caisse() {
       );
     }
     return list;
-  }, [ledger, search]);
+  }, [periodGains, search]);
 
   const gainsTotal = useMemo(() => gains.reduce((a, g) => a + (Number(g.gain) || 0), 0), [gains]);
+  const expenseEntries = useMemo(() => periodEntries.filter((e) => e.category === "expense"), [periodEntries]);
 
   const cashById = useMemo(() => {
     const m = {};
@@ -151,22 +245,184 @@ export default function Caisse() {
   const printGain = (g) =>
     openPrint((lang) => <BeneficeSheet gain={g} showroom={settings} lang={lang} />);
 
+  // ── Printing the part currently on screen, for the selected period ───────
+  const catName = (k) => t(`caisse.cat${k.charAt(0).toUpperCase() + k.slice(1)}`);
+  const kindLabel = (g) => (g.kind === "PRESTATION" ? t("caisse.kindPrestation") : t("caisse.kindNormal"));
+  const reportFrom = range.from || (periodEntries.length ? periodEntries[periodEntries.length - 1].date : new Date());
+  const reportTo = range.to || new Date();
+
+  const gainsBlock = (list) => ({
+    title: t("caisse.catBenefice"),
+    columns: [
+      { label: t("caisse.colNo"), width: "5%", render: (_r, i) => i + 1, ltr: true },
+      { label: t("common.date"), width: "11%", nowrap: true, ltr: true, render: (g) => formatDate(g.date) },
+      { label: t("caisse.colType"), width: "12%", render: (g) => kindLabel(g) },
+      { label: t("caisse.colVehicle"), width: "20%", bold: true, render: (g) => `${carLabel(g.car) || "—"}${g.car?.plate ? ` · ${g.car.plate}` : ""}` },
+      { label: t("caisse.colClient"), width: "17%", render: (g) => personLabel(g.client) || "—" },
+      { label: t("caisse.colSalePrice"), width: "13%", align: "end", nowrap: true, ltr: true, render: (g) => formatAmount(g.salePrice) },
+      { label: t("caisse.colCost"), width: "11%", align: "end", nowrap: true, ltr: true, render: (g) => formatAmount(g.kind === "PRESTATION" ? g.showroomShare : g.totalCost) },
+      { label: t("caisse.colGain"), width: "11%", align: "end", bold: true, nowrap: true, ltr: true, render: (g) => formatAmount(g.gain) },
+    ],
+    rows: list,
+    totals: [{ label: t("caisse.totalGains"), value: formatAmount(list.reduce((a, g) => a + (Number(g.gain) || 0), 0)), danger: true }],
+  });
+
+  const entriesBlock = (list, title) => ({
+    title,
+    columns: [
+      { label: t("caisse.colNo"), width: "5%", render: (_r, i) => i + 1, ltr: true },
+      { label: t("common.date"), width: "14%", nowrap: true, ltr: true, render: (e) => formatDateTime(e.date) },
+      { label: t("caisse.colType"), width: "12%", render: (e) => catName(e.category) },
+      { label: t("caisse.colLabel"), width: "30%", bold: true, render: (e) => e.label },
+      { label: t("common.details"), width: "14%", render: (e) => e.sub || "—" },
+      { label: t("caisse.colRef"), width: "11%", ltr: true, render: (e) => e.reference || "—" },
+      { label: t("common.amount"), width: "14%", align: "end", bold: true, nowrap: true, ltr: true, render: (e) => `${e.dir === "IN" ? "+ " : "− "}${formatAmount(e.amount)}` },
+    ],
+    rows: list,
+    totals: [
+      { label: t("caisse.totalIn"), value: formatAmount(list.filter((e) => e.dir === "IN").reduce((a, e) => a + e.amount, 0)) },
+      { label: t("caisse.totalOut"), value: formatAmount(list.filter((e) => e.dir === "OUT").reduce((a, e) => a + e.amount, 0)) },
+      { label: t("caisse.balance"), value: formatAmount(list.reduce((a, e) => a + (e.dir === "IN" ? e.amount : -e.amount), 0)), danger: true },
+    ],
+  });
+
+  const printCurrent = () => {
+    const showroom = settings;
+    if (showGains) {
+      openPrint((lang) => (
+        <PeriodReport
+          showroom={showroom} lang={lang} from={reportFrom} to={reportTo}
+          title={t("caisse.reportBeneficeTitle")} subtitle={t("caisse.beneficeSubtitle")}
+          stats={[
+            { label: t("caisse.gainsCountShort"), value: String(gains.length) },
+            { label: t("caisse.totalSales"), value: formatAmount(gains.reduce((a, g) => a + (Number(g.salePrice) || 0), 0)) },
+            { label: t("caisse.totalGains"), value: formatAmount(gainsTotal), accent: true },
+          ]}
+          blocks={[gainsBlock(gains)]}
+        />
+      ));
+      return;
+    }
+    if (showNet) {
+      const recap = [
+        { label: t("caisse.totalGains"), value: formatAmount(totals.totalGains) },
+        { label: t("caisse.carExpensesTotal"), value: `− ${formatAmount(totals.carExpenses)}` },
+        { label: t("caisse.showroomExpensesTotal"), value: `− ${formatAmount(totals.showroomExpenses)}` },
+      ];
+      openPrint((lang) => (
+        <PeriodReport
+          showroom={showroom} lang={lang} from={reportFrom} to={reportTo}
+          title={t("caisse.reportNetTitle")} subtitle={t("caisse.netFormula")}
+          stats={[
+            { label: t("caisse.totalGains"), value: formatAmount(totals.totalGains) },
+            { label: t("caisse.totalExpenses"), value: formatAmount(totals.totalExpenses) },
+            { label: t("caisse.netResult"), value: formatAmount(totals.net), accent: true },
+          ]}
+          blocks={[
+            {
+              title: t("caisse.netRecap"),
+              columns: [
+                { label: t("caisse.colLabel"), width: "60%", bold: true, render: (r) => r.label },
+                { label: t("common.amount"), width: "40%", align: "end", nowrap: true, ltr: true, render: (r) => r.value },
+              ],
+              rows: recap,
+              totals: [{ label: t("caisse.netResult"), value: formatAmount(totals.net), danger: true }],
+            },
+            gainsBlock(periodGains),
+            {
+              title: t("caisse.catExpense"),
+              columns: [
+                { label: t("caisse.colNo"), width: "6%", render: (_r, i) => i + 1, ltr: true },
+                { label: t("common.date"), width: "16%", nowrap: true, ltr: true, render: (e) => formatDate(e.date) },
+                { label: t("caisse.colLabel"), width: "44%", bold: true, render: (e) => e.label },
+                { label: t("caisse.colCategory"), width: "18%", render: (e) => e.sub || "—" },
+                { label: t("common.amount"), width: "16%", align: "end", bold: true, nowrap: true, ltr: true, render: (e) => formatAmount(e.amount) },
+              ],
+              rows: expenseEntries,
+              totals: [{ label: t("caisse.totalExpenses"), value: formatAmount(totals.totalExpenses), danger: true }],
+            },
+          ]}
+          note={t("caisse.netNote")}
+        />
+      ));
+      return;
+    }
+    const title = category ? `${t("caisse.reportLedgerTitle")} — ${catName(category)}` : t("caisse.reportLedgerTitle");
+    openPrint((lang) => (
+      <PeriodReport
+        showroom={showroom} lang={lang} from={reportFrom} to={reportTo}
+        title={title} subtitle={t("caisse.subtitle")}
+        stats={[
+          { label: t("caisse.linesCount"), value: String(entries.length) },
+          { label: t("caisse.totalIn"), value: formatAmount(entries.filter((e) => e.dir === "IN").reduce((a, e) => a + e.amount, 0)) },
+          { label: t("caisse.totalOut"), value: formatAmount(entries.filter((e) => e.dir === "OUT").reduce((a, e) => a + e.amount, 0)) },
+          { label: t("caisse.balance"), value: formatAmount(entries.reduce((a, e) => a + (e.dir === "IN" ? e.amount : -e.amount), 0)), accent: true },
+        ]}
+        blocks={[entriesBlock(entries, category ? catName(category) : t("caisse.catAll"))]}
+      />
+    ));
+  };
+
   const CAT_CHIPS = [
     ["", t("caisse.catAll")],
     ["benefice", t("caisse.catBenefice")],
+    ["net", t("caisse.catNet")],
     ["sale", t("caisse.catSale")],
     ["purchase", t("caisse.catPurchase")],
     ["expense", t("caisse.catExpense")],
     ["payroll", t("caisse.catPayroll")],
     ["settlement", t("caisse.catSettlement")],
+    ["cash", t("caisse.catCash")],
   ];
+
+  const presets = periodPresets(t);
 
   return (
     <div>
-      <PageHeader title={t("nav.caisse")} subtitle={t("caisse.subtitle")} />
+      <PageHeader title={t("nav.caisse")} subtitle={t("caisse.subtitle")}>
+        {can("caisse", "print") && (
+          <motion.button className="btn-ghost" onClick={printCurrent} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+            <Printer size={16} /> {t("caisse.printPeriod")}
+          </motion.button>
+        )}
+      </PageHeader>
 
-      {/* Achats / Ventes / Dettes / Gains */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+      {/* ── Période ────────────────────────────────────────────────────── */}
+      <Card className="p-4 mb-4">
+        <div className="flex flex-col lg:flex-row lg:items-end gap-4">
+          <div className="flex-1 min-w-0">
+            <p className="label-caps flex items-center gap-1.5"><CalendarRange size={13} /> {t("caisse.period")}</p>
+            <div className="flex flex-wrap gap-2">
+              {presets.map((p) => (
+                <button
+                  key={p.key}
+                  className={`chip ${range.from === p.from && range.to === p.to ? "chip-active" : ""}`}
+                  onClick={() => setRange({ from: p.from, to: p.to })}
+                >
+                  {p.label}
+                </button>
+              ))}
+              <button className={`chip ${!hasPeriod ? "chip-active" : ""}`} onClick={resetRange}>
+                <RotateCcw size={13} /> {t("caisse.periodAll")}
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Field label={t("caisse.periodFrom")} className="sm:w-44">
+              <DateInput value={range.from} onChange={(v) => setRangeField({ from: v })} />
+            </Field>
+            <Field label={t("caisse.periodTo")} className="sm:w-44">
+              <DateInput value={range.to} onChange={(v) => setRangeField({ to: v })} />
+            </Field>
+          </div>
+        </div>
+        <p className="text-xs text-text-muted mt-2">
+          {t("caisse.periodShown")} : <span className="text-text-primary font-bold">{periodLabel}</span>
+        </p>
+      </Card>
+
+      {/* Achats / Ventes / Dettes / Gains / Caisse nette */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
         <Card className="p-4 flex items-center justify-between" style={{ borderLeft: "3px solid #8b5cf6" }}>
           <div><p className="label-caps">{t("caisse.totalPurchases")}</p><p className="text-xl font-black text-violet-300 mt-1">{formatAmount(totals.totalPurchases)}</p></div>
           <ShoppingBag className="text-violet-400" size={26} />
@@ -183,14 +439,28 @@ export default function Caisse() {
           <div><p className="label-caps">{t("caisse.totalGains")}</p><p className={`text-xl font-black mt-1 ${totals.totalGains >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{totals.totalGains >= 0 ? "+" : ""}{formatAmount(totals.totalGains)}</p></div>
           <TrendingUp className={totals.totalGains >= 0 ? "text-emerald-400" : "text-rose-400"} size={26} />
         </Card>
+        {/* The Caisse card — the same net the "Caisse" filter details below. */}
+        <button onClick={() => setCategory("net")} className="text-left rtl:text-right">
+          <Card className="p-4 flex items-center justify-between h-full" style={{ borderLeft: "3px solid #f59e0b" }}>
+            <div>
+              <p className="label-caps">{t("caisse.netResult")}</p>
+              <p className={`text-xl font-black mt-1 ${totals.net >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                {totals.net >= 0 ? "+" : ""}{formatAmount(totals.net)}
+              </p>
+              <p className="text-[0.65rem] text-text-muted mt-0.5">{t("caisse.netFormula")}</p>
+            </div>
+            <Scale className={totals.net >= 0 ? "text-emerald-400" : "text-rose-400"} size={26} />
+          </Card>
+        </button>
       </div>
 
       {/* Category totals */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 mb-6">
-        {["benefice", "sale", "purchase", "expense", "payroll", "settlement"].map((k) => {
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5 mb-6">
+        {["benefice", "net", "sale", "purchase", "expense", "payroll", "settlement"].map((k) => {
           const meta = CATEGORIES[k];
           const Icon = meta.icon;
           const value = totals.byCategory?.[k] || 0;
+          const signed = k === "benefice" || k === "net";
           return (
             <button
               key={k}
@@ -201,8 +471,8 @@ export default function Caisse() {
                 <span className={`p-1.5 rounded-lg ${meta.bg} ${meta.tint}`}><Icon size={14} /></span>
                 <span className="label-caps !mb-0">{t(`caisse.cat${k.charAt(0).toUpperCase() + k.slice(1)}`)}</span>
               </div>
-              <p className={`text-sm font-black ${k === "benefice" ? (value >= 0 ? "text-emerald-400" : "text-rose-400") : "text-text-primary"}`}>
-                {k === "benefice" && value >= 0 ? "+" : ""}{formatAmount(value)}
+              <p className={`text-sm font-black ${signed ? (value >= 0 ? "text-emerald-400" : "text-rose-400") : "text-text-primary"}`}>
+                {signed && value >= 0 ? "+" : ""}{formatAmount(value)}
               </p>
             </button>
           );
@@ -216,16 +486,18 @@ export default function Caisse() {
             <button key={k} className={`chip ${category === k ? "chip-active" : ""}`} onClick={() => setCategory(k)}>{label}</button>
           ))}
         </div>
-        <div className="relative flex-1 sm:max-w-xs sm:ml-auto rtl:sm:ml-0 rtl:sm:mr-auto">
-          <Search className="absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-text-muted" size={16} />
-          <input
-            className="input pl-9 rtl:pl-3 rtl:pr-9"
-            placeholder={showGains ? t("caisse.beneficeSearch") : t("caisse.searchPlaceholder")}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        {!showGains && can("caisse", "create") && (
+        {!showNet && (
+          <div className="relative flex-1 sm:max-w-xs sm:ml-auto rtl:sm:ml-0 rtl:sm:mr-auto">
+            <Search className="absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-text-muted" size={16} />
+            <input
+              className="input pl-9 rtl:pl-3 rtl:pr-9"
+              placeholder={showGains ? t("caisse.beneficeSearch") : t("caisse.searchPlaceholder")}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+        )}
+        {!showGains && !showNet && can("caisse", "create") && (
           <div className="flex gap-2">
             <button className="btn-ghost text-xs" onClick={() => openNew("DEPOSIT")}><ArrowDownCircle size={14} /> {t("caisse.newDeposit")}</button>
             <button className="btn-ghost text-xs" onClick={() => openNew("WITHDRAWAL")}><ArrowUpCircle size={14} /> {t("caisse.newWithdrawal")}</button>
@@ -233,8 +505,19 @@ export default function Caisse() {
         )}
       </div>
 
-      {/* ── Bénéfice : one line per sale, with its own gain ─────────────── */}
-      {showGains ? (
+      {/* ── Caisse : gains − dépenses of the period ─────────────────────── */}
+      {showNet ? (
+        loading ? <SkeletonGrid /> : (
+          <NetView
+            t={t}
+            totals={totals}
+            gains={periodGains}
+            expenses={expenseEntries}
+            periodLabel={periodLabel}
+            onOpenGain={setViewGain}
+          />
+        )
+      ) : showGains ? (
         loading ? <SkeletonGrid /> : gains.length === 0 ? (
           <EmptyState icon={TrendingUp} message={t("caisse.noGains")} />
         ) : (
@@ -451,6 +734,111 @@ export default function Caisse() {
       </Modal>
 
       <ConfirmModal open={!!deleteId} onClose={() => setDeleteId(null)} onConfirm={confirmDelete} />
+    </div>
+  );
+}
+
+// ── Caisse view — total gains − total dépenses over the selected period ────
+function NetView({ t, totals, gains, expenses, periodLabel, onOpenGain }) {
+  const positive = totals.net >= 0;
+  const tile = (label, value, cls, hint) => (
+    <Card className="p-4">
+      <p className="label-caps">{label}</p>
+      <p className={`text-2xl font-black mt-1 ${cls}`}>{value}</p>
+      {hint && <p className="text-[0.65rem] text-text-muted mt-1">{hint}</p>}
+    </Card>
+  );
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {tile(t("caisse.totalGains"), formatAmount(totals.totalGains), "text-emerald-400", t("caisse.gainsCountShort") + " : " + gains.length)}
+        {tile(t("caisse.carExpensesTotal"), formatAmount(totals.carExpenses), "text-amber-400")}
+        {tile(t("caisse.showroomExpensesTotal"), formatAmount(totals.showroomExpenses), "text-amber-400")}
+        {tile(t("caisse.netResult"), `${positive ? "+" : ""}${formatAmount(totals.net)}`, positive ? "text-emerald-400" : "text-rose-400", t("caisse.netFormula"))}
+      </div>
+
+      <Card className="p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <Scale size={16} className="text-red-400" />
+          <h3 className="heading text-sm text-text-primary">{t("caisse.netRecap")}</h3>
+          <span className="text-xs text-text-muted ltr:ml-auto rtl:mr-auto">{periodLabel}</span>
+        </div>
+        <div className="space-y-1.5">
+          {[
+            [t("caisse.totalGains"), formatAmount(totals.totalGains), "text-emerald-400"],
+            [t("caisse.carExpensesTotal"), `− ${formatAmount(totals.carExpenses)}`, "text-amber-400"],
+            [t("caisse.showroomExpensesTotal"), `− ${formatAmount(totals.showroomExpenses)}`, "text-amber-400"],
+          ].map(([label, value, cls]) => (
+            <div key={label} className="flex justify-between text-sm border-b border-red-600/10 py-2">
+              <span className="text-text-muted">{label}</span>
+              <span className={`font-bold ${cls}`}>{value}</span>
+            </div>
+          ))}
+          <div className={`flex items-center justify-between rounded-xl px-4 py-3 mt-3 border ${
+            positive ? "bg-emerald-500/10 border-emerald-500/25" : "bg-rose-500/10 border-rose-500/25"
+          }`}>
+            <span className="flex items-center gap-2 label-caps !mb-0">
+              {positive ? <TrendingUp size={15} className="text-emerald-400" /> : <TrendingDown size={15} className="text-rose-400" />}
+              {t("caisse.netResult")}
+            </span>
+            <span className={`font-black text-xl ${positive ? "text-emerald-400" : "text-rose-400"}`}>
+              {positive ? "+ " : "− "}{formatAmount(Math.abs(totals.net))}
+            </span>
+          </div>
+        </div>
+        <p className="text-xs text-text-muted mt-3">{t("caisse.netNote")}</p>
+      </Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <Card className="p-0 overflow-hidden">
+          <div className="p-4 border-b border-red-600/20 flex items-center gap-2">
+            <TrendingUp size={15} className="text-emerald-400" />
+            <h3 className="heading text-sm text-text-primary">{t("caisse.catBenefice")}</h3>
+            <span className="text-xs text-emerald-400 font-bold ltr:ml-auto rtl:mr-auto">{formatAmount(totals.totalGains)}</span>
+          </div>
+          <div className="max-h-80 overflow-y-auto">
+            {gains.length === 0 ? (
+              <p className="text-sm text-text-muted p-4">{t("caisse.noGains")}</p>
+            ) : gains.map((g) => (
+              <button
+                key={g.id}
+                onClick={() => onOpenGain(g)}
+                className="w-full text-left rtl:text-right flex justify-between items-center gap-3 px-4 py-2.5 border-b border-red-600/10 hover:bg-red-600/8 transition"
+              >
+                <span className="min-w-0">
+                  <span className="block text-sm text-text-primary truncate">{carLabel(g.car) || "—"}</span>
+                  <span className="block text-xs text-text-muted">{formatDate(g.date)} · {personLabel(g.client) || "—"}</span>
+                </span>
+                <span className={`font-bold text-sm whitespace-nowrap ${(Number(g.gain) || 0) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  {formatAmount(g.gain)}
+                </span>
+              </button>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="p-0 overflow-hidden">
+          <div className="p-4 border-b border-red-600/20 flex items-center gap-2">
+            <CircleDollarSign size={15} className="text-amber-400" />
+            <h3 className="heading text-sm text-text-primary">{t("caisse.catExpense")}</h3>
+            <span className="text-xs text-amber-400 font-bold ltr:ml-auto rtl:mr-auto">{formatAmount(totals.totalExpenses)}</span>
+          </div>
+          <div className="max-h-80 overflow-y-auto">
+            {expenses.length === 0 ? (
+              <p className="text-sm text-text-muted p-4">{t("caisse.noExpense")}</p>
+            ) : expenses.map((e) => (
+              <div key={e.id} className="flex justify-between items-center gap-3 px-4 py-2.5 border-b border-red-600/10">
+                <span className="min-w-0">
+                  <span className="block text-sm text-text-primary truncate">{e.label}</span>
+                  <span className="block text-xs text-text-muted">{formatDate(e.date)} · {e.sub || "—"}</span>
+                </span>
+                <span className="font-bold text-sm text-amber-400 whitespace-nowrap">{formatAmount(e.amount)}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

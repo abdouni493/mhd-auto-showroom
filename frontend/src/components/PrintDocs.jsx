@@ -3,7 +3,6 @@ import {
   sheetStyle, tr, isAr, Frame, Row, Header, TitleBar,
   ClientBlock, CarBlock, InspectionBlock, Signatures, Footer,
 } from "./PrintTemplates.jsx";
-import { PrintLogo } from "./AnimatedLogo.jsx";
 import { formatAmount, formatDate, formatDateTime } from "../utils/format.js";
 import { numberToWords } from "../utils/numberToWords.js";
 
@@ -16,7 +15,7 @@ import { numberToWords } from "../utils/numberToWords.js";
  *   ReceptionForm    Formulaire réception véhicule (date/heure au choix)
  *   FicheTechnique   Fiche technique (prix de vente modifiable)
  *   BonVersement     Bon de versement (encaissement sur une vente)
- *   BonEntreeSortie  Bon d'entrée / sortie du véhicule (date/heure au choix)
+ *   BonEntreeSortie  Bon de sortie du véhicule (date/heure au choix)
  *   FactureDocument  Facture proforma & facture finale
  *   SettlementReceipt Règlement du propriétaire d'un véhicule en dépôt
  *
@@ -116,7 +115,7 @@ const D = {
     sigAgencyStamp: "Signature et cachet de l'Agence",
     sigClientPrint: "Empreinte et signature du client",
     // Bon d'entrée / sortie
-    inOutTitle: "Bon d'Entrée / Sortie",
+    inOutTitle: "Bon de Sortie",
     inOutExtra: "Sortie du véhicule du parc showroom",
     outDateTime: "Date et heure de sortie",
     deliveredDocs: "Documents et accessoires remis au client",
@@ -272,7 +271,7 @@ const D = {
     restToPay: "المبلغ المتبقي",
     sigAgencyStamp: "توقيع و ختم الوكالة",
     sigClientPrint: "بصمة و توقيع العميل",
-    inOutTitle: "وصل دخول / خروج",
+    inOutTitle: "وصل خروج",
     inOutExtra: "خروج المركبة من حظيرة المعرض",
     outDateTime: "تاريخ و ساعة الخروج",
     deliveredDocs: "الوثائق و الملحقات المسلّمة للعميل",
@@ -476,25 +475,22 @@ export function BonEntree({ purchase, showroom, lang = "fr", dateTime }) {
         </div>
       </div>
 
-      {/* Vehicle line */}
+      {/* Vehicle line — a bon d'entrée records the vehicle, never its price */}
       <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", marginBottom: 10 }}>
         <colgroup>
-          <col style={{ width: "7%" }} />
-          <col style={{ width: "11%" }} />
-          <col style={{ width: "13%" }} />
-          <col style={{ width: "11%" }} />
-          <col style={{ width: "20%" }} />
           <col style={{ width: "9%" }} />
-          <col style={{ width: "16%" }} />
-          <col style={{ width: "13%" }} />
+          <col style={{ width: "15%" }} />
+          <col style={{ width: "17%" }} />
+          <col style={{ width: "14%" }} />
+          <col style={{ width: "24%" }} />
+          <col style={{ width: "10%" }} />
+          <col style={{ width: "11%" }} />
         </colgroup>
         <thead>
           <tr>
-            {[x.colCarCode, x.colBrand, x.colVehicle, x.colPlate, x.colSerial, x.colMileage].map((h, i) => (
+            {[x.colCarCode, x.colBrand, x.colVehicle, x.colPlate, x.colSerial, x.colMileage, x.colBoughtOn].map((h, i) => (
               <th key={i} style={{ ...s.th, fontSize: 8, padding: "5px 5px", lineHeight: 1.25, overflowWrap: "anywhere" }}>{h}</th>
             ))}
-            <th style={{ ...s.th, fontSize: 8, padding: "5px 5px", lineHeight: 1.25, overflowWrap: "anywhere", textAlign: s.end }}>{x.colPurchasePrice}</th>
-            <th style={{ ...s.th, fontSize: 8, padding: "5px 5px", lineHeight: 1.25, overflowWrap: "anywhere" }}>{x.colBoughtOn}</th>
           </tr>
         </thead>
         <tbody>
@@ -505,13 +501,7 @@ export function BonEntree({ purchase, showroom, lang = "fr", dateTime }) {
             <td style={{ ...s.td, ...ltr, textAlign: s.start }}>{car.plate || "SANS"}</td>
             <td style={{ ...s.td, ...ltr, textAlign: s.start, wordBreak: "break-all" }}>{dash(car.vin)}</td>
             <td style={{ ...s.td, ...ltr, textAlign: s.start }}>{car.mileage != null ? car.mileage : 0}</td>
-            <td style={{ ...s.td, textAlign: s.end, fontWeight: 800, whiteSpace: "nowrap", ...ltr }}>{formatAmount(purchase?.purchasePrice)}</td>
             <td style={{ ...s.td, ...ltr, textAlign: s.start, whiteSpace: "nowrap" }}>{formatDate(purchase?.date)}</td>
-          </tr>
-          <tr>
-            <td style={{ ...s.tf, textTransform: "uppercase", textAlign: s.start }} colSpan={6}>{x.total}</td>
-            <td style={{ ...s.tf, textAlign: s.end, color: ACCENT, whiteSpace: "nowrap", ...ltr }}>{formatAmount(purchase?.purchasePrice)}</td>
-            <td style={s.tf} />
           </tr>
         </tbody>
       </table>
@@ -688,10 +678,12 @@ export function ReceptionForm({ purchase, showroom, lang = "fr", dateTime, recei
 
 // ============================================================================
 // 4. FICHE TECHNIQUE — branded spec sheet with an editable price
-//    Printed as ONE full A4 page: the sheet is a flex column that stretches to
-//    the whole printable height (sheetStyle(lang, true)) and every block is set
-//    in a large type scale so the page reads from a distance on the windscreen
-//    of the vehicle. printNode() scales the sheet down if a very long
+//    Same paper as every other document of the set (showroom header, title
+//    band, framed blocks, footer), no vehicle photo, and every piece of
+//    information set large and bold so the sheet reads from a distance on the
+//    windscreen of the vehicle. Printed as ONE full A4 page: the sheet is a
+//    flex column that stretches to the whole printable height
+//    (sheetStyle(lang, true)); printNode() scales it down if a very long
 //    description ever pushes it past a single page.
 // ============================================================================
 export function FicheTechnique({ car, showroom, lang = "fr", price }) {
@@ -717,122 +709,113 @@ export function FicheTechnique({ car, showroom, lang = "fr", price }) {
     [x.color, car?.color],
     [x.vin, car?.vin],
     [x.plate, car?.plate],
-  ].filter(([, v]) => v !== undefined);
+  ].filter(([, v]) => v !== undefined && v !== null && v !== "");
 
-  const hasPhoto = Array.isArray(car?.images) && !!car.images[0];
+  // Two columns of label / value pairs — read down the left column first.
+  const half = Math.ceil(specs.length / 2);
+  const columns = [specs.slice(0, half), specs.slice(half)];
+
+  const cellLabel = {
+    padding: "9px 12px", border: `1px solid ${LINE}`, fontSize: 13,
+    fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em",
+    color: MUTE, whiteSpace: "nowrap", textAlign: ar ? "right" : "left",
+  };
+  const cellValue = {
+    padding: "9px 12px", border: `1px solid ${LINE}`, fontSize: 19,
+    fontWeight: 900, color: INK, lineHeight: 1.2, wordBreak: "break-word",
+    textAlign: ar ? "right" : "left", ...ltr,
+  };
 
   return (
-    <div style={{ ...sheetStyle(lang, true), fontSize: "15px" }}>
-      {/* Brand band */}
+    <div style={{ ...sheetStyle(lang, true), fontSize: "14px" }}>
+      <div style={{ flexShrink: 0 }}>
+        <Header showroom={showroom} lang={lang} />
+        <TitleBar
+          lang={lang}
+          title={x.ficheTitle}
+          reference={car?.plate || car?.vin || car?.id}
+          date={formatDate(new Date())}
+          extra={x.specification}
+        />
+      </div>
+
+      {/* Vehicle identity — the biggest type of the sheet */}
       <div
         style={{
-          background: `linear-gradient(120deg, ${INK} 0%, #1f2937 55%, ${ACCENT} 100%)`,
-          color: "#fff", borderRadius: 12, padding: "18px 24px",
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          gap: 18, flexShrink: 0, ...exact,
+          flexShrink: 0, textAlign: "center", border: `2px solid ${ACCENT}`,
+          borderRadius: 10, padding: "16px 18px", background: SOFT, ...exact,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 18, minWidth: 0 }}>
-          <div style={{ background: "#fff", borderRadius: 10, padding: 7, ...exact }}>
-            <PrintLogo src={showroom?.logo} size={66} />
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 900, fontSize: 27, textTransform: "uppercase", letterSpacing: "0.04em", lineHeight: 1.15, ...ltr }}>
-              {showroom?.name || "Showroom"}
-            </div>
-            <div style={{ fontSize: 13, opacity: 0.9, marginTop: 3, ...ltr }}>
-              {[[showroom?.phone, showroom?.phone2, showroom?.phone3].filter(Boolean).join(" / "), showroom?.address].filter(Boolean).join("  ·  ")}
-            </div>
-          </div>
-        </div>
-        <div style={{ textAlign: ar ? "left" : "right", flexShrink: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.16em", opacity: 0.85 }}>{x.ficheTitle}</div>
-          {car?.year && (
-            <div style={{ fontWeight: 900, fontSize: 36, lineHeight: 1.05, ...ltr }}>{car.year}</div>
-          )}
-        </div>
-      </div>
-
-      {/* Model name */}
-      <div style={{ textAlign: "center", flexShrink: 0, padding: "4px 0" }}>
-        <div style={{ fontWeight: 900, fontSize: 44, lineHeight: 1.08, textTransform: "uppercase", letterSpacing: "0.01em", color: INK, ...ltr }}>
+        <div style={{ fontWeight: 900, fontSize: 40, lineHeight: 1.1, textTransform: "uppercase", letterSpacing: "0.01em", color: INK, ...ltr }}>
           {carName(car)}
         </div>
-        <div style={{ height: 5, width: 130, background: ACCENT, margin: "8px auto 0", borderRadius: 3, ...exact }} />
+        {(car?.year || car?.plate) && (
+          <div style={{ marginTop: 6, fontWeight: 800, fontSize: 20, color: ACCENT, letterSpacing: "0.06em", ...ltr }}>
+            {[car?.year, car?.plate].filter(Boolean).join("   ·   ")}
+          </div>
+        )}
       </div>
 
-      {/* Photo — takes every millimetre left between the title and the specs */}
-      {hasPhoto && (
-        <div
-          style={{
-            flex: "1 1 auto", minHeight: 0, display: "flex", overflow: "hidden",
-            alignItems: "center", justifyContent: "center", padding: "2px 0",
-          }}
-        >
-          <img
-            src={car.images[0]}
-            alt=""
-            style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain", borderRadius: 10, ...exact }}
-          />
-        </div>
-      )}
+      {/* Spec table — two label/value columns, every value big and bold */}
+      <div style={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", justifyContent: "center", padding: "10px 0" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+          <colgroup>
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "32%" }} />
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "32%" }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th
+                colSpan={4}
+                style={{
+                  background: ACCENT, color: "#fff", padding: "9px 12px", fontSize: 14,
+                  fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.16em",
+                  border: `1px solid ${ACCENT}`, textAlign: "center", ...exact,
+                }}
+              >
+                {x.specification}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: half }).map((_, i) => (
+              <tr key={i} style={{ background: i % 2 ? SOFT : "#fff", ...exact }}>
+                <td style={cellLabel}>{columns[0][i]?.[0] || ""}</td>
+                <td style={cellValue}>{columns[0][i] ? dash(columns[0][i][1]) : ""}</td>
+                <td style={cellLabel}>{columns[1][i]?.[0] || ""}</td>
+                <td style={cellValue}>{columns[1][i] ? dash(columns[1][i][1]) : ""}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
 
-      {/* Spec grid */}
-      <div style={{ flexShrink: 0 }}>
-        <div
-          style={{
-            textAlign: "center", fontWeight: 900, fontSize: 17, textTransform: "uppercase",
-            letterSpacing: "0.18em", color: INK, margin: "6px 0 10px",
-          }}
-        >
-          {x.specification}
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-          {specs.map(([label, value], i) => (
-            <div
-              key={i}
-              style={{
-                border: `1px solid ${LINE}`, borderRadius: 9, padding: "10px 13px",
-                background: i % 2 ? "#fff" : SOFT, ...exact,
-                [ar ? "borderRight" : "borderLeft"]: `5px solid ${ACCENT}`,
-              }}
-            >
-              <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", color: MUTE, letterSpacing: "0.05em" }}>
-                {label}
-              </div>
-              <div style={{ fontWeight: 900, fontSize: 17, lineHeight: 1.25, marginTop: 3, ...ltr, textAlign: ar ? "right" : "left", wordBreak: "break-word" }}>
-                {dash(value)}
-              </div>
-            </div>
-          ))}
-        </div>
+        {car?.fiche && (
+          <div style={{ marginTop: 10 }}>
+            <Frame title={x.vehicleDescription}>
+              <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.45, whiteSpace: "pre-line" }}>{car.fiche}</div>
+            </Frame>
+          </div>
+        )}
       </div>
-
-      {car?.fiche && (
-        <div style={{ flexShrink: 0, marginTop: 10 }}>
-          <Frame title={x.vehicleDescription}>
-            <div style={{ fontSize: 14, lineHeight: 1.45, whiteSpace: "pre-line" }}>{car.fiche}</div>
-          </Frame>
-        </div>
-      )}
 
       {/* Price banner */}
       <div
         style={{
-          background: `linear-gradient(100deg, ${ACCENT} 0%, #7f1d1d 100%)`,
-          color: "#fff", borderRadius: 999, padding: "18px 30px", textAlign: "center",
-          fontWeight: 900, fontSize: 36, letterSpacing: "0.03em", marginTop: 12,
-          flexShrink: 0, ...exact,
+          flexShrink: 0, background: ACCENT, color: "#fff", borderRadius: 10,
+          padding: "16px 26px", textAlign: "center", fontWeight: 900,
+          fontSize: 38, letterSpacing: "0.03em", ...exact,
         }}
       >
-        <span style={{ fontSize: 19, textTransform: "uppercase", letterSpacing: "0.18em", opacity: 0.92 }}>
+        <span style={{ fontSize: 18, textTransform: "uppercase", letterSpacing: "0.18em", opacity: 0.92 }}>
           {x.priceLabel} :{" "}
         </span>
         <span style={ltr}>{formatAmount(shownPrice)}</span>
       </div>
 
       <div style={{ flexShrink: 0 }}>
-        <Footer showroom={showroom} lang={lang} fontSize={13} />
+        <Footer showroom={showroom} lang={lang} fontSize={12.5} />
       </div>
     </div>
   );
@@ -911,7 +894,7 @@ export function BonVersement({ sale, showroom, lang = "fr", payment, amount }) {
 }
 
 // ============================================================================
-// 6. BON D'ENTRÉE / SORTIE DU VÉHICULE
+// 6. BON DE SORTIE DU VÉHICULE
 // ============================================================================
 export function BonEntreeSortie({ sale, showroom, lang = "fr", dateTime, docTypes = [] }) {
   const x = x2(lang);

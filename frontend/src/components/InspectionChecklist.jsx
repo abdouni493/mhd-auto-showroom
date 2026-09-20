@@ -71,7 +71,13 @@ export default function InspectionChecklist({ value, onChange, onPersist }) {
               <Icon size={18} />
               <h4 className="heading text-xs">{t(titleKey)}</h4>
             </div>
-            <button type="button" onClick={() => add(key)} className={`${color} hover:scale-110 transition`}>
+            <button
+              type="button"
+              onClick={() => add(key)}
+              title={t("inspection.addItemTitle")}
+              aria-label={t("inspection.addItemTitle")}
+              className={`${color} hover:scale-110 transition`}
+            >
               <Plus size={18} />
             </button>
           </div>
@@ -104,7 +110,9 @@ export default function InspectionChecklist({ value, onChange, onPersist }) {
                   <button
                     type="button"
                     onClick={() => remove(key, idx)}
-                    className="text-text-muted hover:text-rose-400 opacity-0 group-hover:opacity-100 transition"
+                    title={t("inspection.removeItem")}
+                    aria-label={t("inspection.removeItem")}
+                    className="shrink-0 rounded-full p-1 text-text-muted border border-white/10 hover:border-rose-400/60 hover:bg-rose-500/10 hover:text-rose-400 transition"
                   >
                     <X size={14} />
                   </button>
@@ -114,6 +122,7 @@ export default function InspectionChecklist({ value, onChange, onPersist }) {
             {(!data[key] || data[key].length === 0) && (
               <p className="text-xs text-text-muted italic">{t("inspection.noItems")}</p>
             )}
+            <p className="text-[0.65rem] text-text-muted italic pt-1">{t("inspection.manageHint")}</p>
           </div>
         </div>
       ))}

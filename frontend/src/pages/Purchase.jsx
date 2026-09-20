@@ -344,7 +344,6 @@ function PurchaseForm({ onClose, onSaved, editTarget }) {
                 />
               </Field>
               <Field label={t("car.vin")}><input className="input" value={car.vin || ""} onChange={setCarField("vin")} /></Field>
-              <Field label={t("car.fiche")} className="sm:col-span-2"><textarea className="input" rows={2} value={car.fiche || ""} onChange={setCarField("fiche")} /></Field>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -3,7 +3,7 @@ import { Eye, Pencil, Trash2, Shield, Wallet, CalendarX, Banknote, HardHat, Phon
 import { workersApi } from "../lib/api.js";
 import { useFetch } from "../hooks/useApi.js";
 import { SECTIONS, ACTIONS, useCan } from "../lib/permissions.js";
-import { Card, Badge, Modal, ConfirmModal, Field, EmptyState, SkeletonGrid, Toggle, AnimatedGrid } from "../components/ui.jsx";
+import { Card, Badge, Modal, ConfirmModal, Field, EmptyState, SkeletonGrid, Toggle, AnimatedGrid, useToast } from "../components/ui.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import ActionMenu from "../components/ActionMenu.jsx";
 import { formatAmount, formatDate, toDateInput, initials } from "../utils/format.js";
@@ -15,6 +15,7 @@ const ACTION_LABELS = { view: "Voir", create: "Créer", edit: "Modifier", delete
 
 export default function Workers() {
   const can = useCan();
+  const toast = useToast();
   const { data: workers, loading, refetch } = useFetch(() => workersApi.list(), []);
   const { data: roles, refetch: refetchRoles } = useFetch(() => workersApi.listRoles(), []);
   const [form, setForm] = useState(null);
@@ -87,13 +88,31 @@ export default function Workers() {
     setModalKind(null); refetch();
   };
 
-  const requestDelete = (type, id) => setDeleteTarget({ type, id });
+  const requestDelete = (type, id, extra = {}) => setDeleteTarget({ type, id, ...extra });
+  // Deleting a worker deletes his login account too (Supabase authentication).
+  const [deleting, setDeleting] = useState(false);
   const confirmDelete = async () => {
     if (!deleteTarget) return;
-    if (deleteTarget.type === "worker") await workersApi.delete(deleteTarget.id);
-    if (deleteTarget.type === "advance") await workersApi.deleteAdvance(deleteTarget.id);
-    if (deleteTarget.type === "absence") await workersApi.deleteAbsence(deleteTarget.id);
-    setDeleteTarget(null); refetch();
+    setDeleting(true);
+    try {
+      if (deleteTarget.type === "worker") {
+        const res = await workersApi.delete(deleteTarget.id);
+        if (deleteTarget.hasAccount && res?.authDeleted === false) {
+          toast("Employé supprimé, mais son compte de connexion n'a pas pu être supprimé.", "error");
+        } else if (deleteTarget.hasAccount) {
+          toast("Employé et son compte de connexion supprimés.", "info");
+        } else {
+          toast("Employé supprimé.", "info");
+        }
+      }
+      if (deleteTarget.type === "advance") await workersApi.deleteAdvance(deleteTarget.id);
+      if (deleteTarget.type === "absence") await workersApi.deleteAbsence(deleteTarget.id);
+      setDeleteTarget(null); refetch();
+    } catch (e) {
+      toast(e?.message || "Suppression impossible", "error");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   // payroll calculation for payment modal
@@ -177,7 +196,7 @@ export default function Workers() {
                   can("workers", "edit") && { label: "Acompte", icon: Wallet, onClick: () => openTransactionEditor("advance", w) },
                   can("workers", "edit") && { label: "Absence", icon: CalendarX, onClick: () => openTransactionEditor("absence", w) },
                   can("workers", "edit") && { label: "Paiement", icon: Banknote, onClick: () => openModal("payment", w) },
-                  can("workers", "delete") && { label: "Supprimer", icon: Trash2, danger: true, onClick: () => requestDelete("worker", w.id) },
+                  can("workers", "delete") && { label: "Supprimer", icon: Trash2, danger: true, onClick: () => requestDelete("worker", w.id, { hasAccount: !!w.authId, name: w.fullName }) },
                 ]} />
               </div>
               <p className="text-xs text-text-muted flex items-center gap-1 mb-2"><Phone size={11} /> {w.phone}</p>
@@ -389,7 +408,20 @@ export default function Workers() {
         </div>
       </Modal>
 
-      <ConfirmModal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={confirmDelete} title="Confirmer la suppression" message="Cette opération supprimera définitivement l'élément sélectionné." />
+      <ConfirmModal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        loading={deleting}
+        title="Confirmer la suppression"
+        message={
+          deleteTarget?.type === "worker"
+            ? deleteTarget?.hasAccount
+              ? `Cette opération supprimera définitivement ${deleteTarget.name || "cet employé"} ainsi que son compte de connexion (authentification Supabase). Il ne pourra plus se connecter à l'application.`
+              : `Cette opération supprimera définitivement ${deleteTarget?.name || "cet employé"}.`
+            : "Cette opération supprimera définitivement l'élément sélectionné."
+        }
+      />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Car, CheckCircle, Clock, Tag, Users, Receipt, HardHat,
   CalendarClock, EyeOff, ShoppingCart, Wallet, TrendingUp, HandCoins, ChevronRight,
+  Scale, CircleDollarSign,
 } from "lucide-react";
 import { useFetch } from "../hooks/useApi.js";
 import { dashboardApi } from "../lib/api.js";
@@ -77,6 +78,8 @@ export default function Dashboard() {
 
   const { counts, charts, lists, workers, website } = data;
   const settlements = data.settlements || { pending: [], count: 0, total: 0 };
+  const caisse = data.caisse || { totalGains: 0, totalExpenses: 0, net: 0 };
+  const caissePositive = caisse.net >= 0;
   const pieData = Object.entries(charts.statusDistribution).map(([k, v]) => ({ name: STATUS_LABELS[k], key: k, value: v }));
 
   return (
@@ -120,6 +123,45 @@ export default function Dashboard() {
             </div>
           </div>
           <ChevronRight size={20} className="text-amber-400 shrink-0" />
+        </motion.button>
+      )}
+
+      {/* Caisse — the net result card of the Caisse page, mirrored here */}
+      {can("caisse", "view") && (
+        <motion.button
+          onClick={() => navigate("/app/caisse")}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          whileHover={{ scale: 1.005 }}
+          whileTap={{ scale: 0.995 }}
+          className="w-full text-left rtl:text-right glass-card p-5 mb-6 border border-red-600/30 grid grid-cols-1 sm:grid-cols-3 gap-4 items-center"
+        >
+          <div className="flex items-center gap-3">
+            <span className="p-2.5 rounded-xl bg-emerald-500/15 text-emerald-400 shrink-0"><TrendingUp size={20} /></span>
+            <div className="min-w-0">
+              <p className="label-caps">{t("caisse.totalGains")}</p>
+              <p className="text-xl font-black text-emerald-400">{formatAmount(caisse.totalGains)}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="p-2.5 rounded-xl bg-amber-500/15 text-amber-400 shrink-0"><CircleDollarSign size={20} /></span>
+            <div className="min-w-0">
+              <p className="label-caps">{t("caisse.totalExpenses")}</p>
+              <p className="text-xl font-black text-amber-400">{formatAmount(caisse.totalExpenses)}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className={`p-2.5 rounded-xl shrink-0 ${caissePositive ? "bg-emerald-500/15 text-emerald-400" : "bg-rose-500/15 text-rose-400"}`}>
+              <Scale size={20} />
+            </span>
+            <div className="min-w-0">
+              <p className="label-caps">{t("caisse.netResult")}</p>
+              <p className={`text-2xl font-black ${caissePositive ? "text-emerald-400" : "text-rose-400"}`}>
+                {caissePositive ? "+" : ""}{formatAmount(caisse.net)}
+              </p>
+              <p className="text-[0.65rem] text-text-muted">{t("caisse.netFormula")}</p>
+            </div>
+          </div>
         </motion.button>
       )}
 

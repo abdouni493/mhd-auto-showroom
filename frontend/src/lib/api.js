@@ -1322,9 +1322,31 @@ export const workersApi = {
     if (error) throw error;
     return toCamel(data);
   },
+  // Deleting a worker also removes his login: the row in public.workers AND the
+  // account in Supabase's authentication table. Dropping a worker while leaving
+  // his auth.users row behind would keep a usable password and block the email
+  // from ever being registered again.
+  //
+  // auth.users is not reachable from the browser with the anon key, so the
+  // deletion goes through the `delete_worker_account` SECURITY DEFINER function
+  // (sql/08_update_2026_09_worker_account_delete.sql), which checks the caller
+  // holds workers.delete and deletes the worker + its auth account in one
+  // transaction.
   async delete(id) {
-    const { error } = await supabase.from("workers").delete().eq("id", id);
-    if (error) throw error;
+    const { data, error } = await supabase.rpc("delete_worker_account", { p_worker_id: id });
+    if (!error) return data;
+    // The database function is missing (migration 08 not run yet): fall back to
+    // deleting the worker row alone rather than leaving the interface broken.
+    // Any other error (permission refused, own account, admin account…) is a
+    // real answer from the database and must reach the user untouched.
+    const missing =
+      error.code === "PGRST202" || /could not find the function|schema cache/i.test(error.message || "");
+    if (missing) {
+      const { error: delError } = await supabase.from("workers").delete().eq("id", id);
+      if (delError) throw delError;
+      return { authDeleted: false };
+    }
+    throw error;
   },
   async updatePermissions(workerId, permissions) {
     const { data: worker } = await supabase.from("workers").select("role_id").eq("id", workerId).single();
@@ -1586,6 +1608,9 @@ export const cashApi = {
         id: `expense-${r.id}`, category: "expense", dir: "OUT",
         label: `Dépense — ${r.name}`,
         sub: r.type === "CAR" ? carName(r.car) : "Showroom",
+        // `expenseType` lets the Caisse split véhicules / showroom without
+        // re-reading the expenses table.
+        expenseType: r.type === "CAR" ? "CAR" : "SHOWROOM",
         reference: null, amount: Number(r.amount) || 0, date: r.date, description: r.description || "",
       });
     }
@@ -1671,9 +1696,24 @@ export const cashApi = {
     });
     const totalGains = gains.reduce((a, g) => a + g.gain, 0);
 
+    // Raw purchase lines — the Caisse recomputes its header cards for the
+    // selected period from these instead of the all-time totals below.
+    const purchasesList = purchaseRows.map((p) => ({
+      id: p.id,
+      date: p.date,
+      reference: p.reference,
+      sourceType: p.sourceType,
+      car: p.car || null,
+      client: p.client || null,
+      purchasePrice: Number(p.purchasePrice) || 0,
+      amountPaid: Number(p.amountPaid) || 0,
+      amountRest: Number(p.amountRest) || 0,
+    }));
+
     return {
       entries,
       gains,
+      purchasesList,
       totals: {
         totalIn,
         totalOut,
@@ -1841,6 +1881,27 @@ export const dashboardApi = {
     const totalSalesAll = sales.reduce((a, s) => a + (s.totalAfterReduction || 0), 0);
     const totalPurchaseAll = purchases.reduce((a, p) => a + (p.purchasePrice || 0), 0);
 
+    // ── Caisse (net) — the figure the Caisse page shows for the whole period:
+    // the gain made on every sale minus every dépense recorded. Computed from
+    // the purchase / expense rows already loaded above, so the dashboard costs
+    // no extra round-trip. Mirrors cashApi.ledger(): a prestation (vehicle left
+    // by a client) only counts the showroom's share.
+    const purchaseByCar = {};
+    for (const p of purchases) if (p.carId) purchaseByCar[p.carId] = p;
+    const carExpenseByCar = {};
+    for (const e of expenses) {
+      if (e.type === "CAR" && e.carId) carExpenseByCar[e.carId] = (carExpenseByCar[e.carId] || 0) + (Number(e.amount) || 0);
+    }
+    const totalGainsAll = sales.reduce((a, s) => {
+      const pur = purchaseByCar[s.carId];
+      const carExp = carExpenseByCar[s.carId] || 0;
+      if (pur?.sourceType === "CLIENT") return a + ((Number(s.showroomShare) || 0) - carExp);
+      const purchasePrice = Number(pur?.purchasePrice) || 0;
+      if (purchasePrice <= 0 && carExp <= 0) return a;
+      return a + ((Number(s.totalAfterReduction) || 0) - purchasePrice - carExp);
+    }, 0);
+    const caisseNet = totalGainsAll - totalExpensesAll;
+
     const soldThisMonth = new Set(
       sales.filter((s) => s.date >= monthStartISO && s.car?.status === "SOLD").map((s) => s.carId)
     );
@@ -1937,6 +1998,13 @@ export const dashboardApi = {
       website: {
         pendingReservations: (reservationsRes.data || []).length,
         hiddenOffers: cars.filter((c) => c.hidden).length,
+      },
+      // Caisse — gains of every sale minus every dépense (same card as the
+      // Caisse page's "Caisse (net)").
+      caisse: {
+        totalGains: totalGainsAll,
+        totalExpenses: totalExpensesAll,
+        net: caisseNet,
       },
       // Vehicles sold for a client whose owner has not been settled yet.
       settlements: {
@@ -2109,30 +2177,49 @@ export const reportsApi = {
       return q;
     };
 
-    const [salesRes, purchasesRes, expensesRes, workersRes, settlementsRes] = await Promise.all([
-      applyRange(supabase.from("sales").select("*, car:cars(*, purchases(*, client:clients(*)), expenses(*)), client:clients(*), settlement:client_settlements(*)").order("date", { ascending: false })),
-      applyRange(
-        supabase.from("purchases").select("*, car:cars(*), client:clients(*)").order("date", { ascending: false })
-      ),
-      (() => {
-        let q = supabase.from("expenses").select("*, car:cars(*)").order("date", { ascending: false });
-        if (from) q = q.gte("date", from);
-        if (to) q = q.lte("date", to);
-        return q;
-      })(),
-      supabase
-        .from("workers")
-        .select("*, role:worker_roles(*), payments:worker_payments(*), advances:worker_advances(*), absences:worker_absences(*)"),
-      applyRange(
-        supabase.from("client_settlements").select("*, car:cars(*), client:clients(*)").order("date", { ascending: false })
-      ),
-    ]);
+    const [salesRes, purchasesRes, expensesRes, workersRes, settlementsRes, salePaymentsRes, cashRes, workerPaymentsRes] =
+      await Promise.all([
+        applyRange(supabase.from("sales").select("*, car:cars(*, purchases(*, client:clients(*)), expenses(*)), client:clients(*), settlement:client_settlements(*)").order("date", { ascending: false })),
+        applyRange(
+          supabase.from("purchases").select("*, car:cars(*), client:clients(*)").order("date", { ascending: false })
+        ),
+        (() => {
+          let q = supabase.from("expenses").select("*, car:cars(*)").order("date", { ascending: false });
+          if (from) q = q.gte("date", from);
+          if (to) q = q.lte("date", to);
+          return q;
+        })(),
+        supabase
+          .from("workers")
+          .select("*, role:worker_roles(*), payments:worker_payments(*), advances:worker_advances(*), absences:worker_absences(*)"),
+        applyRange(
+          supabase.from("client_settlements").select("*, car:cars(*), client:clients(*)").order("date", { ascending: false })
+        ),
+        // Versements encaissés sur les ventes
+        applyRange(
+          supabase
+            .from("sale_payments")
+            .select("*, sale:sales(reference, client:clients(first_name, last_name)), car:cars(brand, model, plate)")
+            .order("date", { ascending: false })
+        ),
+        // Mouvements manuels de caisse (versements / retraits)
+        applyRange(
+          supabase.from("cash_transactions").select("*, client:clients(*)").order("date", { ascending: false })
+        ),
+        // Salaires réellement versés sur la période
+        applyRange(
+          supabase.from("worker_payments").select("*, worker:workers(full_name, role:worker_roles(name))").order("date", { ascending: false })
+        ),
+      ]);
 
     const sales = rows(salesRes.data).map(shapeSale);
     const purchases = rows(purchasesRes.data).map(shapePurchase);
     const expenses = rows(expensesRes.data);
     const workers = rows(workersRes.data);
     const settlements = rows(settlementsRes.data).map(shapeSettlement);
+    const salePayments = rows(salePaymentsRes.data);
+    const cashMovements = rows(cashRes.data).map(shapeCashTx);
+    const workerPayments = rows(workerPaymentsRes.data);
 
     // Prestation (client-owned) vehicles sold: what the showroom actually earned
     // is its share on the sale minus the expenses it engaged on the vehicle. Only
@@ -2243,6 +2330,38 @@ export const reportsApi = {
       };
     });
 
+    // ── Bénéfices : one line per sale, exactly as the Caisse page computes it ─
+    const gains = sales.map((s) => ({
+      reference: s.reference,
+      date: s.date,
+      kind: s.isClientCar ? "PRESTATION" : "NORMAL",
+      car: s.car || null,
+      client: s.client || null,
+      owner: s.owner || null,
+      salePrice: Number(s.totalAfterReduction) || 0,
+      purchasePrice: Number(s.purchasePrice) || 0,
+      carExpenses: Number(s.carExpenses) || 0,
+      totalCost: Number(s.totalCost) || 0,
+      showroomShare: Number(s.showroomShare) || 0,
+      settled: !!s.settled,
+      gain: Number(s.gain) || 0,
+      margin: (Number(s.totalAfterReduction) || 0) > 0 ? ((Number(s.gain) || 0) / Number(s.totalAfterReduction)) * 100 : 0,
+    }));
+    const totalGains = gains.reduce((a, g) => a + g.gain, 0);
+
+    // ── Caisse : encaissements / décaissements de la période ────────────────
+    const totalVersements = salePayments.reduce((a, p) => a + (Number(p.amount) || 0), 0);
+    const totalCashIn = cashMovements
+      .filter((c) => c.type !== "WITHDRAWAL")
+      .reduce((a, c) => a + (Number(c.amount) || 0), 0);
+    const totalCashOut = cashMovements
+      .filter((c) => c.type === "WITHDRAWAL")
+      .reduce((a, c) => a + (Number(c.amount) || 0), 0);
+    const totalPayrollPaid = workerPayments.reduce((a, p) => a + (Number(p.amount) || 0), 0);
+    const totalSettlements = settlements.reduce((a, st) => a + (Number(st.ownerAmount) || 0), 0);
+    // Net de caisse : bénéfices des ventes − dépenses (véhicules + showroom).
+    const caisseNet = totalGains - (totalCarExpenses + totalShowroomExpenses);
+
     const clientSourcedPurchases = purchases
       .filter((p) => p.sourceType === "CLIENT")
       .map((p) => ({
@@ -2264,17 +2383,29 @@ export const reportsApi = {
         totalShowroomExpenses,
         grossProfit,
         netProfit,
+        totalGains,
+        totalVersements,
+        totalCashIn,
+        totalCashOut,
+        totalPayrollPaid,
+        totalSettlements,
+        caisseNet,
       },
       sales,
       purchases,
       carAnalysis,
+      carExpenses,
       showroomExpenses,
       clientDebts,
       purchaseDebts,
       payroll,
+      workerPayments,
       clientSourcedPurchases,
       prestationSales,
       settlements,
+      salePayments,
+      cashMovements,
+      gains,
       alerts: {
         clientDebtCount: clientDebts.length,
         clientDebtTotal: clientDebts.reduce((a, d) => a + (d.rest || 0), 0),
