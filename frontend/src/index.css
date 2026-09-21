@@ -303,8 +303,11 @@ html { scroll-behavior: smooth; }
   .print-area { display: none !important; }
 }
 @media print {
-  /* Single A4 page with a tight, consistent margin for the invoice templates */
-  @page { size: A4 portrait; margin: 10mm; }
+  /* Zero page margin so the browser prints NO header/footer of its own (the
+     page URL and the generation date it otherwise stamps in the margins). The
+     10mm margin the templates expect is applied as padding on .print-area
+     instead, keeping the same printable content area. */
+  @page { size: A4 portrait; margin: 0; }
 
   body * { visibility: hidden; }
   .print-area, .print-area * { visibility: visible; }
@@ -313,6 +316,8 @@ html { scroll-behavior: smooth; }
     left: 0;
     top: 0;
     width: 100%;
+    box-sizing: border-box;
+    padding: 10mm;
     background: #fff !important;
     color: #000 !important;
     /* keep frame/header colours when printing */
@@ -342,6 +347,8 @@ html { scroll-behavior: smooth; }
     left: 0;
     top: 0;
     width: 100%;
+    box-sizing: border-box;
+    padding: 10mm;
     background: #fff !important;
     color: #000 !important;
   }

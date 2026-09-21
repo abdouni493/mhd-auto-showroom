@@ -3,6 +3,7 @@ import {
   sheetStyle, tr, isAr, Frame, Row, Header, TitleBar,
   ClientBlock, CarBlock, InspectionBlock, Signatures, Footer,
 } from "./PrintTemplates.jsx";
+import { PrintLogo } from "./AnimatedLogo.jsx";
 import { formatAmount, formatDate, formatDateTime } from "../utils/format.js";
 import { numberToWords } from "../utils/numberToWords.js";
 
@@ -686,6 +687,38 @@ export function ReceptionForm({ purchase, showroom, lang = "fr", dateTime, recei
 //    (sheetStyle(lang, true)); printNode() scales it down if a very long
 //    description ever pushes it past a single page.
 // ============================================================================
+// Windscreen-style masthead for the fiche technique: the logo centered at the
+// top with the showroom name split around it — the first word big on the left,
+// the second word just as big on the right. No legal block, contact lines or
+// description here: the fiche is a display sheet, not an administrative one.
+function FicheHeader({ showroom, lang }) {
+  const name = (showroom?.name || "MHD AUTO").trim();
+  const parts = name.split(/\s+/).filter(Boolean);
+  const first = parts.shift() || "";
+  const second = parts.join(" ");
+  const word = {
+    flex: "1 1 0", minWidth: 0, fontWeight: 900, fontStyle: "italic", fontSize: 46,
+    lineHeight: 1, textTransform: "uppercase", color: ACCENT, letterSpacing: "0.02em",
+    whiteSpace: "nowrap", ...ltr,
+  };
+  return (
+    <div
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "center", gap: 22,
+        borderBottom: `2.5px solid ${ACCENT}`, paddingBottom: 12, marginBottom: 14, ...exact,
+      }}
+    >
+      <div style={{ ...word, textAlign: "right" }}>{first}</div>
+      {showroom?.logo && (
+        <div style={{ flexShrink: 0 }}>
+          <PrintLogo src={showroom.logo} size={96} />
+        </div>
+      )}
+      <div style={{ ...word, textAlign: "left" }}>{second}</div>
+    </div>
+  );
+}
+
 export function FicheTechnique({ car, showroom, lang = "fr", price }) {
   const x = x2(lang);
   const ar = isAr(lang);
@@ -708,7 +741,6 @@ export function FicheTechnique({ car, showroom, lang = "fr", price }) {
     [x.mileageSpec, car?.mileage != null ? formatAmount(car.mileage, x.kmUnit) : null],
     [x.color, car?.color],
     [x.vin, car?.vin],
-    [x.plate, car?.plate],
   ].filter(([, v]) => v !== undefined && v !== null && v !== "");
 
   // Specs laid out three per row — a stacked label over a big bold value —
@@ -719,14 +751,7 @@ export function FicheTechnique({ car, showroom, lang = "fr", price }) {
   return (
     <div style={{ ...sheetStyle(lang, true), fontSize: "14px" }}>
       <div style={{ flexShrink: 0 }}>
-        <Header showroom={showroom} lang={lang} />
-        <TitleBar
-          lang={lang}
-          title={x.ficheTitle}
-          reference={car?.plate || car?.vin || car?.id}
-          date={formatDate(new Date())}
-          extra={x.specification}
-        />
+        <FicheHeader showroom={showroom} lang={lang} />
       </div>
 
       {/* Vehicle identity — red band with the car name, like the windscreen sheet */}
@@ -739,7 +764,7 @@ export function FicheTechnique({ car, showroom, lang = "fr", price }) {
         <div style={{ fontWeight: 900, fontStyle: "italic", fontSize: 42, lineHeight: 1.05, textTransform: "uppercase", letterSpacing: "0.01em", color: "#fff", ...ltr }}>
           {carName(car)}
         </div>
-        {(car?.year || car?.plate) && (
+        {car?.year && (
           <div
             style={{
               display: "inline-block", marginTop: 10, background: "#fff", color: ACCENT,
@@ -747,7 +772,7 @@ export function FicheTechnique({ car, showroom, lang = "fr", price }) {
               letterSpacing: "0.06em", ...ltr, ...exact,
             }}
           >
-            {[car?.year, car?.plate].filter(Boolean).join("   ·   ")}
+            {car.year}
           </div>
         )}
       </div>
@@ -806,22 +831,29 @@ export function FicheTechnique({ car, showroom, lang = "fr", price }) {
         )}
       </div>
 
-      {/* Price banner */}
+      {/* Price banner — now the dominant element of the sheet, using the room
+          freed by dropping the plate line */}
       <div
         style={{
-          flexShrink: 0, background: ACCENT, color: "#fff", borderRadius: 10,
-          padding: "16px 26px", textAlign: "center", fontWeight: 900,
-          fontSize: 38, letterSpacing: "0.03em", ...exact,
+          flexShrink: 0, background: ACCENT, color: "#fff", borderRadius: 12,
+          padding: "26px 30px", textAlign: "center", fontWeight: 900,
+          fontSize: 56, lineHeight: 1.05, letterSpacing: "0.02em", ...exact,
         }}
       >
-        <span style={{ fontSize: 18, textTransform: "uppercase", letterSpacing: "0.18em", opacity: 0.92 }}>
-          {x.priceLabel} :{" "}
-        </span>
+        <div style={{ fontSize: 22, textTransform: "uppercase", letterSpacing: "0.22em", opacity: 0.92, marginBottom: 6 }}>
+          {x.priceLabel}
+        </div>
         <span style={ltr}>{formatAmount(shownPrice)}</span>
       </div>
 
-      <div style={{ flexShrink: 0 }}>
-        <Footer showroom={showroom} lang={lang} fontSize={12.5} />
+      {/* Closing line, centered at the very bottom of the page */}
+      <div
+        style={{
+          flexShrink: 0, marginTop: 14, paddingTop: 10, borderTop: `1px solid ${LINE}`,
+          textAlign: "center", fontWeight: 800, fontSize: 15, color: INK, letterSpacing: "0.02em",
+        }}
+      >
+        MHD AUTO - Merci de votre confiance.
       </div>
     </div>
   );
