@@ -21,6 +21,7 @@ import { BeneficeSheet } from "../components/PrintDocs.jsx";
 import { usePrintDialog } from "../components/PrintChooser.jsx";
 import { formatAmount, formatDateTime, formatDate, toDateTimeLocal, toDateInput } from "../utils/format.js";
 import DateInput from "../components/DateInput.jsx";
+import CaisseLineEditor from "../components/CaisseLineEditor.jsx";
 
 // The category chips + how each ledger line is coloured / iconed.
 // `benefice` and `net` are not ledger lines but filters of their own: they swap
@@ -73,6 +74,9 @@ export default function Caisse() {
   const [viewItem, setViewItem] = useState(null);
   const [viewGain, setViewGain] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
+  // Any other line (vente, achat, dépense, salaire, règlement, bénéfice) is
+  // edited in its own table through the line editor.
+  const [editLine, setEditLine] = useState(null);
 
   const showGains = category === "benefice";
   const showNet = category === "net";
@@ -515,6 +519,7 @@ export default function Caisse() {
             expenses={expenseEntries}
             periodLabel={periodLabel}
             onOpenGain={setViewGain}
+            onEditEntry={can("caisse", "edit") ? (e) => setEditLine({ kind: "entry", entry: e }) : null}
           />
         )
       ) : showGains ? (
@@ -585,6 +590,7 @@ export default function Caisse() {
                           <ActionMenu items={[
                             { label: t("common.view"), icon: Eye, onClick: () => setViewGain(g) },
                             can("caisse", "print") && { label: t("common.print"), icon: Printer, onClick: () => printGain(g) },
+                            can("caisse", "edit") && { label: t("common.edit"), icon: Pencil, onClick: () => setEditLine({ kind: "gain", gain: g }) },
                           ]} />
                         </td>
                       </motion.tr>
@@ -639,7 +645,10 @@ export default function Caisse() {
                       <ActionMenu items={[
                         { label: t("common.view"), icon: Eye, onClick: () => setViewItem(e) },
                         isCash && can("caisse", "print") && { label: t("common.print"), icon: Printer, onClick: () => printCash(rawId) },
-                        isCash && can("caisse", "edit") && { label: t("common.edit"), icon: Pencil, onClick: () => openEditCash(rawId) },
+                        can("caisse", "edit") && {
+                          label: t("common.edit"), icon: Pencil,
+                          onClick: () => (isCash ? openEditCash(rawId) : setEditLine({ kind: "entry", entry: e })),
+                        },
                         isCash && can("caisse", "delete") && { label: t("common.delete"), icon: Trash2, danger: true, onClick: () => setDeleteId(rawId) },
                       ]} />
                     </td>
@@ -733,13 +742,21 @@ export default function Caisse() {
         {viewGain && <GainDetail gain={viewGain} t={t} />}
       </Modal>
 
+      {editLine && (
+        <CaisseLineEditor
+          item={editLine}
+          onClose={() => setEditLine(null)}
+          onSaved={() => { setEditLine(null); reload(); }}
+        />
+      )}
+
       <ConfirmModal open={!!deleteId} onClose={() => setDeleteId(null)} onConfirm={confirmDelete} />
     </div>
   );
 }
 
 // ── Caisse view — total gains − total dépenses over the selected period ────
-function NetView({ t, totals, gains, expenses, periodLabel, onOpenGain }) {
+function NetView({ t, totals, gains, expenses, periodLabel, onOpenGain, onEditEntry }) {
   const positive = totals.net >= 0;
   const tile = (label, value, cls, hint) => (
     <Card className="p-4">
@@ -833,7 +850,14 @@ function NetView({ t, totals, gains, expenses, periodLabel, onOpenGain }) {
                   <span className="block text-sm text-text-primary truncate">{e.label}</span>
                   <span className="block text-xs text-text-muted">{formatDate(e.date)} · {e.sub || "—"}</span>
                 </span>
-                <span className="font-bold text-sm text-amber-400 whitespace-nowrap">{formatAmount(e.amount)}</span>
+                <span className="flex items-center gap-2 shrink-0">
+                  <span className="font-bold text-sm text-amber-400 whitespace-nowrap">{formatAmount(e.amount)}</span>
+                  {onEditEntry && (
+                    <button className="text-text-muted hover:text-text-primary" onClick={() => onEditEntry(e)} title={t("common.edit")}>
+                      <Pencil size={14} />
+                    </button>
+                  )}
+                </span>
               </div>
             ))}
           </div>

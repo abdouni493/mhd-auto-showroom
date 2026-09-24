@@ -402,7 +402,8 @@
     "remark": "Remarque (formulaire de réception)",
     "remarkHint": "R.A.S.",
     "sourceShowroomHint": "Le showroom achète le véhicule pour son propre compte",
-    "sourcePrestationHint": "Le véhicule appartient à un client et est déposé au showroom"
+    "sourcePrestationHint": "Le véhicule appartient à un client et est déposé au showroom",
+    "payTooHigh": "Le montant dépasse le reste à payer"
   },
   "pos": {
     "title": "POS — Véhicules Disponibles",
@@ -745,7 +746,10 @@
     "note": "Observation",
     "historyTitle": "Règlements propriétaire",
     "none": "Aucun règlement",
-    "nonePending": "Aucun règlement en attente pour ce client."
+    "nonePending": "Aucun règlement en attente pour ce client.",
+    "ownerRequired": "Saisissez la part du propriétaire",
+    "ownerTooHigh": "La part du propriétaire dépasse le prix de vente moins les dépenses",
+    "shareAuto": "Calculée automatiquement"
   },
   "print": {
     "printings": "Impressions",

@@ -27,6 +27,20 @@ function periodPresets() {
   ].map((p) => ({ label: p.label, from: toDateInput(p.from), to: toDateInput(p.to) }));
 }
 
+// Stable fetcher so SearchSelect's debounce effect doesn't re-run each render.
+const searchCars = (q) => carsApi.list({ search: q.trim() });
+
+// Small round thumbnail of the car's first photo.
+function CarAvatar({ car, size = "w-9 h-9" }) {
+  return (
+    <div className={`${size} rounded-full overflow-hidden shrink-0 border border-red-600/30 bg-white/5 flex items-center justify-center`}>
+      {car?.images?.[0]
+        ? <img src={car.images[0]} alt="" className="w-full h-full object-cover" loading="lazy" />
+        : <Car size={16} className="text-text-muted" />}
+    </div>
+  );
+}
+
 const SCOPES = [
   { key: "CAR", label: "Véhicules", icon: Car },
   { key: "SHOWROOM", label: "Showroom", icon: Building2 },
@@ -159,15 +173,23 @@ export default function Expenses() {
           <div className="space-y-4">
             {tab === "CAR" && !editId && (
               selectedCar ? (
-                <Card className="p-2 flex items-center gap-2">
-                  <div className="w-12 h-9 rounded overflow-hidden shrink-0"><CarImage images={selectedCar.images} heightClass="h-9" fit="cover" /></div>
-                  <div className="flex-1"><p className="text-sm text-text-primary">{selectedCar.brand} {selectedCar.model}</p><p className="text-xs text-text-muted">{selectedCar.plate}</p></div>
+                <Card className="p-2 flex items-center gap-3">
+                  <CarAvatar car={selectedCar} size="w-11 h-11" />
+                  <div className="flex-1 min-w-0"><p className="text-sm text-text-primary truncate">{selectedCar.brand} {selectedCar.model}</p><p className="text-xs text-text-muted font-mono truncate">Châssis : {selectedCar.vin || "—"}</p></div>
                   <button className="btn-ghost text-xs py-1" onClick={() => setSelectedCar(null)}>Changer</button>
                 </Card>
               ) : (
                 <div><p className="label-caps">Véhicule</p>
-                  <SearchSelect fetcher={(q) => carsApi.list({ search: q })} placeholder="Rechercher un véhicule..." onSelect={setSelectedCar}
-                    renderItem={(c) => <div><p className="text-sm text-text-primary">{c.brand} {c.model}</p><p className="text-xs text-text-muted">{c.plate}</p></div>} />
+                  <SearchSelect fetcher={searchCars} placeholder="Nom du véhicule ou N° de châssis..." onSelect={setSelectedCar}
+                    renderItem={(c) => (
+                      <div className="flex items-center gap-3">
+                        <CarAvatar car={c} />
+                        <div className="min-w-0">
+                          <p className="text-sm text-text-primary truncate">{c.brand} {c.model}{c.year ? ` · ${c.year}` : ""}</p>
+                          <p className="text-xs text-text-muted font-mono truncate">Châssis : {c.vin || "—"}</p>
+                        </div>
+                      </div>
+                    )} />
                 </div>
               )
             )}

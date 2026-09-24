@@ -516,6 +516,7 @@ export default function Purchase() {
   const [printTarget, setPrintTarget] = useState(null);
   const [payTarget, setPayTarget] = useState(null);
   const [payAmount, setPayAmount] = useState("");
+  const [paying, setPaying] = useState(false);
   const [viewItem, setViewItem] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [view, setView] = useState("cards");
@@ -584,9 +585,20 @@ export default function Purchase() {
   ];
 
   const pay = async () => {
-    await purchasesApi.addPayment(payTarget.id, Number(payAmount));
-    setPayTarget(null); setPayAmount(""); refetch();
-    toast(t("purchase.debtPaidToast"));
+    const amount = Number(payAmount) || 0;
+    if (amount <= 0) { toast(t("versements.amountRequired"), "error"); return; }
+    if (amount > (Number(payTarget.amountRest) || 0)) { toast(t("purchase.payTooHigh"), "error"); return; }
+    if (paying) return;
+    setPaying(true);
+    try {
+      await purchasesApi.addPayment(payTarget.id, amount);
+      setPayTarget(null); setPayAmount(""); refetch();
+      toast(t("purchase.debtPaidToast"));
+    } catch (e) {
+      toast(e?.message || t("common.error"), "error");
+    } finally {
+      setPaying(false);
+    }
   };
 
   const confirmDelete = async () => {
@@ -690,7 +702,7 @@ export default function Purchase() {
 
       {/* Pay debt */}
       <Modal open={!!payTarget} onClose={() => setPayTarget(null)} title={t("common.payDebt")} size="sm"
-        footer={<><button className="btn-ghost" onClick={() => setPayTarget(null)}>{t("common.cancel")}</button><button className="btn-primary" onClick={pay}>{t("common.validate")}</button></>}>
+        footer={<><button className="btn-ghost" onClick={() => setPayTarget(null)}>{t("common.cancel")}</button><button className="btn-primary" onClick={pay} disabled={paying}>{paying ? "..." : t("common.validate")}</button></>}>
         {payTarget && (
           <div className="space-y-3">
             <div className="flex justify-between text-sm"><span className="text-text-muted">{t("common.total")}</span><span className="text-text-primary">{formatAmount(payTarget.purchasePrice)}</span></div>

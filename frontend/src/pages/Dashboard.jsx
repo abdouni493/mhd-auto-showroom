@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import {
@@ -8,13 +9,14 @@ import { useNavigate } from "react-router-dom";
 import {
   Car, CheckCircle, Clock, Tag, Users, Receipt, HardHat,
   CalendarClock, EyeOff, ShoppingCart, Wallet, TrendingUp, HandCoins, ChevronRight,
-  Scale, CircleDollarSign,
+  Scale, CircleDollarSign, SlidersHorizontal, RotateCcw,
 } from "lucide-react";
 import { useFetch } from "../hooks/useApi.js";
-import { dashboardApi } from "../lib/api.js";
-import { StatCard, Card, Badge, SkeletonGrid } from "../components/ui.jsx";
+import { dashboardApi, statsResetApi } from "../lib/api.js";
+import { StatCard, Card, Badge, SkeletonGrid, Modal, Field, useToast } from "../components/ui.jsx";
+import DateInput from "../components/DateInput.jsx";
 import { CarImage } from "../components/CarCard.jsx";
-import { formatAmount, formatDate, STATUS_LABELS } from "../utils/format.js";
+import { formatAmount, formatDate, toDateInput, STATUS_LABELS } from "../utils/format.js";
 import { useCan } from "../lib/permissions.js";
 
 const PIE_COLORS = { AVAILABLE: "#10b981", SOLD: "#dc2626", RESERVED: "#f59e0b" };
@@ -53,6 +55,54 @@ function MiniStat({ icon: Icon, label, value, color = "text-text-primary", index
   );
 }
 
+const RESET_OPTIONS = [
+  { key: "NEVER", label: "Jamais (cumul total)", hint: "Les statistiques ne sont jamais remises à zéro." },
+  { key: "DAY", label: "Chaque jour", hint: "Remise à zéro chaque jour à minuit." },
+  { key: "WEEK", label: "Chaque semaine", hint: "Remise à zéro chaque lundi." },
+  { key: "MONTH", label: "Chaque mois", hint: "Remise à zéro le 1er jour de chaque mois." },
+  { key: "QUARTER", label: "Chaque trimestre", hint: "Remise à zéro le 1er janvier, avril, juillet et octobre." },
+  { key: "YEAR", label: "Chaque année", hint: "Remise à zéro le 1er janvier." },
+  { key: "CUSTOM", label: "Depuis une date", hint: "Les statistiques comptent à partir de la date choisie." },
+];
+
+// Lets the user choose when the statistic cards start again from 0.
+function StatsPeriodModal({ open, onClose, current, onSaved }) {
+  const toast = useToast();
+  const [cfg, setCfg] = useState(current);
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    if (cfg.period === "CUSTOM" && !cfg.customFrom) { toast("Choisissez la date de départ", "error"); return; }
+    setSaving(true);
+    try {
+      await statsResetApi.save(cfg);
+      toast("Période des statistiques enregistrée", "success");
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <Modal open={open} onClose={onClose} title="Période des statistiques" size="sm"
+      footer={<><button className="btn-ghost" onClick={onClose}>Annuler</button><button className="btn-primary" onClick={save} disabled={saving}>Enregistrer</button></>}>
+      <div className="space-y-2">
+        <p className="text-xs text-text-muted mb-3">Choisissez quand les cartes de statistiques du tableau de bord sont réinitialisées à 0.</p>
+        {RESET_OPTIONS.map((o) => (
+          <button key={o.key} type="button" onClick={() => setCfg({ ...cfg, period: o.key })}
+            className={`w-full text-left rtl:text-right p-3 rounded-xl border transition ${cfg.period === o.key ? "border-red-500 bg-red-600/10" : "border-white/10 hover:border-red-600/40"}`}>
+            <p className="text-sm text-text-primary font-medium">{o.label}</p>
+            <p className="text-xs text-text-muted">{o.hint}</p>
+          </button>
+        ))}
+        {cfg.period === "CUSTOM" && (
+          <Field label="Date de départ" required className="pt-2">
+            <DateInput value={cfg.customFrom || ""} onChange={(v) => setCfg({ ...cfg, customFrom: v })} />
+          </Field>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 const tooltipStyle = {
   background: "#0a0a0f",
   border: "1px solid rgba(220,38,38,0.4)",
@@ -65,7 +115,8 @@ export default function Dashboard() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const can = useCan();
-  const { data, loading } = useFetch(() => dashboardApi.stats(), []);
+  const { data, loading, refetch } = useFetch(() => dashboardApi.stats(), []);
+  const [periodOpen, setPeriodOpen] = useState(false);
 
   if (loading || !data) {
     return (
@@ -80,11 +131,30 @@ export default function Dashboard() {
   const settlements = data.settlements || { pending: [], count: 0, total: 0 };
   const caisse = data.caisse || { totalGains: 0, totalExpenses: 0, net: 0 };
   const caissePositive = caisse.net >= 0;
+  const period = data.period || { period: "NEVER", start: null };
+  const periodLabel = RESET_OPTIONS.find((o) => o.key === period.period)?.label;
   const pieData = Object.entries(charts.statusDistribution).map(([k, v]) => ({ name: STATUS_LABELS[k], key: k, value: v }));
 
   return (
     <div>
-      <h1 className="heading text-3xl text-text-primary mb-6">{t("dashboard.title")}</h1>
+      <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
+        <h1 className="heading text-3xl text-text-primary">{t("dashboard.title")}</h1>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="chip">
+            <RotateCcw size={13} />
+            {period.start ? `Statistiques depuis le ${formatDate(period.start)}` : "Statistiques : cumul total"}
+          </span>
+          {can("settings", "edit") && (
+            <motion.button className="btn-ghost" onClick={() => setPeriodOpen(true)} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} title={periodLabel}>
+              <SlidersHorizontal size={16} /> Période des statistiques
+            </motion.button>
+          )}
+        </div>
+      </div>
+      {periodOpen && (
+        <StatsPeriodModal open current={{ period: period.period, customFrom: period.customFrom || toDateInput(new Date()) }}
+          onClose={() => setPeriodOpen(false)} onSaved={() => { setPeriodOpen(false); refetch(); }} />
+      )}
 
       {/* Owner règlements waiting to be created (client vehicles already sold) */}
       {settlements.count > 0 && can("clients", "view") && (

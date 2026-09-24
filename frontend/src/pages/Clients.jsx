@@ -31,7 +31,8 @@ import PaymentMethodSelect from "../components/PaymentMethodSelect.jsx";
 function SettlementForm({ pending, onClose, onCreated }) {
   const { t } = useTranslation();
   const toast = useToast();
-  const [share, setShare] = useState(String(pending.showroomShare ?? 0));
+  // The user types what the owner receives; the showroom share follows.
+  const [owner, setOwner] = useState(String(Math.max(0, Number(pending.ownerAmount) || 0)));
   const [paymentMethod, setPaymentMethod] = useState("");
   const [note, setNote] = useState("");
   const [date, setDate] = useState(toDateTimeLocal());
@@ -39,15 +40,18 @@ function SettlementForm({ pending, onClose, onCreated }) {
 
   const salePrice = Number(pending.salePrice) || 0;
   const expensesTotal = Number(pending.expensesTotal) || 0;
-  const showroomShare = Number(share) || 0;
-  const ownerAmount = salePrice - showroomShare - expensesTotal;
+  const ownerAmount = Number(owner) || 0;
+  const showroomShare = salePrice - ownerAmount - expensesTotal;
 
   const submit = async () => {
+    if (owner === "" || ownerAmount < 0) { toast(t("settlements.ownerRequired"), "error"); return; }
+    if (ownerAmount > salePrice - expensesTotal) { toast(t("settlements.ownerTooHigh"), "error"); return; }
     setSaving(true);
     try {
-      // The share can be corrected here; keep the sale in sync with it.
+      // Keep the sale's share in sync with the one computed here (share only —
+      // the sale total must not be recomputed).
       if (showroomShare !== Number(pending.showroomShare || 0)) {
-        await salesApi.update(pending.saleId, { showroomShare });
+        await salesApi.setShowroomShare(pending.saleId, showroomShare);
       }
       const created = await settlementsApi.create({
         clientId: pending.clientId,
@@ -110,7 +114,8 @@ function SettlementForm({ pending, onClose, onCreated }) {
           </Card>
           <Card className="p-3">
             <p className="label-caps">{t("pos.showroomShare")}</p>
-            <p className="text-base font-black text-red-400">- {formatAmount(showroomShare)}</p>
+            <p className={`text-base font-black ${showroomShare >= 0 ? "text-red-400" : "text-rose-400"}`}>{formatAmount(showroomShare)}</p>
+            <p className="text-[0.6rem] text-text-muted">{t("settlements.shareAuto")}</p>
           </Card>
           <Card className="p-3">
             <p className="label-caps">{t("settlements.expensesTotal")}</p>
@@ -146,8 +151,8 @@ function SettlementForm({ pending, onClose, onCreated }) {
 
         {/* Editable fields */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Field label={t("pos.showroomShare")}>
-            <input className="input" type="number" value={share} onChange={(e) => setShare(e.target.value)} />
+          <Field label={t("settlements.ownerAmount")} required>
+            <input className="input" type="number" min="0" value={owner} onChange={(e) => setOwner(e.target.value)} />
           </Field>
           <Field label={t("settlements.paymentMethod")}>
             <PaymentMethodSelect value={paymentMethod} onChange={setPaymentMethod} />
@@ -198,6 +203,9 @@ export default function Clients({ mode = "buyers" }) {
   const [settleTarget, setSettleTarget] = useState(null); // the pending sale being settled
   const [printSettlement, setPrintSettlement] = useState(null);
 
+  // Owner règlements live on the Fournisseurs page: its own permission section
+  // or the dedicated "settlements" one both allow creating them.
+  const canSettle = can("settlements", "create") || can("suppliers", "create");
   const pendingOf = (clientId) => (pendingMap || {})[clientId] || [];
   const pendingTotal = Object.values(pendingMap || {}).reduce((a, list) => a + list.length, 0);
 
@@ -272,7 +280,7 @@ export default function Clients({ mode = "buyers" }) {
     can(section, "edit") && { label: t("common.edit"), icon: Pencil, onClick: () => openEdit(c) },
     { label: t("common.history"), icon: History, onClick: () => openHistory(c) },
     // Only the owners who left a vehicle at the showroom can be settled.
-    isOwners && c.hasDepositCars && can("settlements", "create") && {
+    isOwners && (c.hasDepositCars || pendingOf(c.id).length > 0) && canSettle && {
       label: t("settlements.action"),
       icon: HandCoins,
       onClick: () => setSettleClient(c),
@@ -353,7 +361,7 @@ export default function Clients({ mode = "buyers" }) {
                 </div>
 
                 {/* Per-client alert with the direct action */}
-                {isOwners && pending.length > 0 && can("settlements", "create") && (
+                {isOwners && pending.length > 0 && canSettle && (
                   <button
                     onClick={() => setSettleClient(c)}
                     className="w-full flex items-center gap-2 px-3 py-2 mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 text-xs font-bold text-amber-400 hover:bg-amber-500/20 transition"

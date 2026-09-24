@@ -399,6 +399,55 @@ export const inspectionApi = {
   },
 };
 
+// ── DASHBOARD STATS RESET ────────────────────────────────────
+// How often the dashboard statistics start again from 0 — stored in
+// settings.stats_reset (JSONB { period, customFrom }), with a localStorage
+// copy so it still works before sql/10 has been run.
+const STATS_RESET_LS_KEY = "altech.statsReset";
+export const STATS_RESET_PERIODS = ["NEVER", "DAY", "WEEK", "MONTH", "QUARTER", "YEAR", "CUSTOM"];
+
+function normalizeStatsReset(v) {
+  const period = STATS_RESET_PERIODS.includes(v?.period) ? v.period : "NEVER";
+  return { period, customFrom: period === "CUSTOM" ? (v?.customFrom || null) : null };
+}
+
+// Start of the current statistics period (local time), or null = since forever.
+export function statsPeriodStart(cfg, now = new Date()) {
+  const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+  switch (cfg?.period) {
+    case "DAY": return new Date(y, m, d);
+    case "WEEK": return new Date(y, m, d - ((now.getDay() + 6) % 7)); // Monday
+    case "MONTH": return new Date(y, m, 1);
+    case "QUARTER": return new Date(y, m - (m % 3), 1);
+    case "YEAR": return new Date(y, 0, 1);
+    case "CUSTOM": return cfg.customFrom ? new Date(`${cfg.customFrom}T00:00:00`) : null;
+    default: return null;
+  }
+}
+
+export const statsResetApi = {
+  async get() {
+    try {
+      const row = await getSettingsRow();
+      if (row && row.stats_reset) return normalizeStatsReset(row.stats_reset);
+    } catch { /* column not added yet */ }
+    try { return normalizeStatsReset(JSON.parse(localStorage.getItem(STATS_RESET_LS_KEY) || "null")); } catch { return normalizeStatsReset(null); }
+  },
+  async save(cfg) {
+    const norm = normalizeStatsReset(cfg);
+    try { localStorage.setItem(STATS_RESET_LS_KEY, JSON.stringify(norm)); } catch { /* ignore */ }
+    try {
+      const row = await getSettingsRow();
+      const q = row?.id
+        ? supabase.from("settings").update({ stats_reset: norm }).eq("id", row.id)
+        : supabase.from("settings").insert({ stats_reset: norm });
+      const { error } = await q;
+      if (error) throw error;
+    } catch { /* column not added yet — the localStorage copy still persists it */ }
+    return norm;
+  },
+};
+
 // ── CARS ─────────────────────────────────────────────────────
 function carInsert(car) {
   return {
@@ -424,7 +473,7 @@ export const carsApi = {
   async list({ status = "", search = "" } = {}) {
     let q = supabase.from("cars").select(CAR_FULL).order("created_at", { ascending: false });
     if (status) q = q.eq("status", status);
-    if (search) q = q.or(`brand.ilike.%${search}%,model.ilike.%${search}%,plate.ilike.%${search}%`);
+    if (search) q = q.or(`brand.ilike.%${search}%,model.ilike.%${search}%,plate.ilike.%${search}%,vin.ilike.%${search}%`);
     const { data, error } = await q;
     if (error) throw error;
     const all = rows(data).map(shapeCar);
@@ -726,7 +775,7 @@ export const purchasesApi = {
 };
 
 // ── SALES ─────────────────────────────────────────────────────
-function computeSaleTotal({ basePrice, tvaEnabled, tvaRate, reductionType, reductionValue }) {
+export function computeSaleTotal({ basePrice, tvaEnabled, tvaRate, reductionType, reductionValue }) {
   const base = Number(basePrice) || 0;
   const afterTax = tvaEnabled ? base * (1 + (Number(tvaRate) || 0) / 100) : base;
   let total = afterTax;
@@ -894,6 +943,9 @@ export const salesApi = {
       await reconcileInitialPayment(id, existing.car_id, Number(payload.amountPaid) || 0);
     }
 
+    // An owner règlement already made on this sale follows the new price / share.
+    await resyncSettlement({ saleId: id, showroomShare: payload.showroomShare });
+
     // The car-status trigger only fires on INSERT, so mirror it on update:
     // taking the car marks it SOLD, a deposit leaves it RESERVED.
     if (payload.clientTakeCar !== undefined && existing.car_id) {
@@ -908,6 +960,12 @@ export const salesApi = {
   },
   async delete(id) {
     const { error } = await supabase.from("sales").delete().eq("id", id);
+    if (error) throw error;
+  },
+  // Change only the showroom share — the full update() recomputes the total
+  // from the pricing fields and must not run for this.
+  async setShowroomShare(id, share) {
+    const { error } = await supabase.from("sales").update({ showroom_share: Number(share) || 0 }).eq("id", id);
     if (error) throw error;
   },
   async addPayment(saleId, carId, amount, description, date) {
@@ -1110,6 +1168,47 @@ function shapeSettlement(st) {
 const carExpensesOf = (car) =>
   (car?.expenses || []).filter((e) => e.type === "CAR" || !e.type);
 
+// Keep an owner règlement in line with its sale after something it depends on
+// changed (sale price, vehicle expenses, owner amount). The amount paid to the
+// owner is what was actually handed over, so it is kept (unless a new one is
+// given) and the showroom share is recomputed:
+//     showroom_share = sale_price − owner_amount − expenses_total
+// The sale's showroom_share is updated with it so every page agrees.
+export async function resyncSettlement({ saleId = null, carId = null, ownerAmount, showroomShare } = {}) {
+  let q = supabase.from("client_settlements").select("id, sale_id, car_id, owner_amount");
+  q = saleId ? q.eq("sale_id", saleId) : q.eq("car_id", carId);
+  const { data: list, error } = await q;
+  if (error) throw error;
+  for (const st of list || []) {
+    const sid = st.sale_id;
+    const cid = st.car_id;
+    const [{ data: sale }, { data: exps }] = await Promise.all([
+      sid ? supabase.from("sales").select("total_after_reduction").eq("id", sid).single() : Promise.resolve({ data: null }),
+      cid ? supabase.from("expenses").select("name, description, amount, date, type").eq("car_id", cid) : Promise.resolve({ data: [] }),
+    ]);
+    const carExps = (exps || []).filter((e) => e.type === "CAR" || !e.type);
+    const salePrice = Number(sale?.total_after_reduction) || 0;
+    const expensesTotal = carExps.reduce((a, e) => a + (Number(e.amount) || 0), 0);
+    // A share given explicitly (sale edit form) wins; otherwise the owner amount.
+    const owner = showroomShare !== undefined
+      ? salePrice - (Number(showroomShare) || 0) - expensesTotal
+      : ownerAmount !== undefined ? Number(ownerAmount) || 0 : Number(st.owner_amount) || 0;
+    const share = salePrice - owner - expensesTotal;
+    const { error: upErr } = await supabase
+      .from("client_settlements")
+      .update({
+        sale_price: salePrice,
+        expenses_total: expensesTotal,
+        owner_amount: owner,
+        showroom_share: share,
+        expenses: carExps.map((e) => ({ name: e.name, description: e.description, amount: Number(e.amount) || 0, date: e.date })),
+      })
+      .eq("id", st.id);
+    if (upErr) throw upErr;
+    if (sid) await salesApi.setShowroomShare(sid, share);
+  }
+}
+
 export const settlementsApi = {
   // Every sale of a client-owned vehicle that has not been settled yet.
   async pending() {
@@ -1206,6 +1305,23 @@ export const settlementsApi = {
       .single();
     if (error) throw error;
     return settlementsApi.get(data.id);
+  },
+
+  // Edit a règlement: owner amount, date, payment method, note. The showroom
+  // share (settlement + sale) is recomputed from the owner amount.
+  async update(id, payload) {
+    const patch = {};
+    if (payload.date !== undefined) patch.date = payload.date;
+    if (payload.paymentMethod !== undefined) patch.payment_method = payload.paymentMethod || null;
+    if (payload.note !== undefined) patch.note = payload.note || null;
+    if (Object.keys(patch).length) {
+      const { error } = await supabase.from("client_settlements").update(patch).eq("id", id);
+      if (error) throw error;
+    }
+    const { data: st, error: stErr } = await supabase.from("client_settlements").select("sale_id, car_id").eq("id", id).single();
+    if (stErr) throw stErr;
+    await resyncSettlement({ saleId: st.sale_id, carId: st.car_id, ownerAmount: payload.ownerAmount });
+    return settlementsApi.get(id);
   },
 
   async delete(id) {
@@ -1422,6 +1538,15 @@ export const workersApi = {
     await markWorkerItemsAsPaid(workerId, data.id, payload.date);
     return toCamel(data);
   },
+  async updatePayment(id, payload) {
+    const patch = {};
+    if (payload.amount !== undefined) patch.amount = Number(payload.amount) || 0;
+    if (payload.date !== undefined) patch.date = payload.date;
+    if (payload.description !== undefined) patch.description = payload.description || null;
+    if (payload.month !== undefined) patch.month = payload.month || null;
+    const { error } = await supabase.from("worker_payments").update(patch).eq("id", id);
+    if (error) throw error;
+  },
   async listRoles() {
     const { data } = await supabase.from("worker_roles").select("*").order("name");
     return rows(data);
@@ -1472,26 +1597,38 @@ export const expensesApi = {
       .select()
       .single();
     if (error) throw error;
+    if (data.car_id) await resyncSettlement({ carId: data.car_id });
     return toCamel(data);
   },
   async update(id, payload) {
+    const { data: before } = await supabase.from("expenses").select("car_id").eq("id", id).single();
+    const patch = {
+      name: payload.name,
+      description: payload.description,
+      amount: Number(payload.amount) || 0,
+      date: payload.date,
+    };
+    if (payload.type !== undefined) patch.type = payload.type;
+    if (payload.carId !== undefined || payload.type === "SHOWROOM") {
+      patch.car_id = payload.type === "SHOWROOM" ? null : payload.carId || null;
+    }
     const { data, error } = await supabase
       .from("expenses")
-      .update({
-        name: payload.name,
-        description: payload.description,
-        amount: Number(payload.amount) || 0,
-        date: payload.date,
-      })
+      .update(patch)
       .eq("id", id)
       .select()
       .single();
     if (error) throw error;
+    // A vehicle expense feeds the owner règlement of that vehicle.
+    const carIds = new Set([before?.car_id, data.car_id].filter(Boolean));
+    for (const carId of carIds) await resyncSettlement({ carId });
     return toCamel(data);
   },
   async delete(id) {
+    const { data: before } = await supabase.from("expenses").select("car_id").eq("id", id).single();
     const { error } = await supabase.from("expenses").delete().eq("id", id);
     if (error) throw error;
+    if (before?.car_id) await resyncSettlement({ carId: before.car_id });
   },
 };
 
@@ -1555,7 +1692,7 @@ export const cashApi = {
           .select("*, sale:sales(reference, client:clients(first_name, last_name)), car:cars(brand, model, plate)")
           .order("date", { ascending: false }),
         supabase.from("purchases").select("*, car:cars(brand, model, plate), client:clients(first_name, last_name)").order("date", { ascending: false }),
-        supabase.from("expenses").select("*, car:cars(brand, model, plate)").order("date", { ascending: false }),
+        supabase.from("expenses").select("*, car:cars(brand, model, plate, vin, images)").order("date", { ascending: false }),
         supabase.from("worker_payments").select("*, worker:workers(full_name)").order("date", { ascending: false }),
         supabase.from("client_settlements").select("*, client:clients(first_name, last_name), car:cars(brand, model, plate)").order("date", { ascending: false }),
         // Full sales (with the car's purchase, expenses & owner règlement) so the
@@ -1570,7 +1707,7 @@ export const cashApi = {
 
     for (const r of rows(cashRes.data)) {
       entries.push({
-        id: `cash-${r.id}`, category: "cash", dir: r.type === "WITHDRAWAL" ? "OUT" : "IN",
+        id: `cash-${r.id}`, rawId: r.id, raw: r, category: "cash", dir: r.type === "WITHDRAWAL" ? "OUT" : "IN",
         label: r.type === "WITHDRAWAL" ? "Retrait de caisse" : "Versement en caisse",
         sub: r.clientName || r.description || "", reference: r.reference,
         amount: Number(r.amount) || 0, date: r.date, description: r.description || "",
@@ -1578,7 +1715,7 @@ export const cashApi = {
     }
     for (const r of rows(salePayRes.data)) {
       entries.push({
-        id: `salepay-${r.id}`, category: "sale", dir: "IN",
+        id: `salepay-${r.id}`, rawId: r.id, raw: r, category: "sale", dir: "IN",
         label: `Versement vente${carName(r.car) ? " — " + carName(r.car) : ""}`,
         sub: clientName(r.sale?.client) || (r.isInitial ? "Versement initial" : ""),
         reference: r.sale?.reference, amount: Number(r.amount) || 0, date: r.date,
@@ -1589,7 +1726,7 @@ export const cashApi = {
       const paid = Number(r.amountPaid) || 0;
       if (paid <= 0) continue;
       entries.push({
-        id: `purchase-${r.id}`, category: "purchase", dir: "OUT",
+        id: `purchase-${r.id}`, rawId: r.id, raw: r, category: "purchase", dir: "OUT",
         label: `Achat véhicule${carName(r.car) ? " — " + carName(r.car) : ""}`,
         sub: r.sourceType === "CLIENT" ? clientName(r.client) : "Showroom",
         reference: r.reference, amount: paid, date: r.date, description: r.remark || "",
@@ -1597,7 +1734,7 @@ export const cashApi = {
     }
     for (const r of rows(expensesRes.data)) {
       entries.push({
-        id: `expense-${r.id}`, category: "expense", dir: "OUT",
+        id: `expense-${r.id}`, rawId: r.id, raw: r, category: "expense", dir: "OUT",
         label: `Dépense — ${r.name}`,
         sub: r.type === "CAR" ? carName(r.car) : "Showroom",
         // `expenseType` lets the Caisse split véhicules / showroom without
@@ -1608,7 +1745,7 @@ export const cashApi = {
     }
     for (const r of rows(payrollRes.data)) {
       entries.push({
-        id: `payroll-${r.id}`, category: "payroll", dir: "OUT",
+        id: `payroll-${r.id}`, rawId: r.id, raw: r, category: "payroll", dir: "OUT",
         label: `Salaire — ${r.worker?.fullName || ""}`.trim(),
         sub: r.month || "", reference: null, amount: Number(r.amount) || 0, date: r.date,
         description: r.description || "",
@@ -1616,7 +1753,7 @@ export const cashApi = {
     }
     for (const r of rows(settlementsRes.data)) {
       entries.push({
-        id: `settlement-${r.id}`, category: "settlement", dir: "OUT",
+        id: `settlement-${r.id}`, rawId: r.id, raw: r, category: "settlement", dir: "OUT",
         label: `Règlement propriétaire${carName(r.car) ? " — " + carName(r.car) : ""}`,
         sub: clientName(r.client), reference: r.reference,
         amount: Number(r.ownerAmount) || 0, date: r.date, description: r.note || "",
@@ -1832,6 +1969,10 @@ export const paymentsApi = {
 };
 
 // ── DASHBOARD ─────────────────────────────────────────────────
+function toLocalDay(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function monthKey(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
@@ -1839,6 +1980,12 @@ function monthKey(d) {
 export const dashboardApi = {
   async stats() {
     const now = new Date();
+    const resetCfg = await statsResetApi.get();
+    const periodStart = statsPeriodStart(resetCfg, now);
+    const periodISO = periodStart ? periodStart.toISOString() : "";
+    const periodDay = periodStart ? toLocalDay(periodStart) : "";
+    // Rows dated inside the current statistics period (everything when NEVER).
+    const inPeriod = (date) => !periodStart || (date && (String(date).length <= 10 ? String(date) >= periodDay : String(date) >= periodISO));
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthStartISO = monthStart.toISOString();
     const monthStr = monthKey(now);
@@ -1853,14 +2000,19 @@ export const dashboardApi = {
         supabase.from("worker_payments").select("amount, date"),
         supabase.from("worker_advances").select("amount"),
         supabase.from("website_reservations").select("id").eq("status", "PENDING"),
-        supabase.from("clients").select("id"),
+        supabase.from("clients").select("id, created_at"),
         settlementsApi.pending().catch(() => []),
       ]);
 
     const cars = rows(carsRes.data);
-    const sales = rows(salesRes.data).map(shapeSale);
-    const purchases = rows(purchasesRes.data).map(shapePurchase);
-    const expenses = rows(expensesRes.data);
+    const allSales = rows(salesRes.data).map(shapeSale);
+    const allPurchases = rows(purchasesRes.data).map(shapePurchase);
+    const allExpenses = rows(expensesRes.data);
+    // The statistic cards only count what happened in the current period.
+    const sales = allSales.filter((s) => inPeriod(s.date));
+    const purchases = allPurchases.filter((p) => inPeriod(p.date));
+    const expenses = allExpenses.filter((e) => inPeriod(e.date));
+    const clientsInPeriod = rows(clientsRes.data).filter((c) => inPeriod(c.createdAt));
 
     const salesMonth = sales.filter((s) => s.date >= monthStartISO);
     const caMonth = salesMonth.reduce((a, s) => a + (s.totalAfterReduction || 0), 0);
@@ -1879,9 +2031,9 @@ export const dashboardApi = {
     // no extra round-trip. Mirrors cashApi.ledger(): a prestation (vehicle left
     // by a client) only counts the showroom's share.
     const purchaseByCar = {};
-    for (const p of purchases) if (p.carId) purchaseByCar[p.carId] = p;
+    for (const p of allPurchases) if (p.carId) purchaseByCar[p.carId] = p;
     const carExpenseByCar = {};
-    for (const e of expenses) {
+    for (const e of allExpenses) {
       if (e.type === "CAR" && e.carId) carExpenseByCar[e.carId] = (carExpenseByCar[e.carId] || 0) + (Number(e.amount) || 0);
     }
     const totalGainsAll = sales.reduce((a, s) => {
@@ -1895,7 +2047,7 @@ export const dashboardApi = {
     const caisseNet = totalGainsAll - totalExpensesAll;
 
     const soldThisMonth = new Set(
-      sales.filter((s) => s.date >= monthStartISO && s.car?.status === "SOLD").map((s) => s.carId)
+      allSales.filter((s) => s.date >= monthStartISO && s.car?.status === "SOLD").map((s) => s.carId)
     );
 
     // 12-month series
@@ -1913,18 +2065,18 @@ export const dashboardApi = {
       });
     }
     const mIndex = Object.fromEntries(months.map((m, i) => [m.key, i]));
-    for (const s of sales) {
+    for (const s of allSales) {
       const k = monthKey(new Date(s.date));
       if (k in mIndex) {
         months[mIndex[k]].sales += 1;
         months[mIndex[k]].revenue += s.totalAfterReduction || 0;
       }
     }
-    for (const p of purchases) {
+    for (const p of allPurchases) {
       const k = p.date ? monthKey(new Date(p.date)) : null;
       if (k && k in mIndex) months[mIndex[k]].purchases += 1;
     }
-    for (const e of expenses) {
+    for (const e of allExpenses) {
       const k = e.date ? monthKey(new Date(e.date)) : null;
       if (k && k in mIndex) months[mIndex[k]].expenses += e.amount || 0;
     }
@@ -1936,7 +2088,7 @@ export const dashboardApi = {
     const pendingAdvances = rows(advancesRes.data).reduce((a, x) => a + (x.amount || 0), 0);
 
     const availableCount = cars.filter((c) => c.status === "AVAILABLE").length;
-    const soldCount = cars.filter((c) => c.status === "SOLD").length;
+    const soldCount = periodStart ? new Set(sales.map((s) => s.carId)).size : cars.filter((c) => c.status === "SOLD").length;
     const reservedCount = cars.filter((c) => c.status === "RESERVED").length;
     const clientsInDebt = sales.filter((s) => s.amountRest > 0).length;
     const purchasesInDebt = purchases.filter((p) => p.amountRest > 0).length;
@@ -1959,10 +2111,10 @@ export const dashboardApi = {
         sold: soldCount,
         reserved: reservedCount,
         soldThisMonth: soldThisMonth.size,
-        purchasesThisMonth: purchases.filter((p) => (p.date || "") >= monthStartISO).length,
+        purchasesThisMonth: allPurchases.filter((p) => (p.date || "") >= monthStartISO).length,
         totalPurchases: purchases.length,
         totalSales: sales.length,
-        totalClients: (clientsRes.data || []).length,
+        totalClients: clientsInPeriod.length,
         totalWorkers: (workersRes.data || []).length,
         totalExpenses: expenses.length,
         clientsInDebt,
@@ -1978,10 +2130,12 @@ export const dashboardApi = {
         },
       },
       lists: {
-        lastPurchases: purchases.slice(0, 5),
-        lastSales: sales.slice(0, 5),
-        lastExpenses: expenses.slice(0, 5),
+        lastPurchases: allPurchases.slice(0, 5),
+        lastSales: allSales.slice(0, 5),
+        lastExpenses: allExpenses.slice(0, 5),
       },
+      // Active reset setting + the date the current period started.
+      period: { ...resetCfg, start: periodStart ? toLocalDay(periodStart) : null },
       workers: {
         count: (workersRes.data || []).length,
         payrollMonth,
