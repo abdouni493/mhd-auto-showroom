@@ -864,6 +864,143 @@ async function getSaleFull(id) {
   return shapeSale(toCamel(data));
 }
 
+// ── FACTURES PROFORMA ─────────────────────────────────────────
+// A proforma is built with the same steps as a sale (client → inspection →
+// pricing) but never sells the vehicle. Stored in public.proformas (sql/11);
+// until that migration is run, they are kept in this browser (localStorage)
+// so the feature works right away.
+const PROFORMA_LS_KEY = "altech.proformas";
+const PROFORMA_FULL = "*, car:cars(*, car_documents(*), purchases(*, client:clients(*)), expenses(*)), client:clients(*)";
+
+function isMissingTable(error) {
+  if (!error) return false;
+  const msg = `${error.code || ""} ${error.message || ""}`;
+  return /PGRST205|42P01|PGRST200/.test(msg) || /proformas/.test(error.message || "") && /exist|find|schema cache/i.test(error.message || "");
+}
+function lsProformas() {
+  try { return JSON.parse(localStorage.getItem(PROFORMA_LS_KEY) || "[]") || []; } catch { return []; }
+}
+function lsSaveProformas(list) {
+  try { localStorage.setItem(PROFORMA_LS_KEY, JSON.stringify(list)); } catch { /* storage full / blocked */ }
+}
+
+// Light copy of the vehicle kept with the proforma (prints even if the car is sold / deleted later).
+function carSnapshot(car) {
+  if (!car) return {};
+  const keys = ["id", "brand", "model", "year", "color", "energy", "gearbox", "plate", "vin", "mileage", "seats", "keysCount", "images", "documents", "specs"];
+  const out = {};
+  keys.forEach((k) => { if (car[k] !== undefined) out[k] = car[k]; });
+  return out;
+}
+
+// DB row / local record → the sale-like object every component and the
+// FactureDocument template read.
+function shapeProforma(p, { local = false } = {}) {
+  if (!p) return p;
+  const r = local ? { ...p } : toCamel(p);
+  const liveCar = r.car && r.car.id ? shapeCar(r.car) : null;
+  r.car = liveCar || r.carSnapshot || {};
+  r.client = r.client && r.client.id ? shapeClient(r.client) : (r.clientSnapshot || {});
+  r.totalBeforeTax = Number(r.totalBeforeTax) || 0;
+  r.tvaRate = Number(r.tvaRate) || 0;
+  r.stampRate = Number(r.stampRate) || 0;
+  r.reductionValue = Number(r.reductionValue) || 0;
+  r.totalAfterReduction = Number(r.totalAfterReduction) || 0;
+  r.showroomShare = Number(r.showroomShare) || 0;
+  const purchase = Array.isArray(liveCar?.purchases) ? liveCar.purchases[0] : liveCar?.purchase;
+  r.isClientCar = (purchase?.sourceType || r.carSnapshot?.sourceType) === "CLIENT";
+  r.amountPaid = 0;
+  r.local = local;
+  return r;
+}
+
+async function ensureProformaClient(payload) {
+  if (payload.clientId) return payload.clientId;
+  if (!payload.client) return null;
+  const { data, error } = await supabase.from("clients").insert(clientWrite(payload.client)).select().single();
+  if (error) throw error;
+  return data.id;
+}
+
+function proformaWrite(payload, clientId) {
+  return {
+    car_id: payload.carId || null,
+    client_id: clientId || null,
+    car_snapshot: { ...carSnapshot(payload.car), sourceType: payload.car?.purchase?.sourceType || payload.car?.sourceType || null },
+    client_snapshot: payload.clientSnapshot || payload.client || {},
+    total_before_tax: Number(payload.basePrice) || 0,
+    tva_enabled: !!payload.tvaEnabled,
+    tva_rate: Number(payload.tvaRate) || 0,
+    stamp_enabled: !!payload.stampEnabled,
+    stamp_rate: Number(payload.stampRate) || 0,
+    reduction_type: payload.reductionType || "NONE",
+    reduction_value: Number(payload.reductionValue) || 0,
+    total_after_reduction: computeSaleTotal(payload),
+    showroom_share: Number(payload.showroomShare) || 0,
+    payment_method: payload.paymentMethod || null,
+    inspection: payload.inspection ?? {},
+    remark: payload.remark || null,
+    date: payload.date ? new Date(payload.date).toISOString() : new Date().toISOString(),
+  };
+}
+
+// snake_case write → local camelCase record
+function localRecord(row, extra = {}) {
+  return { ...toCamel(row), ...extra };
+}
+
+export const proformasApi = {
+  async list() {
+    const { data, error } = await supabase.from("proformas").select(PROFORMA_FULL).order("date", { ascending: false });
+    if (error) {
+      if (isMissingTable(error)) {
+        return lsProformas()
+          .map((p) => shapeProforma(p, { local: true }))
+          .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      }
+      throw error;
+    }
+    return rows(data).map((p) => shapeProforma(p));
+  },
+  async create(payload) {
+    const clientId = await ensureProformaClient(payload);
+    const row = proformaWrite(payload, clientId);
+    const { data, error } = await supabase.from("proformas").insert(row).select(PROFORMA_FULL).single();
+    if (error) {
+      if (!isMissingTable(error)) throw error;
+      const list = lsProformas();
+      const id = list.reduce((m, p) => Math.max(m, Number(p.id) || 0), 0) + 1;
+      const rec = localRecord(row, { id, reference: `PRO-${String(id).padStart(4, "0")}`, createdAt: new Date().toISOString() });
+      lsSaveProformas([...list, rec]);
+      return shapeProforma(rec, { local: true });
+    }
+    return shapeProforma(data);
+  },
+  async update(id, payload, { local = false } = {}) {
+    const clientId = await ensureProformaClient(payload);
+    const row = proformaWrite(payload, clientId);
+    if (!local) {
+      const { data, error } = await supabase.from("proformas").update(row).eq("id", id).select(PROFORMA_FULL).single();
+      if (!error) return shapeProforma(data);
+      if (!isMissingTable(error)) throw error;
+    }
+    const list = lsProformas();
+    const idx = list.findIndex((p) => p.id === id);
+    if (idx < 0) throw new Error("Proforma introuvable");
+    list[idx] = localRecord(row, { id, reference: list[idx].reference, createdAt: list[idx].createdAt });
+    lsSaveProformas(list);
+    return shapeProforma(list[idx], { local: true });
+  },
+  async delete(id, { local = false } = {}) {
+    if (!local) {
+      const { error } = await supabase.from("proformas").delete().eq("id", id);
+      if (!error) return;
+      if (!isMissingTable(error)) throw error;
+    }
+    lsSaveProformas(lsProformas().filter((p) => p.id !== id));
+  },
+};
+
 export const salesApi = {
   async list({ saleType = "", paid = "", search = "" } = {}) {
     let q = supabase.from("sales").select(SALE_FULL).order("created_at", { ascending: false });

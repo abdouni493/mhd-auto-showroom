@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 import Showroom from "./pages/Showroom.jsx";
 import Purchase from "./pages/Purchase.jsx";
 import POS from "./pages/POS.jsx";
+import Proformas from "./pages/Proformas.jsx";
 import Sales from "./pages/Sales.jsx";
 import Payments from "./pages/Payments.jsx";
 import Caisse from "./pages/Caisse.jsx";
@@ -102,6 +103,7 @@ export default function App() {
         <Route path="purchase" element={<Purchase />} />
         <Route path="suppliers" element={<Clients mode="owners" />} />
         <Route path="pos" element={<POS />} />
+        <Route path="proformas" element={<Proformas />} />
         <Route path="sales" element={<Sales />} />
         <Route path="payments" element={<Payments />} />
         <Route path="caisse" element={<Caisse />} />

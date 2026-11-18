@@ -10,7 +10,7 @@ import { formatAmount, formatDate, toDateInput, initials } from "../utils/format
 import DateInput from "../components/DateInput.jsx";
 
 const PAY_LABELS = { MONTHLY: "Mensuel", DAILY: "Journalier", NONE: "Aucun" };
-const SECTION_LABELS = { dashboard: "Tableau de bord", showroom: "Showroom", purchase: "Achats", pos: "POS", sales: "Ventes", payments: "Paiements", settlements: "Règlements propriétaires", caisse: "Caisse (Dépôts/Retraits)", websiteSettings: "Site Web", websiteReservations: "Réservations Site", clients: "Clients", workers: "Employés", expenses: "Dépenses", reports: "Rapports", settings: "Paramètres" };
+const SECTION_LABELS = { dashboard: "Tableau de bord", showroom: "Showroom", purchase: "Achats", pos: "POS", proformas: "Factures proforma", sales: "Ventes", payments: "Paiements", settlements: "Règlements propriétaires", caisse: "Caisse (Dépôts/Retraits)", websiteSettings: "Site Web", websiteReservations: "Réservations Site", clients: "Clients", workers: "Employés", expenses: "Dépenses", reports: "Rapports", settings: "Paramètres" };
 const HISTORY_TABS = [
   { key: "ALL", label: "Tout" },
   { key: "payment", label: "Paiements" },

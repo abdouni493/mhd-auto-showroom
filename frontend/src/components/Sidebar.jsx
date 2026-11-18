@@ -8,7 +8,7 @@ import { initials } from "../utils/format.js";
 import {
   Gauge, CarFront, ShoppingBag, Calculator, Tag, Banknote, Vault,
   MonitorSmartphone, CalendarClock, Contact, Briefcase, CircleDollarSign,
-  PieChart, SlidersHorizontal, LogOut, Languages, X, Handshake,
+  PieChart, SlidersHorizontal, LogOut, Languages, X, Handshake, FileText,
 } from "lucide-react";
 
 // The navigation is grouped by activity instead of being one long flat list.
@@ -33,6 +33,7 @@ const NAV_GROUPS = [
     key: "commerce",
     items: [
       { to: "/app/pos", key: "pos", icon: Calculator },
+      { to: "/app/proformas", key: "proformas", icon: FileText },
       { to: "/app/sales", key: "sales", icon: Tag },
       { to: "/app/clients", key: "clients", icon: Contact },
       { to: "/app/payments", key: "payments", icon: Banknote },
