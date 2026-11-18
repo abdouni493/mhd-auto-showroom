@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { MotionConfig } from "framer-motion";
 import { useStore } from "./store/useStore.js";
 import { firstAllowedSection } from "./lib/permissions.js";
+import { carsApi } from "./lib/api.js";
 
 import AppShell from "./components/AppShell.jsx";
 import Login from "./pages/Login.jsx";
@@ -25,6 +26,8 @@ import Home from "./pages/website/Home.jsx";
 import CarDetail from "./pages/website/CarDetail.jsx";
 import Contacts from "./pages/website/Contacts.jsx";
 
+let cleanedDocs = false;
+
 function ProtectedRoute({ children }) {
   const { user, authChecked, loadMe } = useStore();
   const location = useLocation();
@@ -32,6 +35,14 @@ function ProtectedRoute({ children }) {
   useEffect(() => {
     if (!authChecked) loadMe();
   }, [authChecked, loadMe]);
+
+  // One-time background cleanup of duplicated car documents (they made the
+  // printed documents repeat the same entries). Silent: never blocks the app.
+  useEffect(() => {
+    if (!user || cleanedDocs) return;
+    cleanedDocs = true;
+    carsApi.cleanDuplicateDocuments().catch(() => { cleanedDocs = false; });
+  }, [user]);
 
   if (!authChecked) {
     return (

@@ -484,6 +484,39 @@ function carInsert(car) {
 }
 
 export const carsApi = {
+  // Remove duplicate car_documents rows left by older saves (same car, same
+  // type stored several times). Keeps, for each car + type, the row that has a
+  // file URL, otherwise the oldest one. Safe to run any number of times; the
+  // app runs it once per session in the background. Returns the number of
+  // rows removed.
+  async cleanDuplicateDocuments() {
+    const all = [];
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase
+        .from("car_documents")
+        .select("id, car_id, type, doc_url")
+        .order("id", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      all.push(...(data || []));
+      if (!data || data.length < PAGE) break;
+    }
+    const keep = new Map();
+    const extra = [];
+    for (const d of all) {
+      const key = `${d.car_id}|${String(d.type || "").trim()}`;
+      const prev = keep.get(key);
+      if (!prev) { keep.set(key, d); continue; }
+      if (!prev.doc_url && d.doc_url) { extra.push(prev.id); keep.set(key, d); }
+      else extra.push(d.id);
+    }
+    for (let i = 0; i < extra.length; i += 200) {
+      const { error } = await supabase.from("car_documents").delete().in("id", extra.slice(i, i + 200));
+      if (error) throw error;
+    }
+    return extra.length;
+  },
   async list({ status = "", search = "" } = {}) {
     let q = supabase.from("cars").select(CAR_FULL).order("created_at", { ascending: false });
     if (status) q = q.eq("status", status);
