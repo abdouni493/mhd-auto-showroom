@@ -5,11 +5,25 @@ import { compressForBucket, extForType } from "./imageCompression.js";
 //    `toCamel` converts globally; the small `shape*` helpers below fix the few
 //    relations that don't map 1:1 (embedded documents, singular purchase, …). ──
 
+// One entry per document type: older saves could store the same type several
+// times, which made every list (and the printed documents) repeat it. When
+// duplicates exist, the entry that carries a file URL wins.
+export function uniqueDocs(docs) {
+  const byType = new Map();
+  for (const d of docs || []) {
+    const type = String(d?.type || "").trim();
+    if (!type) continue;
+    const prev = byType.get(type);
+    if (!prev || (!prev.url && d.url)) byType.set(type, { ...d, type });
+  }
+  return Array.from(byType.values());
+}
+
 function shapeCar(car) {
   if (!car) return car;
   // car_documents relation -> documents:[{ type, url }] (what the UI expects)
   if (Array.isArray(car.carDocuments)) {
-    car.documents = car.carDocuments.map((d) => ({ ...d, type: d.type, url: d.docUrl }));
+    car.documents = uniqueDocs(car.carDocuments.map((d) => ({ ...d, type: d.type, url: d.docUrl })));
     delete car.carDocuments;
   } else if (!Array.isArray(car.documents)) {
     car.documents = [];
@@ -653,7 +667,7 @@ export const purchasesApi = {
     if (carError) throw carError;
 
     // 2. car documents (each: { type, url })
-    const docs = documents.length ? documents : car.documents || [];
+    const docs = uniqueDocs(documents.length ? documents : car.documents || []);
     if (docs.length > 0) {
       const { error: docError } = await supabase
         .from("car_documents")
@@ -713,10 +727,11 @@ export const purchasesApi = {
       if (Array.isArray(car.documents)) {
         const { error: delDocError } = await supabase.from("car_documents").delete().eq("car_id", carId);
         if (delDocError) throw delDocError;
-        if (car.documents.length > 0) {
+        const docs = uniqueDocs(car.documents);
+        if (docs.length > 0) {
           const { error: docError } = await supabase
             .from("car_documents")
-            .insert(car.documents.map((d) => ({ car_id: carId, type: d.type, doc_url: d.url || "" })));
+            .insert(docs.map((d) => ({ car_id: carId, type: d.type, doc_url: d.url || "" })));
           if (docError) throw docError;
         }
       }

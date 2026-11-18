@@ -446,7 +446,7 @@ export function CarBlock({ car, lang }) {
         <Row lang={lang} label={x.keys} value={c.keysCount != null ? c.keysCount : "—"} />
       </div>
       <Row lang={lang} label={x.vin} value={c.vin} last={docs.length === 0} />
-      {docs.length > 0 && <Row lang={lang} label={x.documents} value={docs.map((d) => d.type).join(", ")} last />}
+      {docs.length > 0 && <Row lang={lang} label={x.documents} value={[...new Set(docs.map((d) => d.type).filter(Boolean))].join(", ")} last />}
     </Frame>
   );
 }

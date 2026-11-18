@@ -615,7 +615,7 @@ export function ReceptionForm({ purchase, showroom, lang = "fr", dateTime, recei
   const car = purchase?.car || {};
   const attached = new Set((car.documents || []).map((d) => d.type));
   // every known document type is printed; the ones held for this car are ticked
-  const list = docTypes.length ? docTypes : Array.from(attached);
+  const list = Array.from(new Set(docTypes.length ? docTypes : attached));
   const isClient = purchase?.sourceType === "CLIENT";
   const sourceName = isClient && purchase?.client
     ? `${purchase.client.firstName || ""} ${purchase.client.lastName || ""}`.trim()
@@ -938,7 +938,7 @@ export function BonEntreeSortie({ sale, showroom, lang = "fr", dateTime, docType
   const x = x2(lang);
   const car = sale?.car || {};
   const attached = new Set((car.documents || []).map((d) => d.type));
-  const list = docTypes.length ? docTypes : Array.from(attached);
+  const list = Array.from(new Set(docTypes.length ? docTypes : attached));
 
   return (
     <div style={sheetStyle(lang, true)}>
