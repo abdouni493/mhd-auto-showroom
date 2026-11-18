@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, Pencil, Trash2, Shield, Wallet, CalendarX, Banknote, HardHat, Phone } from "lucide-react";
+import { Eye, Pencil, Trash2, Shield, Wallet, CalendarX, Banknote, HardHat, Phone, History } from "lucide-react";
 import { workersApi } from "../lib/api.js";
 import { useFetch } from "../hooks/useApi.js";
 import { SECTIONS, ACTIONS, useCan } from "../lib/permissions.js";
@@ -11,6 +11,29 @@ import DateInput from "../components/DateInput.jsx";
 
 const PAY_LABELS = { MONTHLY: "Mensuel", DAILY: "Journalier", NONE: "Aucun" };
 const SECTION_LABELS = { dashboard: "Tableau de bord", showroom: "Showroom", purchase: "Achats", pos: "POS", sales: "Ventes", payments: "Paiements", settlements: "Règlements propriétaires", caisse: "Caisse (Dépôts/Retraits)", websiteSettings: "Site Web", websiteReservations: "Réservations Site", clients: "Clients", workers: "Employés", expenses: "Dépenses", reports: "Rapports", settings: "Paramètres" };
+const HISTORY_TABS = [
+  { key: "ALL", label: "Tout" },
+  { key: "payment", label: "Paiements" },
+  { key: "advance", label: "Acomptes" },
+  { key: "absence", label: "Absences" },
+];
+const KIND_META = {
+  payment: { label: "Paiement", icon: Banknote, color: "text-emerald-400", badge: "success" },
+  advance: { label: "Acompte", icon: Wallet, color: "text-amber-400", badge: "warning" },
+  absence: { label: "Absence", icon: CalendarX, color: "text-rose-400", badge: "debt" },
+};
+
+// One chronological list (newest first) of a worker's payments, advances and absences.
+function workerHistory(w) {
+  if (!w) return [];
+  const list = [
+    ...(w.payments || []).map((x) => ({ kind: "payment", item: x, amount: Number(x.amount) || 0 })),
+    ...(w.advances || []).map((x) => ({ kind: "advance", item: x, amount: Number(x.amount) || 0 })),
+    ...(w.absences || []).map((x) => ({ kind: "absence", item: x, amount: Number(x.cost) || 0 })),
+  ];
+  return list.sort((a, b) => String(b.item.date || "").localeCompare(String(a.item.date || "")) || (b.item.id || 0) - (a.item.id || 0));
+}
+
 const ACTION_LABELS = { view: "Voir", create: "Créer", edit: "Modifier", delete: "Supprimer", print: "Imprimer" };
 
 export default function Workers() {
@@ -32,6 +55,13 @@ export default function Workers() {
   const [transactionEditor, setTransactionEditor] = useState(null);
   const [transactionForm, setTransactionForm] = useState({ date: toDateInput(new Date()), amount: "", cost: "", description: "" });
   const [deleteTarget, setDeleteTarget] = useState(null);
+  // History modal — keeps the worker id so it always shows the freshest data after edits.
+  const [historyId, setHistoryId] = useState(null);
+  const [historyTab, setHistoryTab] = useState("ALL");
+  const historyWorker = (workers || []).find((w) => w.id === historyId) || null;
+  const history = workerHistory(historyWorker);
+  const historyRows = historyTab === "ALL" ? history : history.filter((h) => h.kind === historyTab);
+  const historyTotals = history.reduce((acc, h) => ({ ...acc, [h.kind]: (acc[h.kind] || 0) + h.amount }), {});
 
   const createRole = async () => {
     if (!newRoleName.trim()) return;
@@ -107,6 +137,7 @@ export default function Workers() {
       }
       if (deleteTarget.type === "advance") await workersApi.deleteAdvance(deleteTarget.id);
       if (deleteTarget.type === "absence") await workersApi.deleteAbsence(deleteTarget.id);
+      if (deleteTarget.type === "payment") await workersApi.deletePayment(deleteTarget.id);
       setDeleteTarget(null); refetch();
     } catch (e) {
       toast(e?.message || "Suppression impossible", "error");
@@ -143,6 +174,7 @@ export default function Workers() {
       date: item?.date ? toDateInput(item.date) : toDateInput(new Date()),
       amount: item?.amount ?? "",
       cost: item?.cost ?? "",
+      month: item?.month ?? "",
       description: item?.description ?? "",
     });
   };
@@ -151,7 +183,9 @@ export default function Workers() {
     if (!transactionEditor) return;
     try {
       const payload = { date: transactionForm.date, description: transactionForm.description };
-      if (transactionEditor.kind === "advance") {
+      if (transactionEditor.kind === "payment") {
+        await workersApi.updatePayment(transactionEditor.item.id, { ...payload, amount: Number(transactionForm.amount) || 0, month: transactionForm.month });
+      } else if (transactionEditor.kind === "advance") {
         if (transactionEditor.item) {
           await workersApi.updateAdvance(transactionEditor.item.id, { ...payload, amount: Number(transactionForm.amount) || 0 });
         } else {
@@ -191,6 +225,7 @@ export default function Workers() {
                 </div>
                 <ActionMenu items={[
                   { label: "Voir", icon: Eye, onClick: () => setView(w) },
+                  { label: "Historique", icon: History, onClick: () => { setHistoryId(w.id); setHistoryTab("ALL"); } },
                   can("workers", "edit") && { label: "Modifier", icon: Pencil, onClick: () => openEdit(w) },
                   can("workers", "edit") && { label: "Permissions", icon: Shield, onClick: () => openPerms(w) },
                   can("workers", "edit") && { label: "Acompte", icon: Wallet, onClick: () => openTransactionEditor("advance", w) },
@@ -307,6 +342,77 @@ export default function Workers() {
         )}
       </Modal>
 
+      {/* History: payments, advances (acomptes) and absences */}
+      <Modal open={!!historyWorker} onClose={() => setHistoryId(null)} title={`Historique — ${historyWorker?.fullName || ""}`} size="lg">
+        {historyWorker && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-3">
+              {["payment", "advance", "absence"].map((k) => (
+                <Card key={k} className="p-3 text-center">
+                  <p className={`text-base font-black ${KIND_META[k].color}`}>{formatAmount(historyTotals[k] || 0)}</p>
+                  <p className="label-caps">{KIND_META[k].label}s · {history.filter((h) => h.kind === k).length}</p>
+                </Card>
+              ))}
+            </div>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex gap-2 flex-wrap">
+                {HISTORY_TABS.map((tb) => (
+                  <button key={tb.key} className={`chip ${historyTab === tb.key ? "chip-active" : ""}`} onClick={() => setHistoryTab(tb.key)}>{tb.label}</button>
+                ))}
+              </div>
+              {can("workers", "edit") && (
+                <div className="flex gap-2 flex-wrap">
+                  <button type="button" className="btn-ghost text-xs py-1.5" onClick={() => openTransactionEditor("advance", historyWorker)}><Wallet size={13} /> Acompte</button>
+                  <button type="button" className="btn-ghost text-xs py-1.5" onClick={() => openTransactionEditor("absence", historyWorker)}><CalendarX size={13} /> Absence</button>
+                  <button type="button" className="btn-ghost text-xs py-1.5" onClick={() => openModal("payment", historyWorker)}><Banknote size={13} /> Paiement</button>
+                </div>
+              )}
+            </div>
+            {historyRows.length === 0 ? (
+              <p className="text-sm text-text-muted text-center py-6">Aucun élément dans l'historique.</p>
+            ) : (
+              <div className="overflow-x-auto max-h-[55vh] overflow-y-auto rounded-lg border border-red-600/15">
+                <table className="w-full text-sm border-collapse">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="text-left rtl:text-right bg-[#1a0507] border-b border-red-600/30">
+                      {["Date", "Type", "Montant", "Détails", "Statut", ""].map((h, i) => (
+                        <th key={i} className="p-2.5 label-caps !mb-0 !text-red-300/80 whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyRows.map(({ kind, item, amount }, i) => {
+                      const meta = KIND_META[kind];
+                      return (
+                        <tr key={`${kind}-${item.id}`} className={`border-b border-red-600/10 ${i % 2 ? "bg-white/[0.015]" : ""}`}>
+                          <td className="p-2.5 text-text-muted whitespace-nowrap">{formatDate(item.date)}</td>
+                          <td className="p-2.5 whitespace-nowrap"><span className={`flex items-center gap-1.5 font-semibold ${meta.color}`}><meta.icon size={13} /> {meta.label}</span></td>
+                          <td className={`p-2.5 font-black whitespace-nowrap ${meta.color}`}>{formatAmount(amount)}</td>
+                          <td className="p-2.5 text-text-muted">
+                            {[kind === "payment" && item.month ? `Mois : ${item.month}` : null, item.description].filter(Boolean).join(" • ") || "—"}
+                          </td>
+                          <td className="p-2.5 whitespace-nowrap">
+                            {kind === "payment"
+                              ? <Badge color="success">Payé</Badge>
+                              : item.isPaid ? <Badge color="success">Déduit</Badge> : <Badge color="warning">En attente</Badge>}
+                          </td>
+                          <td className="p-2.5">
+                            <div className="flex items-center gap-1 justify-end">
+                              {can("workers", "edit") && <button type="button" title="Modifier" className="rounded-full p-1.5 text-text-muted hover:bg-red-600/10 hover:text-red-400" onClick={() => openTransactionEditor(kind, historyWorker, item)}><Pencil size={14} /></button>}
+                              {can("workers", "delete") && <button type="button" title="Supprimer" className="rounded-full p-1.5 text-text-muted hover:bg-red-600/10 hover:text-red-400" onClick={() => requestDelete(kind, item.id)}><Trash2 size={14} /></button>}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
       {/* Permissions */}
       <Modal open={!!permWorker} onClose={() => setPermWorker(null)} title={`Permissions — ${permWorker?.fullName || ""}`} size="lg"
         footer={<><button className="btn-ghost" onClick={() => setPermWorker(null)}>Annuler</button><button className="btn-primary" onClick={savePerms}>Enregistrer les permissions</button></>}>
@@ -395,14 +501,17 @@ export default function Workers() {
       </Modal>
 
       <Modal open={!!transactionEditor} onClose={() => setTransactionEditor(null)}
-        title={transactionEditor?.item ? (transactionEditor.kind === "advance" ? "Modifier l'acompte" : "Modifier l'absence") : (transactionEditor?.kind === "advance" ? "Nouvel acompte" : "Nouvelle absence")} size="sm"
+        title={transactionEditor?.kind === "payment" ? "Modifier le paiement" : transactionEditor?.item ? (transactionEditor.kind === "advance" ? "Modifier l'acompte" : "Modifier l'absence") : (transactionEditor?.kind === "advance" ? "Nouvel acompte" : "Nouvelle absence")} size="sm"
         footer={<><button className="btn-ghost" onClick={() => setTransactionEditor(null)}>Annuler</button><button className="btn-primary" onClick={saveTransaction}>Enregistrer</button></>}>
         <div className="space-y-4">
           <Field label="Date"><DateInput value={transactionForm.date} onChange={(v) => setTransactionForm({ ...transactionForm, date: v })} /></Field>
-          {transactionEditor?.kind === "advance" ? (
+          {transactionEditor?.kind === "advance" || transactionEditor?.kind === "payment" ? (
             <Field label="Montant (DA)"><input className="input" type="number" value={transactionForm.amount} onChange={(e) => setTransactionForm({ ...transactionForm, amount: e.target.value })} /></Field>
           ) : (
             <Field label="Coût (DA)"><input className="input" type="number" value={transactionForm.cost} onChange={(e) => setTransactionForm({ ...transactionForm, cost: e.target.value })} /></Field>
+          )}
+          {transactionEditor?.kind === "payment" && (
+            <Field label="Mois"><input className="input" placeholder="ex: Janvier 2024" value={transactionForm.month} onChange={(e) => setTransactionForm({ ...transactionForm, month: e.target.value })} /></Field>
           )}
           <Field label="Description"><input className="input" value={transactionForm.description} onChange={(e) => setTransactionForm({ ...transactionForm, description: e.target.value })} /></Field>
         </div>
@@ -419,7 +528,9 @@ export default function Workers() {
             ? deleteTarget?.hasAccount
               ? `Cette opération supprimera définitivement ${deleteTarget.name || "cet employé"} ainsi que son compte de connexion (authentification Supabase). Il ne pourra plus se connecter à l'application.`
               : `Cette opération supprimera définitivement ${deleteTarget?.name || "cet employé"}.`
-            : "Cette opération supprimera définitivement l'élément sélectionné."
+            : deleteTarget?.type === "payment"
+              ? "Ce paiement sera supprimé définitivement. Les acomptes et absences qu'il avait déduits repasseront « en attente »."
+              : "Cette opération supprimera définitivement l'élément sélectionné."
         }
       />
     </div>

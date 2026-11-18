@@ -1595,6 +1595,19 @@ export const workersApi = {
     const { error } = await supabase.from("worker_payments").update(patch).eq("id", id);
     if (error) throw error;
   },
+  // Deleting a salary payment puts the advances / absences it settled back to
+  // "pending", so they are deducted again on the next payment.
+  async deletePayment(id) {
+    for (const table of ["worker_advances", "worker_absences"]) {
+      const { error } = await supabase
+        .from(table)
+        .update({ is_paid: false, paid_at: null, payment_id: null })
+        .eq("payment_id", id);
+      if (error) throw error;
+    }
+    const { error } = await supabase.from("worker_payments").delete().eq("id", id);
+    if (error) throw error;
+  },
   async listRoles() {
     const { data } = await supabase.from("worker_roles").select("*").order("name");
     return rows(data);
