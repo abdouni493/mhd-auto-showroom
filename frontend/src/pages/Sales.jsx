@@ -506,7 +506,10 @@ function VersementHistory({ sale, showroom, onClose, onChanged }) {
 export default function Sales() {
   const { t } = useTranslation();
   const can = useCan();
-  const { settings, refreshSettlements } = useStore();
+  const { settings, refreshSettlements, user } = useStore();
+  // Gains (and the purchase cost they come from) are for admins only: worker
+  // accounts never see the profit made on a sale.
+  const showGain = !!user?.isAdmin;
   const toast = useToast();
   const [filter, setFilter] = useState("");
   const [search, setSearch] = useState("");
@@ -661,7 +664,7 @@ export default function Sales() {
                     <Badge color={s.saleType === "DEPOSIT" ? "warning" : "success"}>{s.saleType === "DEPOSIT" ? t("sales.deposit") : t("sales.normal")}</Badge>
                     {s.amountRest > 0 ? <Badge color="debt"><AlertTriangle size={10} /> {t("sales.debt")}</Badge> : <Badge color="success">{t("sales.paid")}</Badge>}
                   </div>
-                  {s.hasPurchaseInfo ? (
+                  {!showGain ? null : s.hasPurchaseInfo ? (
                     <div className={`px-2.5 py-0.5 rounded-full text-xs font-bold flex items-center gap-1 border shadow-sm ${
                       s.gain >= 0
                         ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
@@ -692,7 +695,7 @@ export default function Sales() {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="text-left rtl:text-right bg-red-600/10 border-b border-red-600/30">
-                {["N°", t("common.client"), t("common.vehicle"), t("common.total"), t("common.paid"), t("common.rest"), t("sales.gain"), t("common.status"), t("common.type"), t("common.date"), ""].map((h, i) => (
+                {["N°", t("common.client"), t("common.vehicle"), t("common.total"), t("common.paid"), t("common.rest"), ...(showGain ? [t("sales.gain")] : []), t("common.status"), t("common.type"), t("common.date"), ""].map((h, i) => (
                   <th key={i} className="p-3.5 label-caps !text-red-300/80">{h}</th>
                 ))}
               </tr>
@@ -722,7 +725,7 @@ export default function Sales() {
                   <td className="p-3 text-text-primary font-bold">{formatAmount(s.totalAfterReduction)}</td>
                   <td className="p-3 text-emerald-400">{formatAmount(s.amountPaid)}</td>
                   <td className="p-3">{s.amountRest > 0 ? <span className="text-rose-400 font-bold">{formatAmount(s.amountRest)}</span> : <span className="text-text-muted">—</span>}</td>
-                  <td className="p-3">
+                  {showGain && <td className="p-3">
                     {s.hasPurchaseInfo ? (
                       <span className={`font-bold flex items-center gap-1 ${s.gain >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                         <TrendingUp size={12} className={s.gain < 0 ? "rotate-180 text-rose-400" : "text-emerald-400"} />
@@ -731,7 +734,7 @@ export default function Sales() {
                     ) : (
                       <span className="text-text-muted">—</span>
                     )}
-                  </td>
+                  </td>}
                   <td className="p-3">{s.amountRest > 0 ? <Badge color="debt">{t("sales.debt")}</Badge> : <Badge color="success">{t("sales.paid")}</Badge>}</td>
                   <td className="p-3"><Badge color={s.saleType === "DEPOSIT" ? "warning" : "success"}>{s.saleType === "DEPOSIT" ? t("sales.deposit") : t("sales.normal")}</Badge></td>
                   <td className="p-3 text-text-muted whitespace-nowrap">{formatDate(s.date)}</td>
@@ -749,8 +752,8 @@ export default function Sales() {
           <div className="space-y-3">
             <div className="rounded-xl overflow-hidden"><CarImage images={viewItem.car?.images} heightClass="h-44" zoomable /></div>
 
-            {/* Financial Summary & Gain Card */}
-            <div className="glass-card p-3.5 rounded-xl border border-red-600/20 bg-gradient-to-r from-red-950/30 via-black/40 to-red-950/20 space-y-2">
+            {/* Financial Summary & Gain Card (admins only) */}
+            {showGain && <div className="glass-card p-3.5 rounded-xl border border-red-600/20 bg-gradient-to-r from-red-950/30 via-black/40 to-red-950/20 space-y-2">
               <div className="flex justify-between items-center">
                 <span className="text-xs label-caps !mb-0 text-red-300">{t("sales.financialSummary")}</span>
                 {viewItem.hasPurchaseInfo && (
@@ -786,7 +789,7 @@ export default function Sales() {
                   </p>
                 </div>
               </div>
-            </div>
+            </div>}
 
             {viewItem.isClientCar && (
               <div className="glass-card p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/5">
@@ -810,7 +813,7 @@ export default function Sales() {
                 [t("pos.basePrice")]: formatAmount(viewItem.totalBeforeTax), [t("pos.tva")]: viewItem.tvaEnabled ? `${viewItem.tvaRate}%` : t("common.no"),
                 [t("pos.finalTotal")]: formatAmount(viewItem.totalAfterReduction), [t("common.paid")]: formatAmount(viewItem.amountPaid),
                 [t("common.rest")]: formatAmount(viewItem.amountRest), [t("common.type")]: viewItem.saleType === "DEPOSIT" ? t("sales.deposit") : t("sales.normal"),
-                [t("sales.gain")]: viewItem.hasPurchaseInfo ? `${viewItem.gain >= 0 ? "+" : ""}${formatAmount(viewItem.gain)}` : "—",
+                ...(showGain ? { [t("sales.gain")]: viewItem.hasPurchaseInfo ? `${viewItem.gain >= 0 ? "+" : ""}${formatAmount(viewItem.gain)}` : "—" } : {}),
               }).map(([k, v]) => <div key={k} className="flex justify-between text-sm border-b border-red-600/10 py-1.5"><span className="text-text-muted">{k}</span><span className={`text-right ${k === t("sales.gain") ? (viewItem.gain >= 0 ? "text-emerald-400 font-bold" : "text-rose-400 font-bold") : "text-text-primary"}`}>{v || "—"}</span></div>)}
             </div>
             {viewItem.payments?.length > 0 && (

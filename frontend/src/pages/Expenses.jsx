@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Pencil, Trash2, Car, Building2, Printer, Loader2, FileText } from "lucide-react";
+import { Pencil, Trash2, Car, Building2, Printer, Loader2, FileText, CalendarRange, RotateCcw } from "lucide-react";
 import { expensesApi, carsApi } from "../lib/api.js";
 import { useFetch } from "../hooks/useApi.js";
 import { useCan } from "../lib/permissions.js";
@@ -24,6 +24,28 @@ function periodPresets() {
     { label: "Mois dernier", from: new Date(y, m - 1, 1), to: new Date(y, m, 0) },
     { label: "Cette année", from: new Date(y, 0, 1), to: now },
     { label: "12 derniers mois", from: new Date(y, m - 11, 1), to: now },
+  ].map((p) => ({ label: p.label, from: toDateInput(p.from), to: toDateInput(p.to) }));
+}
+
+// Current month: from the 1st to the last day (default filter of the showroom
+// expenses history).
+function currentMonthRange() {
+  const now = new Date();
+  return {
+    from: toDateInput(new Date(now.getFullYear(), now.getMonth(), 1)),
+    to: toDateInput(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+  };
+}
+
+// Quick periods of the showroom history filter (full calendar periods).
+function historyPresets() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  return [
+    { label: "Ce mois", from: new Date(y, m, 1), to: new Date(y, m + 1, 0) },
+    { label: "Mois dernier", from: new Date(y, m - 1, 1), to: new Date(y, m, 0) },
+    { label: "Cette année", from: new Date(y, 0, 1), to: new Date(y, 11, 31) },
   ].map((p) => ({ label: p.label, from: toDateInput(p.from), to: toDateInput(p.to) }));
 }
 
@@ -53,7 +75,15 @@ export default function Expenses() {
   const { settings } = useStore();
   const openPrint = usePrintDialog();
   const [tab, setTab] = useState("CAR");
-  const { data: expenses, loading, refetch } = useFetch(() => expensesApi.list(tab), [tab]);
+  // Showroom history period — defaults to the current month, editable by the user.
+  const [period, setPeriod] = useState(currentMonthRange);
+  const periodValid = !!period.from && !!period.to && period.from <= period.to;
+  const { data: expenses, loading, refetch } = useFetch(
+    () => (tab === "SHOWROOM"
+      ? (periodValid ? expensesApi.listRange({ from: period.from, to: period.to, type: "SHOWROOM" }).then((r) => r.slice().reverse()) : Promise.resolve([]))
+      : expensesApi.list(tab)),
+    [tab, period.from, period.to],
+  );
   const [form, setForm] = useState(null);
   const [editId, setEditId] = useState(null);
   const [selectedCar, setSelectedCar] = useState(null);
@@ -66,7 +96,7 @@ export default function Expenses() {
   const [rows, setRows] = useState(null); // generated list (null = not generated yet)
   const [generating, setGenerating] = useState(false);
 
-  const total = (expenses || []).reduce((a, e) => a + e.amount, 0);
+  const total = (expenses || []).reduce((a, e) => a + (Number(e.amount) || 0), 0);
 
   const openNew = () => { setForm({ name: "", description: "", amount: "", date: toDateInput(new Date()) }); setEditId(null); setSelectedCar(null); };
   const openEdit = (e) => { setForm({ ...e, date: toDateInput(e.date) }); setEditId(e.id); setSelectedCar(e.car || null); };
@@ -138,8 +168,87 @@ export default function Expenses() {
         <Card className="px-4 py-2"><span className="label-caps !mb-0">Total : </span><span className="text-amber-400 font-black">{formatAmount(total)}</span></Card>
       </div>
 
+      {tab === "SHOWROOM" && (
+        <Card className="p-4 mb-5 space-y-3">
+          <div className="flex items-center gap-2 text-text-primary">
+            <CalendarRange size={16} className="text-red-400" />
+            <span className="heading text-sm">Historique des dépenses showroom</span>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {historyPresets().map((p) => (
+              <button
+                key={p.label}
+                className={`chip ${period.from === p.from && period.to === p.to ? "chip-active" : ""}`}
+                onClick={() => setPeriod({ from: p.from, to: p.to })}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+            <Field label="Du" className="flex-1">
+              <DateInput value={period.from} onChange={(v) => setPeriod((p) => ({ ...p, from: v }))} />
+            </Field>
+            <Field label="Au" className="flex-1">
+              <DateInput value={period.to} onChange={(v) => setPeriod((p) => ({ ...p, to: v }))} />
+            </Field>
+            <button className="btn-ghost" onClick={() => setPeriod(currentMonthRange())}>
+              <RotateCcw size={14} /> Mois en cours
+            </button>
+          </div>
+          {!periodValid && (
+            <p className="text-xs text-rose-400">Choisissez une date de début antérieure ou égale à la date de fin.</p>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg bg-white/5 border border-white/10 p-3">
+              <p className="label-caps">Dépenses</p>
+              <p className="font-black text-text-primary">{(expenses || []).length}</p>
+            </div>
+            <div className="rounded-lg bg-white/5 border border-white/10 p-3">
+              <p className="label-caps">Total de la période</p>
+              <p className="font-black text-amber-400">{formatAmount(total)}</p>
+            </div>
+          </div>
+          <p className="text-xs text-text-muted">Période : {formatDate(period.from)} → {formatDate(period.to)}</p>
+        </Card>
+      )}
+
       {loading ? <SkeletonGrid /> : expenses?.length === 0 ? (
-        <EmptyState icon={tab === "CAR" ? Car : Building2} message="Aucune dépense" cta={can("expenses", "create") ? "Ajouter" : undefined} onCta={openNew} />
+        <EmptyState icon={tab === "CAR" ? Car : Building2} message={tab === "SHOWROOM" ? "Aucune dépense sur cette période" : "Aucune dépense"} cta={can("expenses", "create") ? "Ajouter" : undefined} onCta={openNew} />
+      ) : tab === "SHOWROOM" ? (
+        <Card className="p-0 overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="text-left rtl:text-right bg-red-600/10 border-b border-red-600/30">
+                {["Date", "Désignation", "Description", "Montant", ""].map((h, i) => (
+                  <th key={i} className="p-3 label-caps !mb-0 !text-red-300/80 whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {expenses.map((e, i) => (
+                <tr key={e.id} className={`border-b border-red-600/10 hover:bg-red-600/5 ${i % 2 ? "bg-white/[0.015]" : ""}`}>
+                  <td className="p-3 text-text-muted whitespace-nowrap">{formatDate(e.date)}</td>
+                  <td className="p-3 text-text-primary font-semibold">{e.name}</td>
+                  <td className="p-3 text-text-muted">{e.description || "—"}</td>
+                  <td className="p-3 text-amber-400 font-black whitespace-nowrap">{formatAmount(e.amount)}</td>
+                  <td className="p-3">
+                    <div className="flex gap-2 justify-end">
+                      {can("expenses", "edit") && <button className="text-text-muted hover:text-text-primary" onClick={() => openEdit(e)}><Pencil size={15} /></button>}
+                      {can("expenses", "delete") && <button className="text-text-muted hover:text-rose-400" onClick={() => setDeleteId(e.id)}><Trash2 size={15} /></button>}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="bg-red-600/10 border-t border-red-600/30">
+                <td className="p-3 heading text-xs text-text-primary" colSpan={3}>Total ({expenses.length})</td>
+                <td className="p-3 font-black text-red-400 whitespace-nowrap" colSpan={2}>{formatAmount(total)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </Card>
       ) : (
         <AnimatedGrid className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {expenses.map((e) => (
