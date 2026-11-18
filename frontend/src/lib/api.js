@@ -949,7 +949,40 @@ function localRecord(row, extra = {}) {
   return { ...toCamel(row), ...extra };
 }
 
+// Serial numbering, organized per year: PRO-2026-0001, PRO-2026-0002, …
+// The counter restarts at 0001 every January and always follows the highest
+// number already used that year (deleting the last one frees its number).
+const PROFORMA_REF_RE = /^PRO-(\d{4})-(\d+)$/;
+export function formatProformaRef(year, seq) {
+  return `PRO-${year}-${String(seq).padStart(4, "0")}`;
+}
+function nextSeq(references, year) {
+  return references.reduce((max, ref) => {
+    const m = PROFORMA_REF_RE.exec(String(ref || ""));
+    return m && Number(m[1]) === year ? Math.max(max, Number(m[2])) : max;
+  }, 0) + 1;
+}
+const yearOf = (date) => {
+  const d = date ? new Date(date) : new Date();
+  return isNaN(d) ? new Date().getFullYear() : d.getFullYear();
+};
+async function dbProformaRefs(year) {
+  const { data, error } = await supabase.from("proformas").select("reference").like("reference", `PRO-${year}-%`);
+  if (error) throw error;
+  return (data || []).map((r) => r.reference);
+}
+
 export const proformasApi = {
+  // Number the next proforma of the year will get (shown before saving).
+  async nextReference(date) {
+    const year = yearOf(date);
+    try {
+      return formatProformaRef(year, nextSeq(await dbProformaRefs(year), year));
+    } catch (error) {
+      if (!isMissingTable(error)) throw error;
+      return formatProformaRef(year, nextSeq(lsProformas().map((p) => p.reference), year));
+    }
+  },
   async list() {
     const { data, error } = await supabase.from("proformas").select(PROFORMA_FULL).order("date", { ascending: false });
     if (error) {
@@ -965,16 +998,30 @@ export const proformasApi = {
   async create(payload) {
     const clientId = await ensureProformaClient(payload);
     const row = proformaWrite(payload, clientId);
-    const { data, error } = await supabase.from("proformas").insert(row).select(PROFORMA_FULL).single();
-    if (error) {
-      if (!isMissingTable(error)) throw error;
-      const list = lsProformas();
-      const id = list.reduce((m, p) => Math.max(m, Number(p.id) || 0), 0) + 1;
-      const rec = localRecord(row, { id, reference: `PRO-${String(id).padStart(4, "0")}`, createdAt: new Date().toISOString() });
-      lsSaveProformas([...list, rec]);
-      return shapeProforma(rec, { local: true });
+    const year = yearOf(row.date);
+    // Two users saving at the same moment could pick the same number: the
+    // reference is UNIQUE, so on a clash take the next number and try again.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      let refs;
+      try {
+        refs = await dbProformaRefs(year);
+      } catch (e) {
+        if (isMissingTable(e)) break; // table not created yet → local storage below
+        throw e;
+      }
+      const reference = formatProformaRef(year, nextSeq(refs, year));
+      const { data, error } = await supabase.from("proformas").insert({ ...row, reference }).select(PROFORMA_FULL).single();
+      if (!error) return shapeProforma(data);
+      if (error.code === "23505") continue;
+      if (isMissingTable(error)) break;
+      throw error;
     }
-    return shapeProforma(data);
+    const list = lsProformas();
+    const id = list.reduce((m, p) => Math.max(m, Number(p.id) || 0), 0) + 1;
+    const reference = formatProformaRef(year, nextSeq(list.map((p) => p.reference), year));
+    const rec = localRecord(row, { id, reference, createdAt: new Date().toISOString() });
+    lsSaveProformas([...list, rec]);
+    return shapeProforma(rec, { local: true });
   },
   async update(id, payload, { local = false } = {}) {
     const clientId = await ensureProformaClient(payload);

@@ -119,6 +119,19 @@ export default function SaleWizard({ car, mode = "sale", proforma = null, onClos
   const [firstVersementDate, setFirstVersementDate] = useState(toDateTimeLocal());
   const [saving, setSaving] = useState(false);
 
+  // Number the new proforma will receive (serial per year), shown in the
+  // header and the preview. An edited proforma keeps its own number.
+  const [nextRef, setNextRef] = useState(null);
+  const refYear = new Date(date || Date.now()).getFullYear();
+  useEffect(() => {
+    if (!isProforma || editing) return;
+    let alive = true;
+    proformasApi.nextReference(date).then((r) => { if (alive) setNextRef(r); }).catch(() => {});
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isProforma, editing, refYear]);
+  const proformaRef = editing ? proforma.reference : nextRef;
+
   const pricing = { basePrice, tvaEnabled, tvaRate, reductionType, reductionValue, stampEnabled, stampRate, showroomShare: isClientCar ? showroomShare : 0 };
   const tot = invoiceTotals(pricing);
   const total = tot.total;
@@ -212,7 +225,12 @@ export default function SaleWizard({ car, mode = "sale", proforma = null, onClos
             </div>
             <div className="min-w-0">
               <h2 className="heading text-xl text-text-primary truncate">{title}</h2>
-              {isProforma && <p className="text-xs text-amber-400">{t("proforma.notSoldHint")}</p>}
+              {isProforma && (
+                <p className="text-xs text-amber-400">
+                  {proformaRef && <span className="font-mono font-bold text-amber-300 mr-2 rtl:mr-0 rtl:ml-2">N° {proformaRef}</span>}
+                  {t("proforma.notSoldHint")}
+                </p>
+              )}
             </div>
           </div>
           <button onClick={onClose} className="text-text-muted hover:text-text-primary"><X size={22} /></button>
@@ -381,7 +399,7 @@ export default function SaleWizard({ car, mode = "sale", proforma = null, onClos
                   <span className="heading text-xs text-text-primary">{t("proforma.preview")}</span>
                 </div>
                 <DocPreview>
-                  <FactureDocument sale={previewSale} showroom={settings} lang="fr" proforma invoiceNumber={proforma?.reference || "PRO-…"} />
+                  <FactureDocument sale={previewSale} showroom={settings} lang="fr" proforma invoiceNumber={proformaRef || "PRO-…"} />
                 </DocPreview>
               </div>
             )}

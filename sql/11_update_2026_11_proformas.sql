@@ -21,7 +21,7 @@ BEGIN;
 
 CREATE TABLE IF NOT EXISTS public.proformas (
   id                    SERIAL PRIMARY KEY,
-  reference             TEXT UNIQUE,                 -- PRO-0001
+  reference             TEXT UNIQUE,                 -- PRO-2026-0001 (série par année)
   car_id                INT REFERENCES public.cars(id) ON DELETE SET NULL,
   client_id             INT REFERENCES public.clients(id) ON DELETE SET NULL,
   car_snapshot          JSONB DEFAULT '{}'::jsonb,
@@ -44,11 +44,20 @@ CREATE TABLE IF NOT EXISTS public.proformas (
 CREATE INDEX IF NOT EXISTS idx_proformas_date   ON public.proformas(date);
 CREATE INDEX IF NOT EXISTS idx_proformas_car_id ON public.proformas(car_id);
 
+-- Numérotation en série par année : PRO-2026-0001, PRO-2026-0002, …
+-- (l'application envoie déjà le numéro ; ce trigger le donne si absent).
 CREATE OR REPLACE FUNCTION public.set_proforma_reference()
-RETURNS TRIGGER LANGUAGE plpgsql AS $fn$
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $fn$
+DECLARE
+  y   INT := EXTRACT(YEAR FROM COALESCE(NEW.date, NOW()))::int;
+  seq INT;
 BEGIN
   IF NEW.reference IS NULL THEN
-    NEW.reference := 'PRO-' || LPAD(NEW.id::text, 4, '0');
+    PERFORM pg_advisory_xact_lock(hashtext('proforma_ref_' || y));
+    SELECT COALESCE(MAX(split_part(reference, '-', 3)::int), 0) + 1 INTO seq
+      FROM public.proformas
+     WHERE reference ~ ('^PRO-' || y || '-[0-9]+$');
+    NEW.reference := 'PRO-' || y || '-' || LPAD(seq::text, 4, '0');
   END IF;
   RETURN NEW;
 END;
